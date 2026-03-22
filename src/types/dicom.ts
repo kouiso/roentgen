@@ -31,8 +31,8 @@ export type DicomFileInfo = {
 	overlayData: OverlayPlaneData[];
 	// DICOMタグ全体（オーバーレイ表示用）
 	tags: Record<string, string>;
-	// 元のDICOMファイルデータ（cornerstoneのimageLoader用）
-	rawData: ArrayBuffer;
+	// サムネイル用プリレンダリング済みRGBAデータ（100x80）
+	thumbnailData: Uint8ClampedArray | null;
 };
 
 // Modality LUT データ

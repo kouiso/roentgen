@@ -1,6 +1,6 @@
 // DICOMファイル読込フック（renkeibox useDicomLoader.ts 参考）
 // ローカルファイル専用に簡略化（サーバー依存コード不要）
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { DicomFileInfo, DicomLoadState } from "@/types/dicom";
 import { buildDicomFileInfo } from "@/utils/dicom-parser";
 
@@ -17,11 +17,29 @@ const getDicomParser = async (): Promise<DicomParser> => {
 	return dicomParserModule;
 };
 
+// rawDataの登録コールバック型
+type ImageDataRegistrar = (filePath: string, data: ArrayBuffer) => void;
+
 export const useDicomLoader = () => {
 	const [loadState, setLoadState] = useState<DicomLoadState>({
 		status: "idle",
 	});
 	const [dicomFiles, setDicomFiles] = useState<DicomFileInfo[]>([]);
+
+	// cornerstoneのimageDataMap登録関数への参照
+	// DicomFileInfoにrawDataを保持せず、ロード時にcornerstone側に直接登録する
+	const registrarRef = useRef<ImageDataRegistrar | null>(null);
+	// registrar未接続時のバッファ（dev自動読込時に発生）
+	const pendingDataRef = useRef<Map<string, ArrayBuffer>>(new Map());
+
+	const setImageDataRegistrar = useCallback((fn: ImageDataRegistrar) => {
+		registrarRef.current = fn;
+		// バッファ内のデータをフラッシュ
+		for (const [path, data] of pendingDataRef.current) {
+			fn(path, data);
+		}
+		pendingDataRef.current.clear();
+	}, []);
 
 	const loadFiles = useCallback(
 		async (fileDataList: { path: string; data: ArrayBuffer }[]) => {
@@ -31,7 +49,10 @@ export const useDicomLoader = () => {
 			try {
 				parser = await getDicomParser();
 			} catch (err) {
-				setLoadState({ status: "error", message: `dicom-parser読込失敗: ${err}` });
+				setLoadState({
+					status: "error",
+					message: `dicom-parser読込失敗: ${err}`,
+				});
 				return;
 			}
 
@@ -44,8 +65,7 @@ export const useDicomLoader = () => {
 				try {
 					const byteArray = new Uint8Array(fileData.data);
 					const dataSet = parser.parseDicom(byteArray);
-					const fileName =
-						fileData.path.split("/").pop() ?? fileData.path;
+					const fileName = fileData.path.split("/").pop() ?? fileData.path;
 					const imageId = `roentgen:${fileData.path}`;
 
 					const fileInfo = buildDicomFileInfo(
@@ -55,6 +75,15 @@ export const useDicomLoader = () => {
 						fileName,
 						fileData.data,
 					);
+
+					// rawDataをcornerstoneのimageDataMapに直接登録
+					// DicomFileInfoにはrawDataを保持しない（メモリ節約）
+					if (registrarRef.current) {
+						registrarRef.current(fileData.path, fileData.data);
+					} else {
+						// registrar未接続時はバッファに保持
+						pendingDataRef.current.set(fileData.path, fileData.data);
+					}
 
 					loaded.push(fileInfo);
 				} catch (error) {
@@ -94,6 +123,7 @@ export const useDicomLoader = () => {
 	const clearFiles = useCallback(() => {
 		setDicomFiles([]);
 		setLoadState({ status: "idle" });
+		pendingDataRef.current.clear();
 	}, []);
 
 	// 指定インデックスのファイルを除去（選択クリア用）
@@ -113,5 +143,6 @@ export const useDicomLoader = () => {
 		loadFiles,
 		clearFiles,
 		removeFile,
+		setImageDataRegistrar,
 	};
 };

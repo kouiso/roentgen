@@ -129,7 +129,10 @@ export const useCornerstone = () => {
 				}
 				wadoRef.current = wado;
 			} catch (err) {
-				console.error("[useCornerstone] cornerstone-wado-image-loader import失敗:", err);
+				console.error(
+					"[useCornerstone] cornerstone-wado-image-loader import失敗:",
+					err,
+				);
 				return;
 			}
 
@@ -159,7 +162,8 @@ export const useCornerstone = () => {
 						const bitsStored = dataSet.uint16("x00280101") ?? bitsAllocated;
 						const pixelRepresentation = dataSet.uint16("x00280103") ?? 0;
 						const samplesPerPixel = dataSet.uint16("x00280002") ?? 1;
-						const photometricInterpretation = dataSet.string("x00280004") ?? "MONOCHROME2";
+						const photometricInterpretation =
+							dataSet.string("x00280004") ?? "MONOCHROME2";
 
 						const pixelDataElement = dataSet.elements.x7fe00010;
 						if (!pixelDataElement) {
@@ -200,10 +204,16 @@ export const useCornerstone = () => {
 						}
 
 						// DICOMタグからWW/WCを取得
-						const windowCenter = Number.parseFloat(dataSet.string("x00281050") ?? "") || (maxVal + minVal) / 2;
-						const windowWidth = Number.parseFloat(dataSet.string("x00281051") ?? "") || (maxVal - minVal);
+						const windowCenter =
+							Number.parseFloat(dataSet.string("x00281050") ?? "") ||
+							(maxVal + minVal) / 2;
+						const windowWidth =
+							Number.parseFloat(dataSet.string("x00281051") ?? "") ||
+							maxVal - minVal;
 						const slope = Number.parseFloat(dataSet.string("x00281053") ?? "1");
-						const intercept = Number.parseFloat(dataSet.string("x00281052") ?? "0");
+						const intercept = Number.parseFloat(
+							dataSet.string("x00281052") ?? "0",
+						);
 						const isColor = samplesPerPixel > 1;
 						const invert = photometricInterpretation === "MONOCHROME1";
 
@@ -224,7 +234,8 @@ export const useCornerstone = () => {
 						};
 
 						// cornerstoneが必要とする追加プロパティ
-						const extended = image as CornerstoneImage & Record<string, unknown>;
+						const extended = image as CornerstoneImage &
+							Record<string, unknown>;
 						extended.color = isColor;
 						extended.columnPixelSpacing = Number.parseFloat(
 							(dataSet.string("x00280030") ?? "").split("\\")[1] ?? "1",
@@ -259,63 +270,66 @@ export const useCornerstone = () => {
 	);
 
 	// 画像読み込み・表示
-	const loadAndDisplayImage = useCallback(
-		async (fileInfo: DicomFileInfo) => {
-			const cs = cornerstoneRef.current;
-			if (!cs) return;
+	const loadAndDisplayImage = useCallback(async (fileInfo: DicomFileInfo) => {
+		const cs = cornerstoneRef.current;
+		if (!cs) return;
 
-			try {
-				const image = await cs.loadImage(fileInfo.imageId);
-				setCurrentImage(image);
-				overlayDataRef.current = fileInfo.overlayData;
+		try {
+			const image = await cs.loadImage(fileInfo.imageId);
+			setCurrentImage(image);
+			overlayDataRef.current = fileInfo.overlayData;
 
-				// 初期WW/WC設定
-				// DICOMタグにWW/WCがある場合はそれを使用、なければパーセンタイルで自動計算
-				let ww = fileInfo.windowWidth || image.windowWidth;
-				let wc = fileInfo.windowCenter || image.windowCenter;
+			// 初期WW/WC設定
+			// DICOMタグにWW/WCがある場合はそれを使用、なければパーセンタイルで自動計算
+			let ww = fileInfo.windowWidth || image.windowWidth;
+			let wc = fileInfo.windowCenter || image.windowCenter;
 
-				// WW/WCタグが無く、全ピクセルレンジがフォールバックされた場合
-				// 2-98パーセンタイルで再計算してコントラストを改善
-				const fullRange = image.maxPixelValue - image.minPixelValue;
-				if (ww >= fullRange * 0.9) {
-					const pixels = image.getPixelData();
-					// ヒストグラムベースのパーセンタイル計算（5M+ピクセルでもArray.sortより高速）
-					const histSize = 4096;
-					const hist = new Uint32Array(histSize);
-					const scale = (histSize - 1) / (fullRange || 1);
-					for (let i = 0; i < pixels.length; i++) {
-						const bin = Math.min(histSize - 1, Math.max(0, Math.round(((pixels[i] ?? 0) - image.minPixelValue) * scale)));
-						hist[bin] = (hist[bin] ?? 0) + 1;
-					}
-					const total = pixels.length;
-					let cumulative = 0;
-					let p02 = image.minPixelValue;
-					let p98 = image.maxPixelValue;
-					for (let i = 0; i < histSize; i++) {
-						cumulative += hist[i] ?? 0;
-						if (cumulative >= total * 0.02 && p02 === image.minPixelValue) {
-							p02 = image.minPixelValue + i / scale;
-						}
-						if (cumulative >= total * 0.98) {
-							p98 = image.minPixelValue + i / scale;
-							break;
-						}
-					}
-					ww = Math.max(1, p98 - p02);
-					wc = (p02 + p98) / 2;
+			// WW/WCタグが無く、全ピクセルレンジがフォールバックされた場合
+			// 2-98パーセンタイルで再計算してコントラストを改善
+			const fullRange = image.maxPixelValue - image.minPixelValue;
+			if (ww >= fullRange * 0.9) {
+				const pixels = image.getPixelData();
+				// ヒストグラムベースのパーセンタイル計算（5M+ピクセルでもArray.sortより高速）
+				const histSize = 4096;
+				const hist = new Uint32Array(histSize);
+				const scale = (histSize - 1) / (fullRange || 1);
+				for (let i = 0; i < pixels.length; i++) {
+					const bin = Math.min(
+						histSize - 1,
+						Math.max(
+							0,
+							Math.round(((pixels[i] ?? 0) - image.minPixelValue) * scale),
+						),
+					);
+					hist[bin] = (hist[bin] ?? 0) + 1;
 				}
-
-				setWorldInfo((prev) => ({
-					...prev,
-					windowWidth: ww,
-					windowCenter: wc,
-				}));
-			} catch (err) {
-				console.error("[useCornerstone] loadImage失敗:", err);
+				const total = pixels.length;
+				let cumulative = 0;
+				let p02 = image.minPixelValue;
+				let p98 = image.maxPixelValue;
+				for (let i = 0; i < histSize; i++) {
+					cumulative += hist[i] ?? 0;
+					if (cumulative >= total * 0.02 && p02 === image.minPixelValue) {
+						p02 = image.minPixelValue + i / scale;
+					}
+					if (cumulative >= total * 0.98) {
+						p98 = image.minPixelValue + i / scale;
+						break;
+					}
+				}
+				ww = Math.max(1, p98 - p02);
+				wc = (p02 + p98) / 2;
 			}
-		},
-		[],
-	);
+
+			setWorldInfo((prev) => ({
+				...prev,
+				windowWidth: ww,
+				windowCenter: wc,
+			}));
+		} catch (err) {
+			console.error("[useCornerstone] loadImage失敗:", err);
+		}
+	}, []);
 
 	// OSD tileDrawingブリッジ設定
 	// renkeiboxのuseRender.ts tileDrawing関数に相当
@@ -402,18 +416,15 @@ export const useCornerstone = () => {
 
 	// 画像プリロード — cornerstoneのキャッシュに事前ロード（表示はしない）
 	// スタックスクロール時のスムーズな切替を実現
-	const preloadImage = useCallback(
-		async (fileInfo: DicomFileInfo) => {
-			const cs = cornerstoneRef.current;
-			if (!cs) return;
-			try {
-				await cs.loadImage(fileInfo.imageId);
-			} catch {
-				// プリロード失敗は無視（表示時に再取得される）
-			}
-		},
-		[],
-	);
+	const preloadImage = useCallback(async (fileInfo: DicomFileInfo) => {
+		const cs = cornerstoneRef.current;
+		if (!cs) return;
+		try {
+			await cs.loadImage(fileInfo.imageId);
+		} catch {
+			// プリロード失敗は無視（表示時に再取得される）
+		}
+	}, []);
 
 	return {
 		cornerstoneReady,

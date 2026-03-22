@@ -3,7 +3,11 @@
 import type { ImageDirectionInfo } from "@/types/overlay";
 
 // direction cosine値から方向文字を取得
-const getDirectionChar = (cosine: number, positive: string, negative: string): string => {
+const getDirectionChar = (
+	cosine: number,
+	positive: string,
+	negative: string,
+): string => {
 	const threshold = 0.0001;
 	if (Math.abs(cosine) < threshold) return "";
 	return cosine > 0 ? positive : negative;
@@ -37,8 +41,12 @@ export const calculateImageDirection = (
 		imageOrientationPatient;
 
 	if (
-		rowCosX === undefined || rowCosY === undefined || rowCosZ === undefined ||
-		colCosX === undefined || colCosY === undefined || colCosZ === undefined
+		rowCosX === undefined ||
+		rowCosY === undefined ||
+		rowCosZ === undefined ||
+		colCosX === undefined ||
+		colCosY === undefined ||
+		colCosZ === undefined
 	) {
 		return null;
 	}

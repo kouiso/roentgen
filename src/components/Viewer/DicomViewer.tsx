@@ -2,15 +2,15 @@
 // ControlPanel + StackView + Overlay + Direction + Slider + Thumbnail を統合
 // OSD初期化 → cornerstoneブリッジ接続 → DICOM画像表示の流れを管理
 import { useCallback, useEffect, useState } from "react";
+import { useCornerstone } from "@/hooks/useCornerstone";
+import { useImageOverlay } from "@/hooks/useImageOverlay";
+import { useMouseInteraction } from "@/hooks/useMouseInteraction";
+import { useOpenSeaDragon } from "@/hooks/useOpenSeaDragon";
+import { useViewerControls } from "@/hooks/useViewerControls";
+import { useViewerSlider } from "@/hooks/useViewerSlider";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
-import { useCornerstone } from "@/hooks/useCornerstone";
-import { useImageOverlay } from "@/hooks/useImageOverlay";
-import { useOpenSeaDragon } from "@/hooks/useOpenSeaDragon";
-import { useViewerControls } from "@/hooks/useViewerControls";
-import { useMouseInteraction } from "@/hooks/useMouseInteraction";
-import { useViewerSlider } from "@/hooks/useViewerSlider";
 import { calculateImageDirection } from "@/utils/image-direction";
 import { ControlPanel } from "./ControlPanel";
 import { ImageDirection } from "./ImageDirection";
@@ -25,9 +25,17 @@ type DicomViewerProps = {
 	files: DicomFileInfo[];
 	onClearAll: () => void;
 	onRemoveFile: (index: number) => void;
+	setImageDataRegistrar: (
+		fn: (path: string, data: ArrayBuffer) => void,
+	) => void;
 };
 
-export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProps) => {
+export const DicomViewer = ({
+	files,
+	onClearAll,
+	onRemoveFile,
+	setImageDataRegistrar,
+}: DicomViewerProps) => {
 	const [activeMode, setActiveMode] = useState<ViewerControlType>(
 		VIEWER_CONTROL_TYPE.WW_WC,
 	);
@@ -47,13 +55,8 @@ export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProp
 		preloadImage,
 	} = useCornerstone();
 
-	const {
-		sliderState,
-		setFrame,
-		setMaxFrame,
-		nextFrame,
-		prevFrame,
-	} = useViewerSlider();
+	const { sliderState, setFrame, setMaxFrame, nextFrame, prevFrame } =
+		useViewerSlider();
 
 	const currentFile = files[sliderState.currentFrame] ?? null;
 
@@ -99,15 +102,11 @@ export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProp
 		enabled: isOsdReady,
 	});
 
-	// ファイルの画像データをcornerstoneのimageLoaderに登録
+	// cornerstoneのimageDataMap登録関数をloaderに接続
+	// ロード時にrawDataが直接cornerstoneに登録される
 	useEffect(() => {
-		for (const file of files) {
-			registerImageData(
-				file.imageId.replace("roentgen:", ""),
-				file.rawData,
-			);
-		}
-	}, [files, registerImageData]);
+		setImageDataRegistrar(registerImageData);
+	}, [setImageDataRegistrar, registerImageData]);
 
 	// スライダー最大値設定
 	useEffect(() => {
@@ -138,7 +137,13 @@ export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProp
 			if (nextFile) preloadImage(nextFile);
 			if (prevFile) preloadImage(prevFile);
 		}
-	}, [sliderState.currentFrame, files, cornerstoneReady, isOsdReady, preloadImage]);
+	}, [
+		sliderState.currentFrame,
+		files,
+		cornerstoneReady,
+		isOsdReady,
+		preloadImage,
+	]);
 
 	// タイル読込完了 + cornerstone画像準備完了 → OSD再描画トリガー
 	useEffect(() => {
@@ -199,10 +204,7 @@ export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProp
 							containerId="osd-viewer"
 							onViewerReady={handleViewerReady}
 						/>
-						<ImageOverlay
-							overlayInfo={overlayInfo}
-							visible={showOverlay}
-						/>
+						<ImageOverlay overlayInfo={overlayInfo} visible={showOverlay} />
 						<ImageDirection
 							directionInfo={directionInfo}
 							visible={showDirection}

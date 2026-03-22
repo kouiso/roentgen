@@ -1,5 +1,10 @@
 // DICOMタグパースユーティリティ（renkeibox Parser.ts 参考）
-import type { DicomFileInfo, ModalityLutData, OverlayPlaneData, VoiLutData } from "@/types/dicom";
+import type {
+	DicomFileInfo,
+	ModalityLutData,
+	OverlayPlaneData,
+	VoiLutData,
+} from "@/types/dicom";
 
 // dicom-parserの型（ライブラリに型定義がないため）
 type DicomDataSet = {
@@ -27,10 +32,7 @@ type DicomItem = {
 };
 
 // DICOMタグから文字列を取得（日本語デコード対応）
-export const getStringTag = (
-	dataSet: DicomDataSet,
-	tag: string,
-): string => {
+export const getStringTag = (dataSet: DicomDataSet, tag: string): string => {
 	return dataSet.string(tag)?.trim() ?? "";
 };
 
@@ -73,9 +75,7 @@ export const parseImageOrientation = (
 };
 
 // Image Position Patient (0020,0032) のパース
-export const parseImagePosition = (
-	dataSet: DicomDataSet,
-): number[] | null => {
+export const parseImagePosition = (dataSet: DicomDataSet): number[] | null => {
 	const value = dataSet.string("x00200032");
 	if (!value) return null;
 	const parts = value.split("\\").map(Number);
@@ -117,9 +117,7 @@ export const parseModalityLut = (
 };
 
 // VOI LUT Sequence (0028,3010) のパース
-export const parseVoiLut = (
-	dataSet: DicomDataSet,
-): VoiLutData | null => {
+export const parseVoiLut = (dataSet: DicomDataSet): VoiLutData | null => {
 	const element = dataSet.elements.x00283010;
 	if (!element?.items?.[0]) return null;
 
@@ -188,89 +186,89 @@ export const extractDicomTags = (
 	// 主要タグの一覧（renkeibox ImageOverlay.ts の70+タグ対応）
 	const tagMap: Record<string, string> = {
 		// 患者情報
-		"x00100010": "PatientName",
-		"x00100020": "PatientID",
-		"x00100030": "PatientBirthDate",
-		"x00100040": "PatientSex",
-		"x00101010": "PatientAge",
-		"x00101020": "PatientSize",
-		"x00101030": "PatientWeight",
+		x00100010: "PatientName",
+		x00100020: "PatientID",
+		x00100030: "PatientBirthDate",
+		x00100040: "PatientSex",
+		x00101010: "PatientAge",
+		x00101020: "PatientSize",
+		x00101030: "PatientWeight",
 		// 検査情報
-		"x00080020": "StudyDate",
-		"x00080030": "StudyTime",
-		"x00080050": "AccessionNumber",
-		"x00080060": "Modality",
-		"x00080070": "Manufacturer",
-		"x00080080": "InstitutionName",
-		"x00080090": "ReferringPhysicianName",
-		"x00081010": "StationName",
-		"x00081030": "StudyDescription",
-		"x0008103e": "SeriesDescription",
-		"x00081070": "OperatorsName",
-		"x00081090": "ManufacturerModelName",
+		x00080020: "StudyDate",
+		x00080030: "StudyTime",
+		x00080050: "AccessionNumber",
+		x00080060: "Modality",
+		x00080070: "Manufacturer",
+		x00080080: "InstitutionName",
+		x00080090: "ReferringPhysicianName",
+		x00081010: "StationName",
+		x00081030: "StudyDescription",
+		x0008103e: "SeriesDescription",
+		x00081070: "OperatorsName",
+		x00081090: "ManufacturerModelName",
 		// 画像情報
-		"x00080008": "ImageType",
-		"x00200011": "SeriesNumber",
-		"x00200012": "AcquisitionNumber",
-		"x00200013": "InstanceNumber",
-		"x00200020": "PatientOrientation",
-		"x00200032": "ImagePositionPatient",
-		"x00200037": "ImageOrientationPatient",
-		"x00201041": "SliceLocation",
+		x00080008: "ImageType",
+		x00200011: "SeriesNumber",
+		x00200012: "AcquisitionNumber",
+		x00200013: "InstanceNumber",
+		x00200020: "PatientOrientation",
+		x00200032: "ImagePositionPatient",
+		x00200037: "ImageOrientationPatient",
+		x00201041: "SliceLocation",
 		// 画像パラメータ
-		"x00280002": "SamplesPerPixel",
-		"x00280004": "PhotometricInterpretation",
-		"x00280010": "Rows",
-		"x00280011": "Columns",
-		"x00280030": "PixelSpacing",
-		"x00280100": "BitsAllocated",
-		"x00280101": "BitsStored",
-		"x00280102": "HighBit",
-		"x00280103": "PixelRepresentation",
-		"x00281050": "WindowCenter",
-		"x00281051": "WindowWidth",
-		"x00281052": "RescaleIntercept",
-		"x00281053": "RescaleSlope",
-		"x00281054": "RescaleType",
+		x00280002: "SamplesPerPixel",
+		x00280004: "PhotometricInterpretation",
+		x00280010: "Rows",
+		x00280011: "Columns",
+		x00280030: "PixelSpacing",
+		x00280100: "BitsAllocated",
+		x00280101: "BitsStored",
+		x00280102: "HighBit",
+		x00280103: "PixelRepresentation",
+		x00281050: "WindowCenter",
+		x00281051: "WindowWidth",
+		x00281052: "RescaleIntercept",
+		x00281053: "RescaleSlope",
+		x00281054: "RescaleType",
 		// X線固有
-		"x00180060": "KVP",
-		"x00181151": "XRayTubeCurrent",
-		"x00181152": "Exposure",
-		"x00181153": "ExposureInuAs",
-		"x00181160": "FilterType",
-		"x00181190": "FocalSpots",
-		"x00181164": "ImagerPixelSpacing",
-		"x00181110": "DistanceSourceToDetector",
-		"x00181111": "DistanceSourceToPatient",
-		"x00181030": "ProtocolName",
-		"x00180015": "BodyPartExamined",
-		"x00180050": "SliceThickness",
-		"x00180088": "SpacingBetweenSlices",
+		x00180060: "KVP",
+		x00181151: "XRayTubeCurrent",
+		x00181152: "Exposure",
+		x00181153: "ExposureInuAs",
+		x00181160: "FilterType",
+		x00181190: "FocalSpots",
+		x00181164: "ImagerPixelSpacing",
+		x00181110: "DistanceSourceToDetector",
+		x00181111: "DistanceSourceToPatient",
+		x00181030: "ProtocolName",
+		x00180015: "BodyPartExamined",
+		x00180050: "SliceThickness",
+		x00180088: "SpacingBetweenSlices",
 		// CT固有
-		"x00180022": "ScanOptions",
-		"x00180090": "DataCollectionDiameter",
-		"x00181120": "GantryDetectorTilt",
-		"x00181130": "TableHeight",
-		"x00181140": "RotationDirection",
-		"x00181150": "ExposureTime",
-		"x00181210": "ConvolutionKernel",
+		x00180022: "ScanOptions",
+		x00180090: "DataCollectionDiameter",
+		x00181120: "GantryDetectorTilt",
+		x00181130: "TableHeight",
+		x00181140: "RotationDirection",
+		x00181150: "ExposureTime",
+		x00181210: "ConvolutionKernel",
 		// MRI固有
-		"x00180020": "ScanningSequence",
-		"x00180021": "SequenceVariant",
-		"x00180023": "MRAcquisitionType",
-		"x00180024": "SequenceName",
-		"x00180025": "AngioFlag",
-		"x00180080": "RepetitionTime",
-		"x00180081": "EchoTime",
-		"x00180082": "InversionTime",
-		"x00180083": "NumberOfAverages",
-		"x00180084": "ImagingFrequency",
-		"x00180085": "ImagedNucleus",
-		"x00180086": "EchoNumbers",
-		"x00180087": "MagneticFieldStrength",
-		"x00180091": "EchoTrainLength",
-		"x00181312": "InPlanePhaseEncodingDirection",
-		"x00181314": "FlipAngle",
+		x00180020: "ScanningSequence",
+		x00180021: "SequenceVariant",
+		x00180023: "MRAcquisitionType",
+		x00180024: "SequenceName",
+		x00180025: "AngioFlag",
+		x00180080: "RepetitionTime",
+		x00180081: "EchoTime",
+		x00180082: "InversionTime",
+		x00180083: "NumberOfAverages",
+		x00180084: "ImagingFrequency",
+		x00180085: "ImagedNucleus",
+		x00180086: "EchoNumbers",
+		x00180087: "MagneticFieldStrength",
+		x00180091: "EchoTrainLength",
+		x00181312: "InPlanePhaseEncodingDirection",
+		x00181314: "FlipAngle",
 	};
 
 	for (const [tag, name] of Object.entries(tagMap)) {
@@ -281,6 +279,95 @@ export const extractDicomTags = (
 	}
 
 	return tags;
+};
+
+// サムネイル用RGBAデータを生成（100x80にダウンサンプリング）
+const THUMB_W = 100;
+const THUMB_H = 80;
+
+const generateThumbnail = (
+	dataSet: DicomDataSet,
+	arrayBuffer: ArrayBuffer,
+): Uint8ClampedArray | null => {
+	const rows = dataSet.uint16("x00280010") ?? 0;
+	const columns = dataSet.uint16("x00280011") ?? 0;
+	const bitsAllocated = dataSet.uint16("x00280100") ?? 16;
+	const pixelRepresentation = dataSet.uint16("x00280103") ?? 0;
+	const pixelDataElement = dataSet.elements.x7fe00010;
+
+	if (!pixelDataElement || rows === 0 || columns === 0) return null;
+
+	let pixelData: Int16Array | Uint16Array | Uint8Array;
+	if (bitsAllocated === 16) {
+		if (pixelRepresentation === 1) {
+			pixelData = new Int16Array(
+				arrayBuffer,
+				pixelDataElement.dataOffset,
+				pixelDataElement.length / 2,
+			);
+		} else {
+			pixelData = new Uint16Array(
+				arrayBuffer,
+				pixelDataElement.dataOffset,
+				pixelDataElement.length / 2,
+			);
+		}
+	} else {
+		pixelData = new Uint8Array(
+			arrayBuffer,
+			pixelDataElement.dataOffset,
+			pixelDataElement.length,
+		);
+	}
+
+	const wcStr = dataSet.string("x00281050") ?? "";
+	const wwStr = dataSet.string("x00281051") ?? "";
+	let wc = Number.parseFloat(wcStr);
+	let ww = Number.parseFloat(wwStr);
+
+	// WW/WCタグがない場合はピクセル範囲から算出
+	if (!Number.isFinite(wc) || !Number.isFinite(ww) || ww <= 0) {
+		let minVal = Number.MAX_SAFE_INTEGER;
+		let maxVal = Number.MIN_SAFE_INTEGER;
+		for (let i = 0; i < pixelData.length; i++) {
+			const v = pixelData[i] ?? 0;
+			if (v < minVal) minVal = v;
+			if (v > maxVal) maxVal = v;
+		}
+		wc = (maxVal + minVal) / 2;
+		ww = Math.max(1, maxVal - minVal);
+	}
+
+	const lower = wc - ww / 2;
+	const upper = wc + ww / 2;
+	const rgba = new Uint8ClampedArray(THUMB_W * THUMB_H * 4);
+	const scaleX = columns / THUMB_W;
+	const scaleY = rows / THUMB_H;
+
+	for (let ty = 0; ty < THUMB_H; ty++) {
+		for (let tx = 0; tx < THUMB_W; tx++) {
+			const sx = Math.floor(tx * scaleX);
+			const sy = Math.floor(ty * scaleY);
+			const rawVal = pixelData[sy * columns + sx] ?? 0;
+
+			let gray: number;
+			if (rawVal <= lower) {
+				gray = 0;
+			} else if (rawVal >= upper) {
+				gray = 255;
+			} else {
+				gray = ((rawVal - lower) / (upper - lower)) * 255;
+			}
+
+			const idx = (ty * THUMB_W + tx) * 4;
+			rgba[idx] = gray;
+			rgba[idx + 1] = gray;
+			rgba[idx + 2] = gray;
+			rgba[idx + 3] = 255;
+		}
+	}
+
+	return rgba;
 };
 
 // DicomDataSetからDicomFileInfoを生成
@@ -294,7 +381,7 @@ export const buildDicomFileInfo = (
 	const windowCenter = getNumberTag(dataSet, "x00281050");
 	const windowWidth = getNumberTag(dataSet, "x00281051");
 
-	return {
+	const fileInfo: DicomFileInfo = {
 		imageId,
 		filePath,
 		fileName,
@@ -322,6 +409,8 @@ export const buildDicomFileInfo = (
 		voiLutSequence: parseVoiLut(dataSet),
 		overlayData: parseOverlayPlanes(dataSet),
 		tags: extractDicomTags(dataSet),
-		rawData,
+		thumbnailData: generateThumbnail(dataSet, rawData),
 	};
+
+	return fileInfo;
 };

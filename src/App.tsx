@@ -4,16 +4,35 @@ import { DicomViewer } from "./components/Viewer/DicomViewer";
 import { useDicomLoader } from "./hooks/useDicomLoader";
 
 export const App = () => {
-	const { loadState, dicomFiles, loadFiles, clearFiles, removeFile } = useDicomLoader();
+	const {
+		loadState,
+		dicomFiles,
+		loadFiles,
+		clearFiles,
+		removeFile,
+		setImageDataRegistrar,
+	} = useDicomLoader();
 
 	// dev環境でのテスト用自動読込（Electron環境のみ）
 	// dicom-files/配下の全.dcmファイルを自動で読み込む
 	useEffect(() => {
-		const api = (window as { electronAPI?: {
-			loadTestDicom?: () => Promise<{ path: string; data: ArrayBuffer }[] | null>;
-		} }).electronAPI;
-		if (import.meta.env.DEV && dicomFiles.length === 0 && loadState.status === "idle" && api?.loadTestDicom) {
-			api.loadTestDicom()
+		const api = (
+			window as {
+				electronAPI?: {
+					loadTestDicom?: () => Promise<
+						{ path: string; data: ArrayBuffer }[] | null
+					>;
+				};
+			}
+		).electronAPI;
+		if (
+			import.meta.env.DEV &&
+			dicomFiles.length === 0 &&
+			loadState.status === "idle" &&
+			api?.loadTestDicom
+		) {
+			api
+				.loadTestDicom()
 				.then((results) => {
 					if (!results || results.length === 0) return;
 					loadFiles(results);
@@ -66,7 +85,12 @@ export const App = () => {
 				{dicomFiles.length === 0 ? (
 					<FileDropZone onFilesLoaded={handleFilesLoaded} />
 				) : (
-					<DicomViewer files={dicomFiles} onClearAll={clearFiles} onRemoveFile={removeFile} />
+					<DicomViewer
+						files={dicomFiles}
+						onClearAll={clearFiles}
+						onRemoveFile={removeFile}
+						setImageDataRegistrar={setImageDataRegistrar}
+					/>
 				)}
 			</main>
 		</div>

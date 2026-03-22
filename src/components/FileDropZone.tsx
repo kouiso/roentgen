@@ -63,7 +63,10 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	}, [loadFiles]);
 
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない）
 		<div
+			role="button"
+			tabIndex={0}
 			className={`flex flex-1 cursor-pointer items-center justify-center transition-colors ${
 				isDragging
 					? "border-2 border-dashed border-blue-500 bg-blue-500/10"

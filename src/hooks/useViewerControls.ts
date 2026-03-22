@@ -9,7 +9,12 @@ type OSDViewport = {
 	zoomTo: (zoom: number) => void;
 	zoomBy: (factor: number) => void;
 	panBy: (delta: { x: number; y: number }) => void;
-	fitBounds: (rect: { x: number; y: number; width: number; height: number }) => void;
+	fitBounds: (rect: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	}) => void;
 	getHomeBounds: () => { x: number; y: number; width: number; height: number };
 };
 

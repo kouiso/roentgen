@@ -18,24 +18,27 @@ export const ImageOverlay = ({ overlayInfo, visible }: ImageOverlayProps) => {
 
 	return (
 		<>
-			{(Object.entries(overlayInfo) as [OverlayPosition, typeof overlayInfo.topLeft][]).map(
-				([position, items]) => (
-					<div
-						key={position}
-						className={`pointer-events-none absolute ${POSITION_CLASSES[position]} z-10 max-w-xs`}
-					>
-						{items.map((item) => (
-							<div
-								key={item.id}
-								className="text-xs leading-tight text-yellow-300/80"
-								style={{ textShadow: "0 0 3px rgba(0,0,0,0.8)" }}
-							>
-								{item.value}
-							</div>
-						))}
-					</div>
-				),
-			)}
+			{(
+				Object.entries(overlayInfo) as [
+					OverlayPosition,
+					typeof overlayInfo.topLeft,
+				][]
+			).map(([position, items]) => (
+				<div
+					key={position}
+					className={`pointer-events-none absolute ${POSITION_CLASSES[position]} z-10 max-w-xs`}
+				>
+					{items.map((item) => (
+						<div
+							key={item.id}
+							className="text-xs leading-tight text-yellow-300/80"
+							style={{ textShadow: "0 0 3px rgba(0,0,0,0.8)" }}
+						>
+							{item.value}
+						</div>
+					))}
+				</div>
+			))}
 		</>
 	);
 };

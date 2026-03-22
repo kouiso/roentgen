@@ -1,6 +1,11 @@
-// サムネイルパネル — DICOM画像プレビュー付き（renkeibox ViewerThumbnailPanel/View/Image 参考）
-import type { DicomFileInfo } from "@/types/dicom";
+// サムネイルパネル — プリレンダリング済みRGBAデータから描画
+// rawDataからの二重パースを排除（dicom-parser.tsで事前生成済み）
+
 import { useEffect, useRef } from "react";
+import type { DicomFileInfo } from "@/types/dicom";
+
+const THUMB_W = 100;
+const THUMB_H = 80;
 
 type ThumbnailPanelProps = {
 	files: DicomFileInfo[];
@@ -8,7 +13,6 @@ type ThumbnailPanelProps = {
 	onSelect: (index: number) => void;
 };
 
-// cornerstoneを使ってDICOM画像をサムネイルCanvasに描画
 const ThumbnailImage = ({
 	file,
 	isActive,
@@ -27,97 +31,28 @@ const ThumbnailImage = ({
 		const ctx = canvas.getContext("2d");
 		if (!ctx) return;
 
-		let cancelled = false;
-
-		// rawDataからピクセルデータを抽出してサムネイル描画
-		const renderThumbnail = async () => {
-			const arrayBuffer = file.rawData;
-			const dicomParserMod = await import("dicom-parser");
-			if (cancelled) return;
-			const dp = dicomParserMod.default ?? dicomParserMod;
-			const byteArray = new Uint8Array(arrayBuffer);
-			const dataSet = dp.parseDicom(byteArray);
-
-			const rows = dataSet.uint16("x00280010") ?? 0;
-			const columns = dataSet.uint16("x00280011") ?? 0;
-			const bitsAllocated = dataSet.uint16("x00280100") ?? 16;
-			const pixelRepresentation = dataSet.uint16("x00280103") ?? 0;
-
-			const pixelDataElement = dataSet.elements.x7fe00010;
-			if (!pixelDataElement || rows === 0 || columns === 0) return;
-
-			// ピクセルデータ取得
-			let pixelData: Int16Array | Uint16Array | Uint8Array;
-			if (bitsAllocated === 16) {
-				if (pixelRepresentation === 1) {
-					pixelData = new Int16Array(arrayBuffer, pixelDataElement.dataOffset, pixelDataElement.length / 2);
-				} else {
-					pixelData = new Uint16Array(arrayBuffer, pixelDataElement.dataOffset, pixelDataElement.length / 2);
-				}
-			} else {
-				pixelData = new Uint8Array(arrayBuffer, pixelDataElement.dataOffset, pixelDataElement.length);
-			}
-
-			// WW/WCでピクセル値をRGBに変換
-			const wc = file.windowCenter || 0;
-			const ww = file.windowWidth || 1;
-			const lower = wc - ww / 2;
-			const upper = wc + ww / 2;
-
-			// サムネイルサイズにダウンサンプリング
-			const thumbW = canvas.width;
-			const thumbH = canvas.height;
-			const imageData = ctx.createImageData(thumbW, thumbH);
-
-			const scaleX = columns / thumbW;
-			const scaleY = rows / thumbH;
-
-			for (let ty = 0; ty < thumbH; ty++) {
-				for (let tx = 0; tx < thumbW; tx++) {
-					const sx = Math.floor(tx * scaleX);
-					const sy = Math.floor(ty * scaleY);
-					const srcIdx = sy * columns + sx;
-					const rawVal = pixelData[srcIdx] ?? 0;
-
-					// WW/WCリニアマッピング
-					let gray: number;
-					if (rawVal <= lower) {
-						gray = 0;
-					} else if (rawVal >= upper) {
-						gray = 255;
-					} else {
-						gray = ((rawVal - lower) / (upper - lower)) * 255;
-					}
-
-					const dstIdx = (ty * thumbW + tx) * 4;
-					imageData.data[dstIdx] = gray;
-					imageData.data[dstIdx + 1] = gray;
-					imageData.data[dstIdx + 2] = gray;
-					imageData.data[dstIdx + 3] = 255;
-				}
-			}
-
-			if (!cancelled) {
-				ctx.putImageData(imageData, 0, 0);
-			}
-		};
-
-		renderThumbnail().catch(() => {
-			if (cancelled) return;
-			const fallbackCtx = canvasRef.current?.getContext("2d");
-			if (!fallbackCtx) return;
-			fallbackCtx.fillStyle = "#262626";
-			fallbackCtx.fillRect(0, 0, 100, 80);
-			fallbackCtx.fillStyle = "#737373";
-			fallbackCtx.font = "12px sans-serif";
-			fallbackCtx.textAlign = "center";
-			fallbackCtx.textBaseline = "middle";
-			fallbackCtx.fillText(String(file.instanceNumber ?? "?"), 50, 40);
-		});
-
-		return () => {
-			cancelled = true;
-		};
+		if (file.thumbnailData) {
+			// プリレンダリング済みRGBAデータを描画
+			const imageData = new ImageData(
+				new Uint8ClampedArray(file.thumbnailData),
+				THUMB_W,
+				THUMB_H,
+			);
+			ctx.putImageData(imageData, 0, 0);
+		} else {
+			// サムネイル生成失敗時はフォールバック表示
+			ctx.fillStyle = "#262626";
+			ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+			ctx.fillStyle = "#737373";
+			ctx.font = "12px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.fillText(
+				String(file.instanceNumber ?? "?"),
+				THUMB_W / 2,
+				THUMB_H / 2,
+			);
+		}
 	}, [file]);
 
 	return (
@@ -132,14 +67,18 @@ const ThumbnailImage = ({
 		>
 			<canvas
 				ref={canvasRef}
-				width={100}
-				height={80}
+				width={THUMB_W}
+				height={THUMB_H}
 				className="block bg-neutral-800"
 			/>
 			{/* フレーム番号バッジ */}
-			<span className={`absolute right-0.5 bottom-0.5 rounded px-1 text-[10px] leading-tight ${
-				isActive ? "bg-blue-600 text-white" : "bg-neutral-900/80 text-neutral-400"
-			}`}>
+			<span
+				className={`absolute right-0.5 bottom-0.5 rounded px-1 text-[10px] leading-tight ${
+					isActive
+						? "bg-blue-600 text-white"
+						: "bg-neutral-900/80 text-neutral-400"
+				}`}
+			>
 				{file.instanceNumber ?? "?"}
 			</span>
 		</button>

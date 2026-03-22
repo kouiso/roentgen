@@ -13,6 +13,16 @@ const sliderReducer = (
 			return { ...state, currentFrame: action.frameIndex };
 		case "MAX":
 			return { ...state, maxFrame: action.max };
+		case "NEXT":
+			return {
+				...state,
+				currentFrame: Math.min(state.currentFrame + 1, state.maxFrame),
+			};
+		case "PREV":
+			return {
+				...state,
+				currentFrame: Math.max(state.currentFrame - 1, 0),
+			};
 	}
 };
 
@@ -32,22 +42,14 @@ export const useViewerSlider = () => {
 		dispatch({ type: "MAX", max });
 	}, []);
 
+	// stale closure回避: reducer内で最新のstateを参照
 	const nextFrame = useCallback(() => {
-		dispatch({
-			type: "CHANGING",
-			frameIndex: Math.min(
-				sliderState.currentFrame + 1,
-				sliderState.maxFrame,
-			),
-		});
-	}, [sliderState.currentFrame, sliderState.maxFrame]);
+		dispatch({ type: "NEXT" });
+	}, []);
 
 	const prevFrame = useCallback(() => {
-		dispatch({
-			type: "CHANGING",
-			frameIndex: Math.max(sliderState.currentFrame - 1, 0),
-		});
-	}, [sliderState.currentFrame]);
+		dispatch({ type: "PREV" });
+	}, []);
 
 	return {
 		sliderState,

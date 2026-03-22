@@ -1,8 +1,12 @@
-import { BrowserWindow, app, dialog, ipcMain } from "electron";
-import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 
 let mainWindow: BrowserWindow | null = null;
+
+// セキュリティ: 許可済みファイルパスのホワイトリスト
+// ダイアログ選択 or テスト用ディレクトリからのファイルのみ読み込み許可
+const allowedPaths = new Set<string>();
 
 const createWindow = () => {
 	mainWindow = new BrowserWindow({
@@ -18,7 +22,23 @@ const createWindow = () => {
 		},
 	});
 
-	if (process.env.VITE_DEV_SERVER_URL) {
+	// CSPを動的設定 — dev環境のみunsafe-eval許可（Vite HMR用）
+	const isDev = !!process.env.VITE_DEV_SERVER_URL;
+	const scriptSrc = isDev
+		? "script-src 'self' 'unsafe-eval'"
+		: "script-src 'self'";
+	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		callback({
+			responseHeaders: {
+				...details.responseHeaders,
+				"Content-Security-Policy": [
+					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'`,
+				],
+			},
+		});
+	});
+
+	if (isDev) {
 		mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
 		mainWindow.webContents.openDevTools({ mode: "bottom" });
 	} else {
@@ -56,20 +76,25 @@ ipcMain.handle("select-dicom-files", async () => {
 	});
 
 	if (result.canceled) return [];
+	// 選択されたパスをホワイトリストに登録
+	for (const filePath of result.filePaths) {
+		allowedPaths.add(resolve(filePath));
+	}
 	return result.filePaths;
 });
 
 // ファイル読み込み（ArrayBufferとして返す）
+// セキュリティ: ホワイトリストに登録済みのパスのみ許可
 ipcMain.handle("read-file", async (_event, filePath: string) => {
-	try {
-		const buffer = await readFile(filePath);
-		return buffer.buffer.slice(
-			buffer.byteOffset,
-			buffer.byteOffset + buffer.byteLength,
-		);
-	} catch (err) {
-		throw new Error(`ファイル読込失敗: ${filePath} - ${err}`);
+	const resolved = resolve(filePath);
+	if (!allowedPaths.has(resolved)) {
+		throw new Error(`許可されていないファイルパス: ${filePath}`);
 	}
+	const buffer = await readFile(resolved);
+	return buffer.buffer.slice(
+		buffer.byteOffset,
+		buffer.byteOffset + buffer.byteLength,
+	);
 });
 
 // dev環境テスト用: dicom-files/配下の全.dcmファイルを読み込む（本番ビルドでは登録しない）
@@ -78,13 +103,12 @@ if (process.env.VITE_DEV_SERVER_URL) {
 		const dirPath = join(process.cwd(), "dicom-files");
 		try {
 			const entries = await readdir(dirPath);
-			const dcmFiles = entries.filter((f) =>
-				f.toLowerCase().endsWith(".dcm"),
-			);
+			const dcmFiles = entries.filter((f) => f.toLowerCase().endsWith(".dcm"));
 			const results: { path: string; data: ArrayBuffer }[] = [];
 
 			for (const fileName of dcmFiles) {
 				const filePath = join(dirPath, fileName);
+				allowedPaths.add(resolve(filePath));
 				const buffer = await readFile(filePath);
 				results.push({
 					path: filePath,

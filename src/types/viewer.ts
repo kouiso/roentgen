@@ -21,21 +21,13 @@ export type ViewerWorldInfo = {
 	flipVertical: boolean;
 };
 
-// マウス状態（renkeibox ViewerMouseState 参考）
-export type ViewerMouseState = {
-	isDown: boolean;
-	startX: number;
-	startY: number;
-	lastX: number;
-	lastY: number;
-	button: number;
-};
-
 // スライダー状態（renkeibox ViewerSliderState 参考）
 export type ViewerSliderAction =
 	| { type: "ENTER"; frameIndex: number }
 	| { type: "CHANGING"; frameIndex: number }
-	| { type: "MAX"; max: number };
+	| { type: "MAX"; max: number }
+	| { type: "NEXT" }
+	| { type: "PREV" };
 
 export type ViewerSliderState = {
 	currentFrame: number;
@@ -53,13 +45,4 @@ export const INITIAL_WORLD_INFO: ViewerWorldInfo = {
 	rotation: 0,
 	flipHorizontal: false,
 	flipVertical: false,
-};
-
-export const INITIAL_MOUSE_STATE: ViewerMouseState = {
-	isDown: false,
-	startX: 0,
-	startY: 0,
-	lastX: 0,
-	lastY: 0,
-	button: 0,
 };

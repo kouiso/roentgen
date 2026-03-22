@@ -1,7 +1,11 @@
 // オーバーレイ情報（renkeibox ImageOverlayInfo 参考）
 // 4隅に表示するDICOMタグ情報
 
-export type OverlayPosition = "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
+export type OverlayPosition =
+	| "topLeft"
+	| "topRight"
+	| "bottomLeft"
+	| "bottomRight";
 
 export type OverlayItem = {
 	id: string;
