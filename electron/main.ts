@@ -90,11 +90,17 @@ ipcMain.handle("read-file", async (_event, filePath: string) => {
 	if (!allowedPaths.has(resolved)) {
 		throw new Error(`許可されていないファイルパス: ${filePath}`);
 	}
-	const buffer = await readFile(resolved);
-	return buffer.buffer.slice(
-		buffer.byteOffset,
-		buffer.byteOffset + buffer.byteLength,
-	);
+	try {
+		const buffer = await readFile(resolved);
+		return buffer.buffer.slice(
+			buffer.byteOffset,
+			buffer.byteOffset + buffer.byteLength,
+		);
+	} catch (err) {
+		const message =
+			err instanceof Error ? err.message : "不明なファイル読込エラー";
+		throw new Error(`ファイル読込失敗 (${filePath}): ${message}`);
+	}
 });
 
 // dev環境テスト用: dicom-files/配下の全.dcmファイルを読み込む（本番ビルドでは登録しない）

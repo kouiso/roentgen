@@ -269,6 +269,15 @@ export const useCornerstone = () => {
 		[],
 	);
 
+	// 画像データの解放（ファイル削除/クリア時にメモリリークを防止）
+	const unregisterImageData = useCallback((filePath: string) => {
+		imageDataMapRef.current.delete(filePath);
+	}, []);
+
+	const clearAllImageData = useCallback(() => {
+		imageDataMapRef.current.clear();
+	}, []);
+
 	// 画像読み込み・表示
 	const loadAndDisplayImage = useCallback(async (fileInfo: DicomFileInfo) => {
 		const cs = cornerstoneRef.current;
@@ -335,6 +344,10 @@ export const useCornerstone = () => {
 	// renkeiboxのuseRender.ts tileDrawing関数に相当
 	// refsを使うことで、setupTileDrawingBridgeの再呼び出し不要
 	const setupTileDrawingBridge = useCallback((osdViewer: OSDViewer) => {
+		// 古いハンドラを除去してから新しいハンドラを登録（蓄積防止）
+		if (osdViewerRef.current) {
+			osdViewerRef.current.removeAllHandlers("tile-drawing");
+		}
 		osdViewerRef.current = osdViewer;
 
 		osdViewer.addHandler("tile-drawing", (event: OSDTileEvent) => {
@@ -435,6 +448,8 @@ export const useCornerstone = () => {
 		setupTileDrawingBridge,
 		triggerRedraw,
 		registerImageData,
+		unregisterImageData,
+		clearAllImageData,
 		preloadImage,
 	};
 };

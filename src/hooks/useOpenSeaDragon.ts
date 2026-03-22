@@ -121,9 +121,13 @@ export const useOpenSeaDragon = ({
 
 		// OSD初期化完了 — getContext2DでCanvasを直接提供するためImageLoader不使用。
 		// tile-loadedイベントは発火しないため、openイベントでtileReadyをセットする。
-		viewer.addHandler("open", () => {
+		// ハンドラはdestroy()前に除去するため、名前付き関数で登録
+		const onOpen = () => {
 			setTileReady(true);
-		});
+			// 一度発火すれば不要 — 蓄積防止のため自己除去
+			viewer.removeAllHandlers("open");
+		};
+		viewer.addHandler("open", onOpen);
 
 		onViewerCreatedRef.current?.(viewer);
 	}, [containerId, imageWidth, imageHeight]);

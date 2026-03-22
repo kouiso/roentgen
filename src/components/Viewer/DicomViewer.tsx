@@ -52,6 +52,8 @@ export const DicomViewer = ({
 		loadAndDisplayImage,
 		setupTileDrawingBridge,
 		registerImageData,
+		unregisterImageData,
+		clearAllImageData,
 		preloadImage,
 	} = useCornerstone();
 
@@ -171,10 +173,22 @@ export const DicomViewer = ({
 		controls.resetImage(currentFile.windowWidth, currentFile.windowCenter);
 	}, [controls, currentFile]);
 
-	// 選択画像クリア — 現在表示中の画像を除去
+	// 全ファイルクリア — imageDataMapも解放
+	const handleClearAll = useCallback(() => {
+		clearAllImageData();
+		onClearAll();
+	}, [clearAllImageData, onClearAll]);
+
+	// 選択画像クリア — 現在表示中の画像を除去 + imageDataMap解放
 	const handleClearSelected = useCallback(() => {
+		const file = files[sliderState.currentFrame];
+		if (file) {
+			// imageId "roentgen:{path}" からパスを抽出
+			const filePath = file.imageId.replace("roentgen:", "");
+			unregisterImageData(filePath);
+		}
 		onRemoveFile(sliderState.currentFrame);
-	}, [onRemoveFile, sliderState.currentFrame]);
+	}, [onRemoveFile, unregisterImageData, files, sliderState.currentFrame]);
 
 	return (
 		<div className="flex flex-1 flex-col">
@@ -194,7 +208,7 @@ export const DicomViewer = ({
 				showDirection={showDirection}
 				onToggleDirection={() => setShowDirection((v) => !v)}
 				onClearSelected={handleClearSelected}
-				onClearAll={onClearAll}
+				onClearAll={handleClearAll}
 			/>
 
 			<div className="flex min-h-0 flex-1">
