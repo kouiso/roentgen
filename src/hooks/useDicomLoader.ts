@@ -96,10 +96,22 @@ export const useDicomLoader = () => {
 		setLoadState({ status: "idle" });
 	}, []);
 
+	// 指定インデックスのファイルを除去（選択クリア用）
+	const removeFile = useCallback((index: number) => {
+		setDicomFiles((prev) => {
+			const next = prev.filter((_, i) => i !== index);
+			if (next.length === 0) {
+				setLoadState({ status: "idle" });
+			}
+			return next;
+		});
+	}, []);
+
 	return {
 		loadState,
 		dicomFiles,
 		loadFiles,
 		clearFiles,
+		removeFile,
 	};
 };

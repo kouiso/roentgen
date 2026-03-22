@@ -25,6 +25,8 @@ import {
 	Eye,
 	EyeOff,
 	Compass,
+	X,
+	XCircle,
 } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 
@@ -43,6 +45,8 @@ type ControlPanelProps = {
 	onToggleOverlay: () => void;
 	showDirection: boolean;
 	onToggleDirection: () => void;
+	onClearSelected: () => void;
+	onClearAll: () => void;
 };
 
 // ツールチップ付きボタン
@@ -117,9 +121,16 @@ export const ControlPanel = ({
 	onToggleOverlay,
 	showDirection,
 	onToggleDirection,
+	onClearSelected,
+	onClearAll,
 }: ControlPanelProps) => {
 	return (
 		<div className="flex shrink-0 items-center gap-0.5 border-b border-neutral-800/80 bg-neutral-900/95 px-2 py-1">
+			{/* 画像クリア */}
+			<IconButton icon={<X size={SIZE} />} tooltip="選択画像クリア" onClick={onClearSelected} />
+			<IconButton icon={<XCircle size={SIZE} />} tooltip="全画像クリア" onClick={onClearAll} />
+
+			<Divider />
 			{/* 操作モード */}
 			<div className="flex gap-0.5 rounded-md bg-neutral-800/60 p-0.5">
 				<IconButton

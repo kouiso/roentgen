@@ -4,7 +4,7 @@ import { DicomViewer } from "./components/Viewer/DicomViewer";
 import { useDicomLoader } from "./hooks/useDicomLoader";
 
 export const App = () => {
-	const { loadState, dicomFiles, loadFiles, clearFiles } = useDicomLoader();
+	const { loadState, dicomFiles, loadFiles, clearFiles, removeFile } = useDicomLoader();
 
 	// dev環境でのテスト用自動読込（Electron環境のみ）
 	// dicom-files/配下の全.dcmファイルを自動で読み込む
@@ -66,7 +66,7 @@ export const App = () => {
 				{dicomFiles.length === 0 ? (
 					<FileDropZone onFilesLoaded={handleFilesLoaded} />
 				) : (
-					<DicomViewer files={dicomFiles} />
+					<DicomViewer files={dicomFiles} onClearAll={clearFiles} onRemoveFile={removeFile} />
 				)}
 			</main>
 		</div>

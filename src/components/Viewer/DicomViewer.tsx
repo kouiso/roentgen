@@ -19,11 +19,15 @@ import { StackSlider } from "./StackSlider";
 import { StackView } from "./StackView";
 import { ThumbnailPanel } from "./ThumbnailPanel";
 
+const PRELOAD_COUNT = 10;
+
 type DicomViewerProps = {
 	files: DicomFileInfo[];
+	onClearAll: () => void;
+	onRemoveFile: (index: number) => void;
 };
 
-export const DicomViewer = ({ files }: DicomViewerProps) => {
+export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProps) => {
 	const [activeMode, setActiveMode] = useState<ViewerControlType>(
 		VIEWER_CONTROL_TYPE.WW_WC,
 	);
@@ -40,6 +44,7 @@ export const DicomViewer = ({ files }: DicomViewerProps) => {
 		loadAndDisplayImage,
 		setupTileDrawingBridge,
 		registerImageData,
+		preloadImage,
 	} = useCornerstone();
 
 	const {
@@ -121,8 +126,22 @@ export const DicomViewer = ({ files }: DicomViewerProps) => {
 		loadAndDisplayImage(currentFile);
 	}, [currentFile, isOsdReady, cornerstoneReady, loadAndDisplayImage]);
 
+	// 画像プリロード — 現在フレームの前後PRELOAD_COUNTフレームを先読み
+	useEffect(() => {
+		if (!cornerstoneReady || !isOsdReady) return;
+
+		const current = sliderState.currentFrame;
+		for (let offset = 1; offset <= PRELOAD_COUNT; offset++) {
+			const nextIdx = current + offset;
+			const prevIdx = current - offset;
+			const nextFile = files[nextIdx];
+			const prevFile = files[prevIdx];
+			if (nextFile) preloadImage(nextFile);
+			if (prevFile) preloadImage(prevFile);
+		}
+	}, [sliderState.currentFrame, files, cornerstoneReady, isOsdReady, preloadImage]);
+
 	// タイル読込完了 + cornerstone画像準備完了 → OSD再描画トリガー
-	// needsDraw()はタイル読込後でないとimageLoader.clear()→abort循環に陥る
 	useEffect(() => {
 		if (tileReady && currentImage) {
 			triggerRedraw();
@@ -148,6 +167,11 @@ export const DicomViewer = ({ files }: DicomViewerProps) => {
 		controls.resetImage(currentFile.windowWidth, currentFile.windowCenter);
 	}, [controls, currentFile]);
 
+	// 選択画像クリア — 現在表示中の画像を除去
+	const handleClearSelected = useCallback(() => {
+		onRemoveFile(sliderState.currentFrame);
+	}, [onRemoveFile, sliderState.currentFrame]);
+
 	return (
 		<div className="flex flex-1 flex-col">
 			<ControlPanel
@@ -165,6 +189,8 @@ export const DicomViewer = ({ files }: DicomViewerProps) => {
 				onToggleOverlay={() => setShowOverlay((v) => !v)}
 				showDirection={showDirection}
 				onToggleDirection={() => setShowDirection((v) => !v)}
+				onClearSelected={handleClearSelected}
+				onClearAll={onClearAll}
 			/>
 
 			<div className="flex min-h-0 flex-1">

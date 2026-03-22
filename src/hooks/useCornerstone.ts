@@ -90,6 +90,7 @@ export const useCornerstone = () => {
 	// クロージャ問題回避: tileDrawingハンドラ内で最新値を参照するためにrefsを使用
 	const currentImageRef = useRef<CornerstoneImage | null>(null);
 	const worldInfoRef = useRef<ViewerWorldInfo>(INITIAL_WORLD_INFO);
+	const overlayDataRef = useRef<import("@/types/dicom").OverlayPlaneData[]>([]);
 
 	// refsを同期（needsDraw()はDicomViewer側でtileReady&&currentImage時に呼ぶ）
 	useEffect(() => {
@@ -266,6 +267,7 @@ export const useCornerstone = () => {
 			try {
 				const image = await cs.loadImage(fileInfo.imageId);
 				setCurrentImage(image);
+				overlayDataRef.current = fileInfo.overlayData;
 
 				// 初期WW/WC設定
 				// DICOMタグにWW/WCがある場合はそれを使用、なければパーセンタイルで自動計算
@@ -345,6 +347,46 @@ export const useCornerstone = () => {
 				// cornerstoneでDICOM固有のピクセル処理を実行
 				// Modality LUT → VOI LUT → WW/WC → ピクセル→RGB変換
 				cs.renderToCanvas(canvas, image, viewport);
+
+				// DICOMオーバーレイプレーン(60xx,3000)の描画
+				// cornerstone描画後にCanvas上にビットマップオーバーレイを重ねる
+				const overlays = overlayDataRef.current;
+				if (overlays.length > 0) {
+					const ctx = canvas.getContext("2d");
+					if (ctx) {
+						for (const overlay of overlays) {
+							const imgData = ctx.getImageData(
+								overlay.originCol - 1,
+								overlay.originRow - 1,
+								overlay.columns,
+								overlay.rows,
+							);
+							// ビットマップデータを展開（各ビットが1ピクセルに対応）
+							for (let y = 0; y < overlay.rows; y++) {
+								for (let x = 0; x < overlay.columns; x++) {
+									const bitIdx = y * overlay.columns + x;
+									const byteIdx = Math.floor(bitIdx / 8);
+									const bitOffset = bitIdx % 8;
+									const byteVal = overlay.data[byteIdx] ?? 0;
+									const isSet = (byteVal >> bitOffset) & 1;
+									if (isSet) {
+										const pixelIdx = (y * overlay.columns + x) * 4;
+										// オーバーレイ色: オレンジ（半透明）
+										imgData.data[pixelIdx] = 255;
+										imgData.data[pixelIdx + 1] = 165;
+										imgData.data[pixelIdx + 2] = 0;
+										imgData.data[pixelIdx + 3] = 180;
+									}
+								}
+							}
+							ctx.putImageData(
+								imgData,
+								overlay.originCol - 1,
+								overlay.originRow - 1,
+							);
+						}
+					}
+				}
 			} catch (err) {
 				console.error("[tileDrawing] renderToCanvas失敗:", err);
 			}
@@ -358,6 +400,21 @@ export const useCornerstone = () => {
 		osdViewerRef.current?.forceRedraw();
 	}, []);
 
+	// 画像プリロード — cornerstoneのキャッシュに事前ロード（表示はしない）
+	// スタックスクロール時のスムーズな切替を実現
+	const preloadImage = useCallback(
+		async (fileInfo: DicomFileInfo) => {
+			const cs = cornerstoneRef.current;
+			if (!cs) return;
+			try {
+				await cs.loadImage(fileInfo.imageId);
+			} catch {
+				// プリロード失敗は無視（表示時に再取得される）
+			}
+		},
+		[],
+	);
+
 	return {
 		cornerstoneRef,
 		cornerstoneReady,
@@ -368,5 +425,6 @@ export const useCornerstone = () => {
 		setupTileDrawingBridge,
 		triggerRedraw,
 		registerImageData,
+		preloadImage,
 	};
 };
