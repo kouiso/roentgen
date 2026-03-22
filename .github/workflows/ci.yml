@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        check-type: [lint, typecheck]
+        check-type: [lint, typecheck, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -42,3 +42,7 @@ jobs:
       - name: TypeScript typecheck
         if: matrix.check-type == 'typecheck'
         run: npx tsc --noEmit
+
+      - name: Unit tests
+        if: matrix.check-type == 'test'
+        run: npm test
