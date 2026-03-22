@@ -83,7 +83,6 @@ export const DicomViewer = ({ files, onClearAll, onRemoveFile }: DicomViewerProp
 		: null;
 
 	const controls = useViewerControls({
-		worldInfo,
 		setWorldInfo,
 		triggerRedraw,
 		getViewport,

@@ -61,14 +61,19 @@ ipcMain.handle("select-dicom-files", async () => {
 
 // ファイル読み込み（ArrayBufferとして返す）
 ipcMain.handle("read-file", async (_event, filePath: string) => {
-	const buffer = await readFile(filePath);
-	return buffer.buffer.slice(
-		buffer.byteOffset,
-		buffer.byteOffset + buffer.byteLength,
-	);
+	try {
+		const buffer = await readFile(filePath);
+		return buffer.buffer.slice(
+			buffer.byteOffset,
+			buffer.byteOffset + buffer.byteLength,
+		);
+	} catch (err) {
+		throw new Error(`ファイル読込失敗: ${filePath} - ${err}`);
+	}
 });
 
-// dev環境テスト用: dicom-files/配下の全.dcmファイルを読み込む
+// dev環境テスト用: dicom-files/配下の全.dcmファイルを読み込む（本番ビルドでは登録しない）
+if (process.env.VITE_DEV_SERVER_URL) {
 ipcMain.handle("load-test-dicom", async () => {
 	const dirPath = join(process.cwd(), "dicom-files");
 	try {
@@ -95,3 +100,4 @@ ipcMain.handle("load-test-dicom", async () => {
 		return null;
 	}
 });
+}

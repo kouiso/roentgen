@@ -28,10 +28,6 @@ export const useViewerSlider = () => {
 		dispatch({ type: "ENTER", frameIndex });
 	}, []);
 
-	const changeFrame = useCallback((frameIndex: number) => {
-		dispatch({ type: "CHANGING", frameIndex });
-	}, []);
-
 	const setMaxFrame = useCallback((max: number) => {
 		dispatch({ type: "MAX", max });
 	}, []);
@@ -56,7 +52,6 @@ export const useViewerSlider = () => {
 	return {
 		sliderState,
 		setFrame,
-		changeFrame,
 		setMaxFrame,
 		nextFrame,
 		prevFrame,

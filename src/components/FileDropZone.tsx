@@ -11,13 +11,22 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	const loadFiles = useCallback(
 		async (filePaths: string[]) => {
 			setIsLoading(true);
-			const loaded: { path: string; data: ArrayBuffer }[] = [];
-			for (const filePath of filePaths) {
-				const data = await window.electronAPI.readFile(filePath);
-				loaded.push({ path: filePath, data });
+			try {
+				const loaded: { path: string; data: ArrayBuffer }[] = [];
+				for (const filePath of filePaths) {
+					try {
+						const data = await window.electronAPI.readFile(filePath);
+						loaded.push({ path: filePath, data });
+					} catch (err) {
+						console.error(`[FileDropZone] ファイル読込失敗: ${filePath}`, err);
+					}
+				}
+				if (loaded.length > 0) {
+					onFilesLoaded(loaded);
+				}
+			} finally {
+				setIsLoading(false);
 			}
-			onFilesLoaded(loaded);
-			setIsLoading(false);
 		},
 		[onFilesLoaded],
 	);

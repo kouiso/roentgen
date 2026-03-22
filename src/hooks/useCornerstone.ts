@@ -416,7 +416,6 @@ export const useCornerstone = () => {
 	);
 
 	return {
-		cornerstoneRef,
 		cornerstoneReady,
 		currentImage,
 		worldInfo,

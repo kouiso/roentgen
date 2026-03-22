@@ -14,7 +14,6 @@ type OSDViewport = {
 };
 
 type UseViewerControlsProps = {
-	worldInfo: ViewerWorldInfo;
 	setWorldInfo: React.Dispatch<React.SetStateAction<ViewerWorldInfo>>;
 	triggerRedraw: () => void;
 	getViewport: () => OSDViewport | null;

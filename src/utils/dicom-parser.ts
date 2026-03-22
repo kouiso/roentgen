@@ -91,7 +91,7 @@ export const parsePixelSpacing = (
 	if (!value) return null;
 	const parts = value.split("\\").map(Number);
 	if (parts.length !== 2 || parts.some(Number.isNaN)) return null;
-	return [parts[0]!, parts[1]!];
+	return [parts[0] ?? 0, parts[1] ?? 0];
 };
 
 // Modality LUT Sequence (0028,3000) のパース
@@ -109,9 +109,9 @@ export const parseModalityLut = (
 	if (parts.length < 3) return null;
 
 	return {
-		numberOfEntries: parts[0]!,
-		firstInputValue: parts[1]!,
-		bitsStored: parts[2]!,
+		numberOfEntries: parts[0] ?? 0,
+		firstInputValue: parts[1] ?? 0,
+		bitsStored: parts[2] ?? 0,
 		lutData: [],
 	};
 };
@@ -131,9 +131,9 @@ export const parseVoiLut = (
 	if (parts.length < 3) return null;
 
 	return {
-		numberOfEntries: parts[0]!,
-		firstInputValue: parts[1]!,
-		bitsStored: parts[2]!,
+		numberOfEntries: parts[0] ?? 0,
+		firstInputValue: parts[1] ?? 0,
+		bitsStored: parts[2] ?? 0,
 		lutData: [],
 	};
 };

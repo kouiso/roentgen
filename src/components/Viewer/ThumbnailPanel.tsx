@@ -27,10 +27,13 @@ const ThumbnailImage = ({
 		const ctx = canvas.getContext("2d");
 		if (!ctx) return;
 
+		let cancelled = false;
+
 		// rawDataからピクセルデータを抽出してサムネイル描画
 		const renderThumbnail = async () => {
 			const arrayBuffer = file.rawData;
 			const dicomParserMod = await import("dicom-parser");
+			if (cancelled) return;
 			const dp = dicomParserMod.default ?? dicomParserMod;
 			const byteArray = new Uint8Array(arrayBuffer);
 			const dataSet = dp.parseDicom(byteArray);
@@ -94,11 +97,13 @@ const ThumbnailImage = ({
 				}
 			}
 
-			ctx.putImageData(imageData, 0, 0);
+			if (!cancelled) {
+				ctx.putImageData(imageData, 0, 0);
+			}
 		};
 
 		renderThumbnail().catch(() => {
-			// パース失敗時は番号表示にフォールバック
+			if (cancelled) return;
 			const fallbackCtx = canvasRef.current?.getContext("2d");
 			if (!fallbackCtx) return;
 			fallbackCtx.fillStyle = "#262626";
@@ -109,6 +114,10 @@ const ThumbnailImage = ({
 			fallbackCtx.textBaseline = "middle";
 			fallbackCtx.fillText(String(file.instanceNumber ?? "?"), 50, 40);
 		});
+
+		return () => {
+			cancelled = true;
+		};
 	}, [file]);
 
 	return (

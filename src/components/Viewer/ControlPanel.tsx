@@ -8,6 +8,7 @@ import {
 	Maximize,
 	Move,
 	RefreshCw,
+	RotateCcwSquare,
 	RotateCcw,
 	RotateCw,
 	Scan,
@@ -28,7 +29,7 @@ import {
 	X,
 	XCircle,
 } from "lucide-react";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 type ControlPanelProps = {
 	activeMode: ViewerControlType;
@@ -61,6 +62,13 @@ type IconButtonProps = {
 const Tooltip = ({ text, children }: { text: string; children: ReactNode }) => {
 	const [show, setShow] = useState(false);
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// アンマウント時にタイマーをクリーンアップ
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) clearTimeout(timeoutRef.current);
+		};
+	}, []);
 
 	const handleEnter = useCallback(() => {
 		timeoutRef.current = setTimeout(() => setShow(true), 400);
@@ -188,7 +196,7 @@ export const ControlPanel = ({
 
 			{/* リセット */}
 			<IconButton
-				icon={<svg xmlns="http://www.w3.org/2000/svg" width={SIZE} height={SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>}
+				icon={<RotateCcwSquare size={SIZE} />}
 				tooltip="リセット"
 				onClick={onReset}
 			/>

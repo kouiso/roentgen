@@ -18,7 +18,7 @@ export const App = () => {
 					if (!results || results.length === 0) return;
 					loadFiles(results);
 				})
-				.catch(() => {});
+				.catch((err: unknown) => console.warn("[dev autoload]", err));
 		}
 	}, [dicomFiles.length, loadFiles, loadState.status]);
 
