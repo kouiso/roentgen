@@ -1,0 +1,20 @@
+electron:
+  - changed-files:
+      - any-glob-to-any-file: "electron/**"
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: "src/**"
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.json"
+          - "*.config.*"
+          - ".github/**"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "package-lock.json"
