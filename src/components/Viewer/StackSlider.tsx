@@ -1,4 +1,6 @@
-// スタック切替スライダー（renkeibox StackView内のslider 参考）
+// スタック切替スライダー — lucide-react アイコン版
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
 type StackSliderProps = {
 	currentFrame: number;
 	maxFrame: number;
@@ -17,14 +19,14 @@ export const StackSlider = ({
 	if (maxFrame <= 0) return null;
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-t border-neutral-800 bg-neutral-900 px-3 py-1">
+		<div className="flex shrink-0 items-center gap-1 border-t border-neutral-800/80 bg-neutral-900/95 px-2 py-0.5">
 			<button
 				type="button"
 				onClick={onPrev}
 				disabled={currentFrame <= 0}
-				className="text-xs text-neutral-400 hover:text-white disabled:text-neutral-700"
+				className="rounded p-0.5 text-neutral-400 hover:bg-neutral-700/60 hover:text-white disabled:text-neutral-700"
 			>
-				◀
+				<ChevronLeft size={14} />
 			</button>
 			<input
 				type="range"
@@ -38,11 +40,11 @@ export const StackSlider = ({
 				type="button"
 				onClick={onNext}
 				disabled={currentFrame >= maxFrame}
-				className="text-xs text-neutral-400 hover:text-white disabled:text-neutral-700"
+				className="rounded p-0.5 text-neutral-400 hover:bg-neutral-700/60 hover:text-white disabled:text-neutral-700"
 			>
-				▶
+				<ChevronRight size={14} />
 			</button>
-			<span className="min-w-[4rem] text-right text-xs text-neutral-500">
+			<span className="min-w-[3.5rem] text-right font-mono text-[11px] text-neutral-500">
 				{currentFrame + 1} / {maxFrame + 1}
 			</span>
 		</div>

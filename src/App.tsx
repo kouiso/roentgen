@@ -44,18 +44,18 @@ export const App = () => {
 
 	return (
 		<div className="flex h-screen w-screen flex-col overflow-hidden bg-neutral-950">
-			<header className="flex h-10 shrink-0 items-center border-b border-neutral-800 px-4">
-				<h1 className="text-sm font-medium text-neutral-300">
-					Roentgen — ルバーノのレントゲンビューア
+			<header className="flex h-9 shrink-0 items-center border-b border-neutral-800/80 bg-neutral-900/95 px-4">
+				<h1 className="text-xs font-semibold tracking-wide text-neutral-400">
+					Roentgen
 				</h1>
-				<span className="ml-auto text-xs text-neutral-500">
+				<span className="ml-auto text-[11px] text-neutral-500">
 					{statusText}
 				</span>
 				{dicomFiles.length > 0 && (
 					<button
 						type="button"
 						onClick={clearFiles}
-						className="ml-3 text-xs text-neutral-600 hover:text-neutral-400"
+						className="ml-3 rounded px-2 py-0.5 text-[11px] text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
 					>
 						クリア
 					</button>
