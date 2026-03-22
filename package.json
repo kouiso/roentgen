@@ -1,0 +1,43 @@
+{
+  "name": "roentgen",
+  "version": "0.1.0",
+  "description": "ルバーノのレントゲンビューア — DICOM画像デスクトップアプリ",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "unset ELECTRON_RUN_AS_NODE && vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "biome check .",
+    "fix": "biome check --write ."
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "cornerstone-core": "^2.6.1",
+    "cornerstone-math": "^0.1.10",
+    "cornerstone-wado-image-loader": "^4.13.2",
+    "dicom-parser": "^1.8.8",
+    "encoding-japanese": "^1.0.30",
+    "hammerjs": "^2.0.8",
+    "lucide-react": "^0.468.0",
+    "openseadragon": "^3.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^41.0.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.7",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "author": "kouiso",
+  "license": "UNLICENSED",
+  "private": true
+}
