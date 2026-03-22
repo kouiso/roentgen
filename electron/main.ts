@@ -74,30 +74,30 @@ ipcMain.handle("read-file", async (_event, filePath: string) => {
 
 // dev環境テスト用: dicom-files/配下の全.dcmファイルを読み込む（本番ビルドでは登録しない）
 if (process.env.VITE_DEV_SERVER_URL) {
-ipcMain.handle("load-test-dicom", async () => {
-	const dirPath = join(process.cwd(), "dicom-files");
-	try {
-		const entries = await readdir(dirPath);
-		const dcmFiles = entries.filter((f) =>
-			f.toLowerCase().endsWith(".dcm"),
-		);
-		const results: { path: string; data: ArrayBuffer }[] = [];
+	ipcMain.handle("load-test-dicom", async () => {
+		const dirPath = join(process.cwd(), "dicom-files");
+		try {
+			const entries = await readdir(dirPath);
+			const dcmFiles = entries.filter((f) =>
+				f.toLowerCase().endsWith(".dcm"),
+			);
+			const results: { path: string; data: ArrayBuffer }[] = [];
 
-		for (const fileName of dcmFiles) {
-			const filePath = join(dirPath, fileName);
-			const buffer = await readFile(filePath);
-			results.push({
-				path: filePath,
-				data: buffer.buffer.slice(
-					buffer.byteOffset,
-					buffer.byteOffset + buffer.byteLength,
-				),
-			});
+			for (const fileName of dcmFiles) {
+				const filePath = join(dirPath, fileName);
+				const buffer = await readFile(filePath);
+				results.push({
+					path: filePath,
+					data: buffer.buffer.slice(
+						buffer.byteOffset,
+						buffer.byteOffset + buffer.byteLength,
+					),
+				});
+			}
+
+			return results.length > 0 ? results : null;
+		} catch {
+			return null;
 		}
-
-		return results.length > 0 ? results : null;
-	} catch {
-		return null;
-	}
-});
+	});
 }
