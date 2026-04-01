@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 
@@ -101,6 +101,23 @@ ipcMain.handle("read-file", async (_event, filePath: string) => {
 			err instanceof Error ? err.message : "不明なファイル読込エラー";
 		throw new Error(`ファイル読込失敗 (${filePath}): ${message}`);
 	}
+});
+
+// スクリーンショット保存
+ipcMain.handle("save-screenshot", async (_event, dataUrl: string) => {
+	if (!mainWindow) return false;
+
+	const result = await dialog.showSaveDialog(mainWindow, {
+		title: "スクリーンショットを保存",
+		defaultPath: `roentgen-${Date.now()}.png`,
+		filters: [{ name: "PNG", extensions: ["png"] }],
+	});
+
+	if (result.canceled || !result.filePath) return false;
+
+	const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+	await writeFile(result.filePath, Buffer.from(base64, "base64"));
+	return true;
 });
 
 // dev環境テスト用: dicom-files/配下の全.dcmファイルを読み込む（本番ビルドでは登録しない）

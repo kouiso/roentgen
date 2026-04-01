@@ -17,6 +17,7 @@ export const useOpenSeaDragon = ({
 	onViewerCreated,
 }: UseOpenSeaDragonProps) => {
 	const viewerRef = useRef<OSDViewer | null>(null);
+	const tileCanvasRef = useRef<HTMLCanvasElement | null>(null);
 	// StrictModeの二重initViewer呼出による競合を防止する世代カウンター
 	// await後に「自分がまだ最新の呼び出しか」をチェックし、古い呼び出しを破棄する
 	const initGenerationRef = useRef(0);
@@ -63,6 +64,7 @@ export const useOpenSeaDragon = ({
 		tileCanvas.width = tileSize;
 		tileCanvas.height = tileSize;
 		const tileCtx = tileCanvas.getContext("2d");
+		tileCanvasRef.current = tileCanvas;
 
 		// DICOM画像用カスタムTileSource — 全レベルで単一タイル
 		// getContext2DでCanvasを直接返すことでImageLoaderを完全にバイパス
@@ -178,5 +180,6 @@ export const useOpenSeaDragon = ({
 		initViewer,
 		getViewport,
 		tileReady,
+		tileCanvasRef,
 	};
 };

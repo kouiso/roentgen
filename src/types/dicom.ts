@@ -27,6 +27,9 @@ export type DicomFileInfo = {
 	modalityLutSequence: ModalityLutData | null;
 	// VOI LUT
 	voiLutSequence: VoiLutData | null;
+	// Study / Series 識別子
+	studyInstanceUID: string | null;
+	seriesInstanceUID: string | null;
 	// DICOMオーバーレイプレーン（60xx,3000）
 	overlayData: OverlayPlaneData[];
 	// DICOMタグ全体（オーバーレイ表示用）

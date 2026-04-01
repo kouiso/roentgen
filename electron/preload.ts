@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.invoke("read-file", filePath),
 	loadTestDicom: (): Promise<{ path: string; data: ArrayBuffer }[] | null> =>
 		ipcRenderer.invoke("load-test-dicom"),
+	saveScreenshot: (dataUrl: string): Promise<boolean> =>
+		ipcRenderer.invoke("save-screenshot", dataUrl),
 });

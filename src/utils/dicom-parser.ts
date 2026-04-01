@@ -185,6 +185,9 @@ export const extractDicomTags = (
 
 	// 主要タグの一覧（renkeibox ImageOverlay.ts の70+タグ対応）
 	const tagMap: Record<string, string> = {
+		// Study / Series 識別子
+		x0020000d: "StudyInstanceUID",
+		x0020000e: "SeriesInstanceUID",
 		// 患者情報
 		x00100010: "PatientName",
 		x00100020: "PatientID",
@@ -405,6 +408,8 @@ export const buildDicomFileInfo = (
 		sliceThickness: dataSet.floatString("x00180050") ?? null,
 		sliceLocation: dataSet.floatString("x00201041") ?? null,
 		instanceNumber: dataSet.intString("x00200013") ?? null,
+		studyInstanceUID: getStringTag(dataSet, "x0020000d") || null,
+		seriesInstanceUID: getStringTag(dataSet, "x0020000e") || null,
 		modalityLutSequence: parseModalityLut(dataSet),
 		voiLutSequence: parseVoiLut(dataSet),
 		overlayData: parseOverlayPlanes(dataSet),

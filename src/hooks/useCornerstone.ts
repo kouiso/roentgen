@@ -73,18 +73,172 @@ export type OSDTileEvent = {
 	tile?: { level: number; x: number; y: number };
 };
 
+// ============================================================
+// モジュールレベルシングルトン — 複数ペイン間で共有
+// ============================================================
+// biome-ignore lint/suspicious/noExplicitAny: cornerstone-coreに型定義なし
+let _cornerstoneModule: any = null;
+
+// 全ペインで共有するimageDataMap（rawDataのキャッシュ）
+const _sharedImageDataMap = new Map<string, ArrayBuffer>();
+
+// 初期化は1回のみ実行する
+let _initPromise: Promise<void> | null = null;
+const _initDoneCallbacks: Array<() => void> = [];
+let _isInitDone = false;
+
+const _initCornerstoneOnce = (): Promise<void> => {
+	if (_initPromise) return _initPromise;
+	_initPromise = (async () => {
+		try {
+			const cornerstone = await import("cornerstone-core");
+			_cornerstoneModule = cornerstone.default ?? cornerstone;
+		} catch (err) {
+			console.error("[useCornerstone] cornerstone-core import失敗:", err);
+			return;
+		}
+
+		try {
+			const cornerstoneWADO = await import("cornerstone-wado-image-loader");
+			const wado = cornerstoneWADO.default ?? cornerstoneWADO;
+			if (wado.external) {
+				wado.external.cornerstone = _cornerstoneModule;
+				const dicomParser = await import("dicom-parser");
+				wado.external.dicomParser = dicomParser.default ?? dicomParser;
+			}
+			if (wado.configure) {
+				wado.configure({ useWebWorkers: false });
+			}
+		} catch (err) {
+			console.error(
+				"[useCornerstone] cornerstone-wado-image-loader import失敗:",
+				err,
+			);
+			return;
+		}
+
+		// ローカルファイル用カスタムimageLoader登録（1回のみ）
+		const dicomParserMod = await import("dicom-parser");
+		const dp = dicomParserMod.default ?? dicomParserMod;
+
+		_cornerstoneModule.registerImageLoader("roentgen", (imageId: string) => {
+			const promise = (async () => {
+				const filePath = imageId.replace("roentgen:", "");
+				const arrayBuffer = _sharedImageDataMap.get(filePath);
+
+				if (!arrayBuffer) {
+					throw new Error(`ファイルデータ未登録: ${filePath}`);
+				}
+
+				const byteArray = new Uint8Array(arrayBuffer);
+				const dataSet = dp.parseDicom(byteArray);
+
+				const rows = dataSet.uint16("x00280010") ?? 0;
+				const columns = dataSet.uint16("x00280011") ?? 0;
+				const bitsAllocated = dataSet.uint16("x00280100") ?? 16;
+				const bitsStored = dataSet.uint16("x00280101") ?? bitsAllocated;
+				const pixelRepresentation = dataSet.uint16("x00280103") ?? 0;
+				const samplesPerPixel = dataSet.uint16("x00280002") ?? 1;
+				const photometricInterpretation =
+					dataSet.string("x00280004") ?? "MONOCHROME2";
+
+				const pixelDataElement = dataSet.elements.x7fe00010;
+				if (!pixelDataElement) {
+					throw new Error("PixelData (7FE0,0010) が見つかりません");
+				}
+
+				let pixelData: Int16Array | Uint16Array | Uint8Array;
+				if (bitsAllocated === 16) {
+					if (pixelRepresentation === 1) {
+						pixelData = new Int16Array(
+							arrayBuffer,
+							pixelDataElement.dataOffset,
+							pixelDataElement.length / 2,
+						);
+					} else {
+						pixelData = new Uint16Array(
+							arrayBuffer,
+							pixelDataElement.dataOffset,
+							pixelDataElement.length / 2,
+						);
+					}
+				} else {
+					pixelData = new Uint8Array(
+						arrayBuffer,
+						pixelDataElement.dataOffset,
+						pixelDataElement.length,
+					);
+				}
+
+				let minVal = Number.MAX_SAFE_INTEGER;
+				let maxVal = Number.MIN_SAFE_INTEGER;
+				for (let i = 0; i < pixelData.length; i++) {
+					const v = pixelData[i] ?? 0;
+					if (v < minVal) minVal = v;
+					if (v > maxVal) maxVal = v;
+				}
+
+				const windowCenter =
+					Number.parseFloat(dataSet.string("x00281050") ?? "") ||
+					(maxVal + minVal) / 2;
+				const windowWidth =
+					Number.parseFloat(dataSet.string("x00281051") ?? "") ||
+					maxVal - minVal;
+				const slope = Number.parseFloat(dataSet.string("x00281053") ?? "1");
+				const intercept = Number.parseFloat(dataSet.string("x00281052") ?? "0");
+				const isColor = samplesPerPixel > 1;
+				const invert = photometricInterpretation === "MONOCHROME1";
+
+				const image: CornerstoneImage = {
+					imageId,
+					rows,
+					columns,
+					width: columns,
+					height: rows,
+					getPixelData: () => pixelData,
+					windowCenter,
+					windowWidth,
+					slope,
+					intercept,
+					invert,
+					minPixelValue: minVal,
+					maxPixelValue: maxVal,
+				};
+
+				const extended = image as CornerstoneImage & Record<string, unknown>;
+				extended.color = isColor;
+				extended.columnPixelSpacing = Number.parseFloat(
+					(dataSet.string("x00280030") ?? "").split("\\")[1] ?? "1",
+				);
+				extended.rowPixelSpacing = Number.parseFloat(
+					(dataSet.string("x00280030") ?? "").split("\\")[0] ?? "1",
+				);
+				extended.sizeInBytes = pixelData.byteLength;
+				extended.rgba = false;
+				extended.photometricInterpretation = photometricInterpretation;
+				extended.bitsStored = bitsStored;
+
+				return image;
+			})();
+
+			return { promise };
+		});
+
+		_isInitDone = true;
+		for (const cb of _initDoneCallbacks) cb();
+		_initDoneCallbacks.length = 0;
+	})();
+	return _initPromise;
+};
+
 export const useCornerstone = () => {
-	// biome-ignore lint/suspicious/noExplicitAny: cornerstone-coreに型定義なし
-	const cornerstoneRef = useRef<any>(null);
-	// biome-ignore lint/suspicious/noExplicitAny: cornerstone-wado-image-loaderに型定義なし
-	const wadoRef = useRef<any>(null);
+	// ペインごとの状態（モジュールレベルシングルトンとは独立）
 	const osdViewerRef = useRef<OSDViewer | null>(null);
 	const [currentImage, setCurrentImage] = useState<CornerstoneImage | null>(
 		null,
 	);
 	const [worldInfo, setWorldInfo] =
 		useState<ViewerWorldInfo>(INITIAL_WORLD_INFO);
-	const imageDataMapRef = useRef<Map<string, ArrayBuffer>>(new Map());
 	const [cornerstoneReady, setCornerstoneReady] = useState(false);
 
 	// クロージャ問題回避: tileDrawingハンドラ内で最新値を参照するためにrefsを使用
@@ -92,7 +246,6 @@ export const useCornerstone = () => {
 	const worldInfoRef = useRef<ViewerWorldInfo>(INITIAL_WORLD_INFO);
 	const overlayDataRef = useRef<import("@/types/dicom").OverlayPlaneData[]>([]);
 
-	// refsを同期（needsDraw()はDicomViewer側でtileReady&&currentImage時に呼ぶ）
 	useEffect(() => {
 		currentImageRef.current = currentImage;
 	}, [currentImage]);
@@ -101,186 +254,40 @@ export const useCornerstone = () => {
 		worldInfoRef.current = worldInfo;
 	}, [worldInfo]);
 
-	// cornerstone + WADOローダー初期化
+	// モジュールレベルの初期化を待って cornerstoneReady を設定（1回のみ初期化）
 	useEffect(() => {
-		const initCornerstone = async () => {
-			try {
-				const cornerstone = await import("cornerstone-core");
-				cornerstoneRef.current = cornerstone.default ?? cornerstone;
-			} catch (err) {
-				console.error("[useCornerstone] cornerstone-core import失敗:", err);
-				return;
-			}
-
-			try {
-				// WADOローダー初期化 — external.cornerstoneをimport前に設定できないため、
-				// import直後に設定する。WADOバンドル内のregisterImageLoaderは
-				// wadouri scheme用で、dicomfile schemeのカスタムローダーとは競合しない
-				const cornerstoneWADO = await import("cornerstone-wado-image-loader");
-				const wado = cornerstoneWADO.default ?? cornerstoneWADO;
-				if (wado.external) {
-					wado.external.cornerstone = cornerstoneRef.current;
-					const dicomParser = await import("dicom-parser");
-					wado.external.dicomParser = dicomParser.default ?? dicomParser;
-				}
-				// Web Worker無効化 — Electron/Vite環境ではWorkerパスが解決できないため
-				if (wado.configure) {
-					wado.configure({ useWebWorkers: false });
-				}
-				wadoRef.current = wado;
-			} catch (err) {
-				console.error(
-					"[useCornerstone] cornerstone-wado-image-loader import失敗:",
-					err,
-				);
-				return;
-			}
-
-			// ローカルファイル用カスタムimageLoader登録
-			// WADOのXHRパイプラインはElectron/Vite環境でblob URLのfetchに失敗するため、
-			// dicom-parserで直接パースしcornerstoneイメージオブジェクトを構築する
-			const dicomParserMod = await import("dicom-parser");
-			const dp = dicomParserMod.default ?? dicomParserMod;
-
-			cornerstoneRef.current.registerImageLoader(
-				"roentgen",
-				(imageId: string) => {
-					const promise = (async () => {
-						const filePath = imageId.replace("roentgen:", "");
-						const arrayBuffer = imageDataMapRef.current.get(filePath);
-
-						if (!arrayBuffer) {
-							throw new Error(`ファイルデータ未登録: ${filePath}`);
-						}
-
-						const byteArray = new Uint8Array(arrayBuffer);
-						const dataSet = dp.parseDicom(byteArray);
-
-						const rows = dataSet.uint16("x00280010") ?? 0;
-						const columns = dataSet.uint16("x00280011") ?? 0;
-						const bitsAllocated = dataSet.uint16("x00280100") ?? 16;
-						const bitsStored = dataSet.uint16("x00280101") ?? bitsAllocated;
-						const pixelRepresentation = dataSet.uint16("x00280103") ?? 0;
-						const samplesPerPixel = dataSet.uint16("x00280002") ?? 1;
-						const photometricInterpretation =
-							dataSet.string("x00280004") ?? "MONOCHROME2";
-
-						const pixelDataElement = dataSet.elements.x7fe00010;
-						if (!pixelDataElement) {
-							throw new Error("PixelData (7FE0,0010) が見つかりません");
-						}
-
-						// ピクセルデータ抽出
-						let pixelData: Int16Array | Uint16Array | Uint8Array;
-						if (bitsAllocated === 16) {
-							if (pixelRepresentation === 1) {
-								pixelData = new Int16Array(
-									arrayBuffer,
-									pixelDataElement.dataOffset,
-									pixelDataElement.length / 2,
-								);
-							} else {
-								pixelData = new Uint16Array(
-									arrayBuffer,
-									pixelDataElement.dataOffset,
-									pixelDataElement.length / 2,
-								);
-							}
-						} else {
-							pixelData = new Uint8Array(
-								arrayBuffer,
-								pixelDataElement.dataOffset,
-								pixelDataElement.length,
-							);
-						}
-
-						// min/max算出
-						let minVal = Number.MAX_SAFE_INTEGER;
-						let maxVal = Number.MIN_SAFE_INTEGER;
-						for (let i = 0; i < pixelData.length; i++) {
-							const v = pixelData[i] ?? 0;
-							if (v < minVal) minVal = v;
-							if (v > maxVal) maxVal = v;
-						}
-
-						// DICOMタグからWW/WCを取得
-						const windowCenter =
-							Number.parseFloat(dataSet.string("x00281050") ?? "") ||
-							(maxVal + minVal) / 2;
-						const windowWidth =
-							Number.parseFloat(dataSet.string("x00281051") ?? "") ||
-							maxVal - minVal;
-						const slope = Number.parseFloat(dataSet.string("x00281053") ?? "1");
-						const intercept = Number.parseFloat(
-							dataSet.string("x00281052") ?? "0",
-						);
-						const isColor = samplesPerPixel > 1;
-						const invert = photometricInterpretation === "MONOCHROME1";
-
-						const image: CornerstoneImage = {
-							imageId,
-							rows,
-							columns,
-							width: columns,
-							height: rows,
-							getPixelData: () => pixelData,
-							windowCenter,
-							windowWidth,
-							slope,
-							intercept,
-							invert,
-							minPixelValue: minVal,
-							maxPixelValue: maxVal,
-						};
-
-						// cornerstoneが必要とする追加プロパティ
-						const extended = image as CornerstoneImage &
-							Record<string, unknown>;
-						extended.color = isColor;
-						extended.columnPixelSpacing = Number.parseFloat(
-							(dataSet.string("x00280030") ?? "").split("\\")[1] ?? "1",
-						);
-						extended.rowPixelSpacing = Number.parseFloat(
-							(dataSet.string("x00280030") ?? "").split("\\")[0] ?? "1",
-						);
-						extended.sizeInBytes = pixelData.byteLength;
-						extended.rgba = false;
-						extended.photometricInterpretation = photometricInterpretation;
-						extended.bitsStored = bitsStored;
-
-						return image;
-					})();
-
-					return { promise };
-				},
-			);
-
+		if (_isInitDone) {
 			setCornerstoneReady(true);
+			return;
+		}
+		const onReady = () => setCornerstoneReady(true);
+		_initDoneCallbacks.push(onReady);
+		_initCornerstoneOnce();
+		return () => {
+			const idx = _initDoneCallbacks.indexOf(onReady);
+			if (idx !== -1) _initDoneCallbacks.splice(idx, 1);
 		};
-
-		initCornerstone();
 	}, []);
 
-	// 画像データの登録
+	// 画像データの登録（共有マップへ書き込む）
 	const registerImageData = useCallback(
 		(filePath: string, data: ArrayBuffer) => {
-			imageDataMapRef.current.set(filePath, data);
+			_sharedImageDataMap.set(filePath, data);
 		},
 		[],
 	);
 
-	// 画像データの解放（ファイル削除/クリア時にメモリリークを防止）
 	const unregisterImageData = useCallback((filePath: string) => {
-		imageDataMapRef.current.delete(filePath);
+		_sharedImageDataMap.delete(filePath);
 	}, []);
 
 	const clearAllImageData = useCallback(() => {
-		imageDataMapRef.current.clear();
+		_sharedImageDataMap.clear();
 	}, []);
 
 	// 画像読み込み・表示
 	const loadAndDisplayImage = useCallback(async (fileInfo: DicomFileInfo) => {
-		const cs = cornerstoneRef.current;
+		const cs = _cornerstoneModule;
 		if (!cs) return;
 
 		try {
@@ -289,16 +296,13 @@ export const useCornerstone = () => {
 			overlayDataRef.current = fileInfo.overlayData;
 
 			// 初期WW/WC設定
-			// DICOMタグにWW/WCがある場合はそれを使用、なければパーセンタイルで自動計算
 			let ww = fileInfo.windowWidth || image.windowWidth;
 			let wc = fileInfo.windowCenter || image.windowCenter;
 
-			// WW/WCタグが無く、全ピクセルレンジがフォールバックされた場合
-			// 2-98パーセンタイルで再計算してコントラストを改善
+			// WW/WCタグが無く全ピクセルレンジがフォールバックされた場合、2-98パーセンタイルで再計算
 			const fullRange = image.maxPixelValue - image.minPixelValue;
 			if (ww >= fullRange * 0.9) {
 				const pixels = image.getPixelData();
-				// ヒストグラムベースのパーセンタイル計算（5M+ピクセルでもArray.sortより高速）
 				const histSize = 4096;
 				const hist = new Uint32Array(histSize);
 				const scale = (histSize - 1) / (fullRange || 1);
@@ -341,24 +345,20 @@ export const useCornerstone = () => {
 	}, []);
 
 	// OSD tileDrawingブリッジ設定
-	// renkeiboxのuseRender.ts tileDrawing関数に相当
-	// refsを使うことで、setupTileDrawingBridgeの再呼び出し不要
 	const setupTileDrawingBridge = useCallback((osdViewer: OSDViewer) => {
-		// 古いハンドラを除去してから新しいハンドラを登録（蓄積防止）
 		if (osdViewerRef.current) {
 			osdViewerRef.current.removeAllHandlers("tile-drawing");
 		}
 		osdViewerRef.current = osdViewer;
 
 		osdViewer.addHandler("tile-drawing", (event: OSDTileEvent) => {
-			const cs = cornerstoneRef.current;
+			const cs = _cornerstoneModule;
 			const image = currentImageRef.current;
 			if (!cs || !image || !event.rendered?.canvas) return;
 
 			const canvas = event.rendered.canvas;
 			const wi = worldInfoRef.current;
 
-			// cornerstoneのviewport設定
 			const viewport: CornerstoneViewport = {
 				voi: {
 					windowWidth: wi.windowWidth,
@@ -371,12 +371,8 @@ export const useCornerstone = () => {
 			};
 
 			try {
-				// cornerstoneでDICOM固有のピクセル処理を実行
-				// Modality LUT → VOI LUT → WW/WC → ピクセル→RGB変換
 				cs.renderToCanvas(canvas, image, viewport);
 
-				// DICOMオーバーレイプレーン(60xx,3000)の描画
-				// cornerstone描画後にCanvas上にビットマップオーバーレイを重ねる
 				const overlays = overlayDataRef.current;
 				if (overlays.length > 0) {
 					const ctx = canvas.getContext("2d");
@@ -388,7 +384,6 @@ export const useCornerstone = () => {
 								overlay.columns,
 								overlay.rows,
 							);
-							// ビットマップデータを展開（各ビットが1ピクセルに対応）
 							for (let y = 0; y < overlay.rows; y++) {
 								for (let x = 0; x < overlay.columns; x++) {
 									const bitIdx = y * overlay.columns + x;
@@ -398,7 +393,6 @@ export const useCornerstone = () => {
 									const isSet = (byteVal >> bitOffset) & 1;
 									if (isSet) {
 										const pixelIdx = (y * overlay.columns + x) * 4;
-										// オーバーレイ色: オレンジ（半透明）
 										imgData.data[pixelIdx] = 255;
 										imgData.data[pixelIdx + 1] = 165;
 										imgData.data[pixelIdx + 2] = 0;
@@ -420,17 +414,12 @@ export const useCornerstone = () => {
 		});
 	}, []);
 
-	// OSD再描画トリガー — forceRedraw()はOSD内部のforceRedrawフラグをセットし、
-	// 次のupdateOnce()でdrawWorld()→tile-drawingイベント発火を保証する。
-	// world.needsDraw()はgetterで再描画をトリガーしない。
 	const triggerRedraw = useCallback(() => {
 		osdViewerRef.current?.forceRedraw();
 	}, []);
 
-	// 画像プリロード — cornerstoneのキャッシュに事前ロード（表示はしない）
-	// スタックスクロール時のスムーズな切替を実現
 	const preloadImage = useCallback(async (fileInfo: DicomFileInfo) => {
-		const cs = cornerstoneRef.current;
+		const cs = _cornerstoneModule;
 		if (!cs) return;
 		try {
 			await cs.loadImage(fileInfo.imageId);

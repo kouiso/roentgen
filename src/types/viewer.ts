@@ -3,6 +3,8 @@ export const VIEWER_CONTROL_TYPE = {
 	WW_WC: "WW_WC",
 	ZOOM: "ZOOM",
 	PAN: "PAN",
+	MEASURE_DISTANCE: "MEASURE_DISTANCE",
+	MEASURE_ANGLE: "MEASURE_ANGLE",
 } as const;
 
 export type ViewerControlType =

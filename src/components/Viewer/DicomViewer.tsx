@@ -1,25 +1,17 @@
-// メインビューア全体コンポーネント
-// ControlPanel + StackView + Overlay + Direction + Slider + Thumbnail を統合
-// OSD初期化 → cornerstoneブリッジ接続 → DICOM画像表示の流れを管理
-import { useCallback, useEffect, useState } from "react";
-import { useCornerstone } from "@/hooks/useCornerstone";
-import { useImageOverlay } from "@/hooks/useImageOverlay";
-import { useMouseInteraction } from "@/hooks/useMouseInteraction";
-import { useOpenSeaDragon } from "@/hooks/useOpenSeaDragon";
-import { useViewerControls } from "@/hooks/useViewerControls";
-import { useViewerSlider } from "@/hooks/useViewerSlider";
+// メインビューア全体コンポーネント（複数ペインレイアウト対応版）
+// useViewerPane × 4 + ViewerLayout + 共有 ControlPanel の構成
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useViewerLayout } from "@/hooks/useViewerLayout";
+import { useViewerPane } from "@/hooks/useViewerPane";
 import type { DicomFileInfo } from "@/types/dicom";
-import type { ViewerControlType } from "@/types/viewer";
+import { LAYOUT_PANE_COUNT } from "@/types/layout";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
-import { calculateImageDirection } from "@/utils/image-direction";
+import { getAllSeries, groupByStudySeries } from "@/utils/study-grouper";
 import { ControlPanel } from "./ControlPanel";
-import { ImageDirection } from "./ImageDirection";
-import { ImageOverlay } from "./ImageOverlay";
-import { StackSlider } from "./StackSlider";
-import { StackView } from "./StackView";
-import { ThumbnailPanel } from "./ThumbnailPanel";
-
-const PRELOAD_COUNT = 10;
+import { ViewerLayout } from "./ViewerLayout";
+import { ViewerPane } from "./ViewerPane";
 
 type DicomViewerProps = {
 	files: DicomFileInfo[];
@@ -36,210 +28,177 @@ export const DicomViewer = ({
 	onRemoveFile,
 	setImageDataRegistrar,
 }: DicomViewerProps) => {
-	const [activeMode, setActiveMode] = useState<ViewerControlType>(
-		VIEWER_CONTROL_TYPE.WW_WC,
-	);
-	const [showOverlay, setShowOverlay] = useState(true);
-	const [showDirection, setShowDirection] = useState(true);
-	const [isOsdReady, setIsOsdReady] = useState(false);
+	const { layout, setLayout } = useViewerLayout();
+	const [activePaneIndex, setActivePaneIndex] = useState(0);
+	const [isFullscreen, setIsFullscreen] = useState(false);
 
-	const {
-		cornerstoneReady,
-		currentImage,
-		worldInfo,
-		setWorldInfo,
-		triggerRedraw,
-		loadAndDisplayImage,
-		setupTileDrawingBridge,
-		registerImageData,
-		unregisterImageData,
-		clearAllImageData,
-		preloadImage,
-	} = useCornerstone();
+	const paneCount = LAYOUT_PANE_COUNT[layout];
 
-	const { sliderState, setFrame, setMaxFrame, nextFrame, prevFrame } =
-		useViewerSlider();
+	// Study/Series グルーピング → ペイン用ファイルリスト
+	const studies = useMemo(() => groupByStudySeries(files), [files]);
+	const seriesList = useMemo(() => getAllSeries(studies), [studies]);
 
-	const currentFile = files[sliderState.currentFrame] ?? null;
-
-	// 現在画像の寸法（OSD TileSource用）
-	const imageWidth = currentFile?.columns ?? 0;
-	const imageHeight = currentFile?.rows ?? 0;
-
-	// OSD初期化
-	const { initViewer, getViewport, tileReady } = useOpenSeaDragon({
-		containerId: "osd-viewer",
-		imageWidth,
-		imageHeight,
-		onViewerCreated: (viewer) => {
-			setupTileDrawingBridge(viewer);
-			setIsOsdReady(true);
-		},
-	});
-
-	const overlayInfo = useImageOverlay(
-		currentFile,
-		worldInfo.windowWidth,
-		worldInfo.windowCenter,
-	);
-
-	const directionInfo = currentFile
-		? calculateImageDirection(currentFile.imageOrientationPatient)
-		: null;
-
-	const controls = useViewerControls({
-		setWorldInfo,
-		triggerRedraw,
-		getViewport,
-	});
-
-	// マウスインタラクション（WW/WCドラッグ + モード切替 + ホイールフレーム切替）
-	useMouseInteraction({
-		containerId: "osd-viewer",
-		activeMode,
-		onModeChange: setActiveMode,
-		adjustWwWc: controls.adjustWwWc,
-		onNextFrame: nextFrame,
-		onPrevFrame: prevFrame,
-		enabled: isOsdReady,
-	});
-
-	// cornerstoneのimageDataMap登録関数をloaderに接続
-	// ロード時にrawDataが直接cornerstoneに登録される
-	useEffect(() => {
-		setImageDataRegistrar(registerImageData);
-	}, [setImageDataRegistrar, registerImageData]);
-
-	// スライダー最大値設定
-	useEffect(() => {
-		setMaxFrame(Math.max(0, files.length - 1));
-	}, [files.length, setMaxFrame]);
-
-	// OSDビューア初期化（StackViewマウント後）
-	const handleViewerReady = useCallback(() => {
-		initViewer();
-	}, [initViewer]);
-
-	// 現在フレーム変更時に画像読み込み（OSDとcornerstone両方の初期化完了が必要）
-	useEffect(() => {
-		if (!currentFile || !isOsdReady || !cornerstoneReady) return;
-		loadAndDisplayImage(currentFile);
-	}, [currentFile, isOsdReady, cornerstoneReady, loadAndDisplayImage]);
-
-	// 画像プリロード — 現在フレームの前後PRELOAD_COUNTフレームを先読み
-	useEffect(() => {
-		if (!cornerstoneReady || !isOsdReady) return;
-
-		const current = sliderState.currentFrame;
-		for (let offset = 1; offset <= PRELOAD_COUNT; offset++) {
-			const nextIdx = current + offset;
-			const prevIdx = current - offset;
-			const nextFile = files[nextIdx];
-			const prevFile = files[prevIdx];
-			if (nextFile) preloadImage(nextFile);
-			if (prevFile) preloadImage(prevFile);
+	// 1x1: pane0 = 全ファイル / マルチペイン: pane i = series i のファイル
+	const paneFiles = useMemo<
+		[DicomFileInfo[], DicomFileInfo[], DicomFileInfo[], DicomFileInfo[]]
+	>(() => {
+		if (paneCount === 1) {
+			return [files, [], [], []];
 		}
-	}, [
-		sliderState.currentFrame,
-		files,
-		cornerstoneReady,
-		isOsdReady,
-		preloadImage,
-	]);
+		return [0, 1, 2, 3].map((i) => seriesList[i]?.files ?? []) as [
+			DicomFileInfo[],
+			DicomFileInfo[],
+			DicomFileInfo[],
+			DicomFileInfo[],
+		];
+	}, [paneCount, files, seriesList]);
 
-	// タイル読込完了 + cornerstone画像準備完了 → OSD再描画トリガー
-	useEffect(() => {
-		if (tileReady && currentImage) {
-			triggerRedraw();
-		}
-	}, [tileReady, currentImage, triggerRedraw]);
-
-	const handleFrameChange = useCallback(
-		(frame: number) => {
-			setFrame(frame);
-		},
-		[setFrame],
+	// 4ペイン固定（React hooksはループ不可のため常時生成、未使用ペインはfiles=[]）
+	const pane0 = useViewerPane("pane-0", paneFiles[0]);
+	const pane1 = useViewerPane("pane-1", paneFiles[1]);
+	const pane2 = useViewerPane("pane-2", paneFiles[2]);
+	const pane3 = useViewerPane("pane-3", paneFiles[3]);
+	const allPanes = useMemo(
+		() => [pane0, pane1, pane2, pane3],
+		[pane0, pane1, pane2, pane3],
 	);
+	const activePane = allPanes[activePaneIndex] ?? pane0;
 
-	const handleThumbnailSelect = useCallback(
+	// レイアウト変更時にアクティブペインをリセット（範囲外になった場合）
+	useEffect(() => {
+		if (activePaneIndex >= paneCount) {
+			setActivePaneIndex(0);
+		}
+	}, [paneCount, activePaneIndex]);
+
+	// imageDataRegistrar 接続（共有マップなのでpane0代表で登録）
+	useEffect(() => {
+		setImageDataRegistrar(pane0.registerImageData);
+	}, [setImageDataRegistrar, pane0.registerImageData]);
+
+	// フルスクリーン状態追跡
+	useEffect(() => {
+		const handler = () => setIsFullscreen(!!document.fullscreenElement);
+		document.addEventListener("fullscreenchange", handler);
+		return () => document.removeEventListener("fullscreenchange", handler);
+	}, []);
+
+	const toggleFullscreen = useCallback(() => {
+		if (document.fullscreenElement) {
+			document.exitFullscreen();
+		} else {
+			document.documentElement.requestFullscreen();
+		}
+	}, []);
+
+	// スクリーンショット（アクティブペインのcanvasから取得）
+	const handleScreenshot = useCallback(() => {
+		const canvas = activePane.tileCanvasRef?.current;
+		if (!canvas) return;
+		const dataUrl = canvas.toDataURL("image/png");
+		const api = (
+			window as {
+				electronAPI?: {
+					saveScreenshot?: (dataUrl: string) => Promise<boolean>;
+				};
+			}
+		).electronAPI;
+		if (api?.saveScreenshot) {
+			api.saveScreenshot(dataUrl);
+		} else {
+			const link = document.createElement("a");
+			link.download = `roentgen-${Date.now()}.png`;
+			link.href = dataUrl;
+			link.click();
+		}
+	}, [activePane.tileCanvasRef]);
+
+	// WW/WCプリセット適用（アクティブペイン）
+	const handleSetWwWcPreset = useCallback(
 		(index: number) => {
-			setFrame(index);
+			const preset = WW_WC_PRESETS[index];
+			if (preset) activePane.controls.setWwWc(preset.ww, preset.wc);
 		},
-		[setFrame],
+		[activePane.controls.setWwWc],
 	);
 
-	const handleReset = useCallback(() => {
-		if (!currentFile) return;
-		controls.resetImage(currentFile.windowWidth, currentFile.windowCenter);
-	}, [controls, currentFile]);
-
-	// 全ファイルクリア — imageDataMapも解放
+	// 全ファイルクリア
 	const handleClearAll = useCallback(() => {
-		clearAllImageData();
+		pane0.clearAllImageData();
 		onClearAll();
-	}, [clearAllImageData, onClearAll]);
+	}, [pane0.clearAllImageData, onClearAll]);
 
-	// 選択画像クリア — 現在表示中の画像を除去 + imageDataMap解放
+	// 選択画像クリア（アクティブペインの現在ファイルを全体リストから削除）
 	const handleClearSelected = useCallback(() => {
-		const file = files[sliderState.currentFrame];
+		const file = activePane.currentFile;
 		if (file) {
-			// imageId "roentgen:{path}" からパスを抽出
 			const filePath = file.imageId.replace("roentgen:", "");
-			unregisterImageData(filePath);
+			pane0.unregisterImageData(filePath);
+			const globalIdx = files.findIndex((f) => f.imageId === file.imageId);
+			if (globalIdx !== -1) onRemoveFile(globalIdx);
 		}
-		onRemoveFile(sliderState.currentFrame);
-	}, [onRemoveFile, unregisterImageData, files, sliderState.currentFrame]);
+	}, [activePane.currentFile, files, pane0.unregisterImageData, onRemoveFile]);
+
+	// キーボードショートカット（アクティブペインに適用）
+	const shortcutActions = useMemo(
+		() => ({
+			nextFrame: activePane.nextFrame,
+			prevFrame: activePane.prevFrame,
+			setModeWwWc: () => activePane.setActiveMode(VIEWER_CONTROL_TYPE.WW_WC),
+			setModeZoom: () => activePane.setActiveMode(VIEWER_CONTROL_TYPE.ZOOM),
+			setModePan: () => activePane.setActiveMode(VIEWER_CONTROL_TYPE.PAN),
+			fitSize: activePane.controls.fitSize,
+			toggleInvert: activePane.controls.toggleInvert,
+			resetImage: activePane.resetImage,
+			toggleCinePlay: activePane.toggleCinePlay,
+			setWwWcPreset: handleSetWwWcPreset,
+			toggleFullscreen,
+			setModeMeasureDistance: () =>
+				activePane.setActiveMode(VIEWER_CONTROL_TYPE.MEASURE_DISTANCE),
+			setModeMeasureAngle: () =>
+				activePane.setActiveMode(VIEWER_CONTROL_TYPE.MEASURE_ANGLE),
+			clearMeasurements: activePane.measurement.clearAll,
+		}),
+		[
+			activePane.nextFrame,
+			activePane.prevFrame,
+			activePane.setActiveMode,
+			activePane.controls.fitSize,
+			activePane.controls.toggleInvert,
+			activePane.resetImage,
+			activePane.toggleCinePlay,
+			handleSetWwWcPreset,
+			toggleFullscreen,
+			activePane.measurement.clearAll,
+		],
+	);
+
+	useKeyboardShortcuts(shortcutActions, activePane.isOsdReady);
 
 	return (
 		<div className="flex flex-1 flex-col">
 			<ControlPanel
-				activeMode={activeMode}
-				onModeChange={setActiveMode}
-				onFitSize={controls.fitSize}
-				onOneToOne={controls.oneToOneSize}
-				onToggleInvert={controls.toggleInvert}
-				onReset={handleReset}
-				onRotateCW={() => controls.rotate(90)}
-				onRotateCCW={() => controls.rotate(-90)}
-				onFlipH={controls.toggleFlipHorizontal}
-				onFlipV={controls.toggleFlipVertical}
-				showOverlay={showOverlay}
-				onToggleOverlay={() => setShowOverlay((v) => !v)}
-				showDirection={showDirection}
-				onToggleDirection={() => setShowDirection((v) => !v)}
+				{...activePane.controlPanelProps}
 				onClearSelected={handleClearSelected}
 				onClearAll={handleClearAll}
+				onScreenshot={handleScreenshot}
+				isFullscreen={isFullscreen}
+				onToggleFullscreen={toggleFullscreen}
+				layout={layout}
+				onSetLayout={setLayout}
 			/>
 
-			<div className="flex min-h-0 flex-1">
-				<div className="relative flex flex-1 flex-col">
-					<div className="relative flex-1">
-						<StackView
-							containerId="osd-viewer"
-							onViewerReady={handleViewerReady}
-						/>
-						<ImageOverlay overlayInfo={overlayInfo} visible={showOverlay} />
-						<ImageDirection
-							directionInfo={directionInfo}
-							visible={showDirection}
-						/>
-					</div>
-
-					<StackSlider
-						currentFrame={sliderState.currentFrame}
-						maxFrame={sliderState.maxFrame}
-						onFrameChange={handleFrameChange}
-						onNext={nextFrame}
-						onPrev={prevFrame}
+			<ViewerLayout layout={layout}>
+				{allPanes.slice(0, paneCount).map((pane, i) => (
+					<ViewerPane
+						key={pane.containerId}
+						pane={pane}
+						files={paneFiles[i] ?? []}
+						isActive={i === activePaneIndex}
+						onFocus={() => setActivePaneIndex(i)}
 					/>
-				</div>
-
-				<ThumbnailPanel
-					files={files}
-					currentIndex={sliderState.currentFrame}
-					onSelect={handleThumbnailSelect}
-				/>
-			</div>
+				))}
+			</ViewerLayout>
 		</div>
 	);
 };
