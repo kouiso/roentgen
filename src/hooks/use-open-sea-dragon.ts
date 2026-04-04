@@ -1,7 +1,7 @@
 // OpenSeadragon初期化・ビューア作成（renkeibox useRender.createViewer 参考）
 // DICOM画像を単一タイルとしてOSDに表示し、ズーム/パン/ビューポート制御をOSDに委譲
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { OSDViewer } from "./useCornerstone";
+import type { OSDViewer } from "./use-cornerstone";
 
 type UseOpenSeaDragonProps = {
 	containerId: string;

@@ -1,14 +1,14 @@
 // 単一ペインのビューア状態管理フック
 // DicomViewerから状態ロジックを抽出し、複数ペイン対応を実現
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCineMode } from "@/hooks/useCineMode";
-import { useCornerstone } from "@/hooks/useCornerstone";
-import { useImageOverlay } from "@/hooks/useImageOverlay";
-import { useMeasurement } from "@/hooks/useMeasurement";
-import { useMouseInteraction } from "@/hooks/useMouseInteraction";
-import { useOpenSeaDragon } from "@/hooks/useOpenSeaDragon";
-import { useViewerControls } from "@/hooks/useViewerControls";
-import { useViewerSlider } from "@/hooks/useViewerSlider";
+import { useCineMode } from "@/hooks/use-cine-mode";
+import { useCornerstone } from "@/hooks/use-cornerstone";
+import { useImageOverlay } from "@/hooks/use-image-overlay";
+import { useMeasurement } from "@/hooks/use-measurement";
+import { useMouseInteraction } from "@/hooks/use-mouse-interaction";
+import { useOpenSeaDragon } from "@/hooks/use-open-sea-dragon";
+import { useViewerControls } from "@/hooks/use-viewer-controls";
+import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";

@@ -1,13 +1,13 @@
 // 単一ペインのビューア描画コンポーネント
 // ControlPanelなし — DicomViewerがControlPanelを管理し、ViewerPaneは描画に集中
-import type { ViewerPaneHandle } from "@/hooks/useViewerPane";
+import type { ViewerPaneHandle } from "@/hooks/use-viewer-pane";
 import type { DicomFileInfo } from "@/types/dicom";
-import { ImageDirection } from "./ImageDirection";
-import { ImageOverlay } from "./ImageOverlay";
-import { MeasurementOverlay } from "./MeasurementOverlay";
-import { SeriesPanel } from "./SeriesPanel";
-import { StackSlider } from "./StackSlider";
-import { StackView } from "./StackView";
+import { ImageDirection } from "./image-direction";
+import { ImageOverlay } from "./image-overlay";
+import { MeasurementOverlay } from "./measurement-overlay";
+import { SeriesPanel } from "./series-panel";
+import { StackSlider } from "./stack-slider";
+import { StackView } from "./stack-view";
 
 type ViewerPaneProps = {
 	pane: ViewerPaneHandle;

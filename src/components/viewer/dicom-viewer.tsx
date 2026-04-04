@@ -2,16 +2,16 @@
 // useViewerPane × 4 + ViewerLayout + 共有 ControlPanel の構成
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
-import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { useViewerLayout } from "@/hooks/useViewerLayout";
-import { useViewerPane } from "@/hooks/useViewerPane";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useViewerLayout } from "@/hooks/use-viewer-layout";
+import { useViewerPane } from "@/hooks/use-viewer-pane";
 import type { DicomFileInfo } from "@/types/dicom";
 import { LAYOUT_PANE_COUNT } from "@/types/layout";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
 import { getAllSeries, groupByStudySeries } from "@/utils/study-grouper";
-import { ControlPanel } from "./ControlPanel";
-import { ViewerLayout } from "./ViewerLayout";
-import { ViewerPane } from "./ViewerPane";
+import { ControlPanel } from "./control-panel";
+import { ViewerLayout } from "./viewer-layout";
+import { ViewerPane } from "./viewer-pane";
 
 type DicomViewerProps = {
 	files: DicomFileInfo[];

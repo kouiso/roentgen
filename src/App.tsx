@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
-import { FileDropZone } from "./components/FileDropZone";
-import { DicomViewer } from "./components/Viewer/DicomViewer";
-import { useDicomLoader } from "./hooks/useDicomLoader";
+import { FileDropZone } from "./components/file-drop-zone";
+import { DicomViewer } from "./components/viewer/dicom-viewer";
+import { useDicomLoader } from "./hooks/use-dicom-loader";
 
 export const App = () => {
 	const {
