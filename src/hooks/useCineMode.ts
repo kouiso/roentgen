@@ -31,13 +31,6 @@ export const useCineMode = ({
 		maxFrameRef.current = maxFrame;
 	}, [maxFrame]);
 
-	// 最終フレーム到達で自動停止
-	useEffect(() => {
-		if (isPlaying && currentFrame >= maxFrame && maxFrame > 0) {
-			setIsPlaying(false);
-		}
-	}, [isPlaying, currentFrame, maxFrame]);
-
 	// インターバル制御
 	useEffect(() => {
 		if (!isPlaying || maxFrame <= 0) return;

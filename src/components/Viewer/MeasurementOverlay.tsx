@@ -1,6 +1,6 @@
 // 計測SVGオーバーレイ — 距離・角度の描画
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Measurement, MeasurementPoint } from "@/types/measurement";
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
@@ -171,9 +171,10 @@ const ActivePointsOverlay = ({
 
 	return (
 		<g>
-			{converted.map((p) => (
+			{converted.map((p, i) => (
 				<circle
-					key={`active-${p.x}-${p.y}`}
+					// biome-ignore lint/suspicious/noArrayIndexKey: 配置中の一時的な点は座標が重複しうるためindexを使用
+					key={i}
 					cx={p.x}
 					cy={p.y}
 					r={4}
@@ -209,30 +210,19 @@ export const MeasurementOverlay = ({
 	const convert = useCoordConverter(containerId, imageWidth, viewport);
 	// ビューポート変更時に再描画するためのカウンター
 	const [, setRedrawCount] = useState(0);
-	const rafRef = useRef(0);
 
-	// OSDのズーム/パン時にSVGを再描画
+	// OSDのズーム/パン時にSVGを再描画（30fps）
+	// 計測が存在する場合のみタイマーを起動する
 	useEffect(() => {
-		if (!visible) return;
+		if (!visible || (measurements.length === 0 && activePoints.length === 0))
+			return;
 
-		let running = true;
-		const tick = () => {
-			if (!running) return;
-			setRedrawCount((c) => c + 1);
-			rafRef.current = requestAnimationFrame(tick);
-		};
-		// 30fpsで更新（60fpsは計測描画には過剰）
 		const intervalId = setInterval(() => {
-			cancelAnimationFrame(rafRef.current);
-			rafRef.current = requestAnimationFrame(tick);
+			setRedrawCount((c) => c + 1);
 		}, 33);
 
-		return () => {
-			running = false;
-			clearInterval(intervalId);
-			cancelAnimationFrame(rafRef.current);
-		};
-	}, [visible]);
+		return () => clearInterval(intervalId);
+	}, [visible, measurements.length, activePoints.length]);
 
 	if (!visible || (measurements.length === 0 && activePoints.length === 0)) {
 		return null;

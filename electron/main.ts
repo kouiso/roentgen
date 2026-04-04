@@ -115,7 +115,8 @@ ipcMain.handle("save-screenshot", async (_event, dataUrl: string) => {
 
 	if (result.canceled || !result.filePath) return false;
 
-	const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+	if (!dataUrl.startsWith("data:image/png;base64,")) return false;
+	const base64 = dataUrl.slice("data:image/png;base64,".length);
 	await writeFile(result.filePath, Buffer.from(base64, "base64"));
 	return true;
 });

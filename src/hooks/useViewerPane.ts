@@ -264,7 +264,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			cine.increaseFps,
 			cine.decreaseFps,
 			measurement.clearAll,
-			measurement.measurements.length,
+			measurement.measurements,
 		],
 	);
 

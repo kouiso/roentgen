@@ -95,6 +95,7 @@ const _initCornerstoneOnce = (): Promise<void> => {
 			_cornerstoneModule = cornerstone.default ?? cornerstone;
 		} catch (err) {
 			console.error("[useCornerstone] cornerstone-core import失敗:", err);
+			_initPromise = null;
 			return;
 		}
 
@@ -114,6 +115,7 @@ const _initCornerstoneOnce = (): Promise<void> => {
 				"[useCornerstone] cornerstone-wado-image-loader import失敗:",
 				err,
 			);
+			_initPromise = null;
 			return;
 		}
 
