@@ -15,7 +15,15 @@
 		}
 	},
 	"files": {
-		"includes": ["src/**", "electron/**"],
-		"experimentalScannerIgnores": ["dist", "dist-electron", "node_modules"]
+		"includes": [
+			"src/**",
+			"electron/**",
+			"vite.config.ts"
+		],
+		"experimentalScannerIgnores": [
+			"dist",
+			"dist-electron",
+			"node_modules"
+		]
 	}
 }
