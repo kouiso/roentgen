@@ -16,6 +16,12 @@ export default defineConfig({
 			{
 				entry: "electron/main.ts",
 				onstart(args) {
+					// ELECTRON_RUN_AS_NODE=1 が親プロセス（Claude Code等）から継承されると
+					// Electron が Node.js モードで起動し、BrowserWindow が作れない。
+					// spawn に渡す env から明示的に除外する。
+					const { ELECTRON_RUN_AS_NODE: _, ...cleanEnv } = process.env;
+					const spawnOptions = { env: cleanEnv };
+
 					args.startup(
 						process.env.VSCODE_DEBUG
 							? [
@@ -25,6 +31,7 @@ export default defineConfig({
 									"--remote-debugging-port=9222",
 								]
 							: undefined,
+						spawnOptions,
 					);
 				},
 				vite: {
