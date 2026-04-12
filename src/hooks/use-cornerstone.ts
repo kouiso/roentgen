@@ -254,6 +254,8 @@ export const useCornerstone = () => {
 
 	useEffect(() => {
 		worldInfoRef.current = worldInfo;
+		// ref同期後に再描画 — setWorldInfoだけで自動的にtile-drawingが発火する
+		osdViewerRef.current?.forceRedraw();
 	}, [worldInfo]);
 
 	// モジュールレベルの初期化を待って cornerstoneReady を設定（1回のみ初期化）
@@ -294,6 +296,7 @@ export const useCornerstone = () => {
 
 		try {
 			const image = await cs.loadImage(fileInfo.imageId);
+			currentImageRef.current = image;
 			setCurrentImage(image);
 			overlayDataRef.current = fileInfo.overlayData;
 

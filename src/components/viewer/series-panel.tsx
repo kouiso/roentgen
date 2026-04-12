@@ -58,10 +58,10 @@ const ThumbnailImage = ({
 		<button
 			type="button"
 			onClick={onClick}
-			className={`group relative shrink-0 overflow-hidden rounded-md border-2 transition-all ${
+			className={`group relative shrink-0 overflow-hidden rounded-md border-2 transition-all duration-150 ease-out ${
 				isActive
-					? "border-blue-500 shadow-md shadow-blue-500/20"
-					: "border-transparent hover:border-neutral-600"
+					? "border-sky-400 shadow-md shadow-sky-400/20"
+					: "border-transparent hover:border-white/20"
 			}`}
 		>
 			<canvas
@@ -71,10 +71,10 @@ const ThumbnailImage = ({
 				className="block bg-neutral-800"
 			/>
 			<span
-				className={`absolute right-0.5 bottom-0.5 rounded px-1 text-[10px] leading-tight ${
+				className={`absolute right-0.5 bottom-0.5 rounded px-1 font-mono text-[10px] leading-tight ${
 					isActive
-						? "bg-blue-600 text-white"
-						: "bg-neutral-900/80 text-neutral-400"
+						? "bg-sky-400 text-zinc-950"
+						: "bg-black/70 text-zinc-300 backdrop-blur-sm"
 				}`}
 			>
 				{file.instanceNumber ?? globalIndex + 1}
@@ -139,13 +139,13 @@ export const SeriesPanel = ({
 	const multiSeries = groups.length > 1;
 
 	return (
-		<div className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto border-l border-neutral-800/80 bg-neutral-900/95 p-1.5">
+		<div className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 panel-surface">
 			{groups.map((group) => (
 				<div key={group.seriesUID} className="flex flex-col gap-1">
 					{/* シリーズヘッダー（複数シリーズ時のみ表示） */}
 					{multiSeries && (
 						<div
-							className="truncate rounded px-1 py-0.5 text-[10px] font-medium text-neutral-400 bg-neutral-800/60"
+							className="truncate rounded border border-white/5 bg-white/[0.03] px-1.5 py-0.5 font-sans text-[9px] font-medium uppercase tracking-[0.08em] text-zinc-400"
 							title={group.label}
 						>
 							{group.label}

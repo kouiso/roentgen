@@ -27,7 +27,7 @@ export const ViewerPane = ({
 		// biome-ignore lint/a11y/noStaticElementInteractions: ペインフォーカスのクリック検出用
 		<div
 			className={`relative flex min-h-0 flex-1 flex-col ${
-				isActive ? "ring-1 ring-blue-500/40" : ""
+				isActive ? "ring-1 ring-sky-400/40" : ""
 			}`}
 			onClick={onFocus}
 		>

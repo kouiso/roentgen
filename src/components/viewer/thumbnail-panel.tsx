@@ -59,10 +59,10 @@ const ThumbnailImage = ({
 		<button
 			type="button"
 			onClick={onClick}
-			className={`group relative shrink-0 overflow-hidden rounded-md border-2 transition-all ${
+			className={`group relative shrink-0 overflow-hidden rounded-md border-2 transition-all duration-150 ease-out ${
 				isActive
-					? "border-blue-500 shadow-md shadow-blue-500/20"
-					: "border-transparent hover:border-neutral-600"
+					? "border-sky-400 shadow-md shadow-sky-400/20"
+					: "border-transparent hover:border-white/20"
 			}`}
 		>
 			<canvas
@@ -73,10 +73,10 @@ const ThumbnailImage = ({
 			/>
 			{/* フレーム番号バッジ */}
 			<span
-				className={`absolute right-0.5 bottom-0.5 rounded px-1 text-[10px] leading-tight ${
+				className={`absolute right-0.5 bottom-0.5 rounded px-1 font-mono text-[10px] leading-tight ${
 					isActive
-						? "bg-blue-600 text-white"
-						: "bg-neutral-900/80 text-neutral-400"
+						? "bg-sky-400 text-zinc-950"
+						: "bg-black/70 text-zinc-300 backdrop-blur-sm"
 				}`}
 			>
 				{file.instanceNumber ?? "?"}
@@ -93,7 +93,7 @@ export const ThumbnailPanel = ({
 	if (files.length <= 1) return null;
 
 	return (
-		<div className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto border-l border-neutral-800/80 bg-neutral-900/95 p-1.5">
+		<div className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 panel-surface">
 			{files.map((file, index) => (
 				<ThumbnailImage
 					key={file.imageId}

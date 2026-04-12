@@ -16,6 +16,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.7",
     "@tailwindcss/vite": "^4.2.2",
     "cornerstone-core": "^2.6.1",
     "cornerstone-math": "^0.1.10",

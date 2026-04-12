@@ -57,6 +57,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				setupTileDrawingBridge(viewer);
 				setIsOsdReady(true);
 			},
+			onViewerDestroyed: () => {
+				setIsOsdReady(false);
+			},
 		});
 
 	const overlayInfo = useImageOverlay(
@@ -71,7 +74,6 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 
 	const controls = useViewerControls({
 		setWorldInfo,
-		triggerRedraw,
 		getViewport,
 	});
 
@@ -156,6 +158,8 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		activeMode,
 		onModeChange: setActiveMode,
 		adjustWwWc: controls.adjustWwWc,
+		zoomBy: controls.zoomBy,
+		panBy: controls.panBy,
 		onNextFrame: nextFrame,
 		onPrevFrame: prevFrame,
 		enabled: isOsdReady,
@@ -197,12 +201,16 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		preloadImage,
 	]);
 
-	// tileReady + currentImage → OSD再描画
+	// tileReady + currentImage → OSD再描画 + ビューポートフィット
 	useEffect(() => {
 		if (tileReady && currentImage) {
 			triggerRedraw();
+			const viewport = getViewport();
+			if (viewport) {
+				viewport.fitBounds(viewport.getHomeBounds());
+			}
 		}
-	}, [tileReady, currentImage, triggerRedraw]);
+	}, [tileReady, currentImage, triggerRedraw, getViewport]);
 
 	// ビューアリセット
 	const resetImage = useCallback(() => {
@@ -245,6 +253,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onDecreaseFps: cine.decreaseFps,
 			onClearMeasurements: measurement.clearAll,
 			hasMeasurements: measurement.measurements.length > 0,
+			isInverted: worldInfo.invert,
 		}),
 		[
 			activeMode,
@@ -259,6 +268,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			showDirection,
 			controls.setWwWc,
 			cine.isPlaying,
+			worldInfo.invert,
 			cine.fps,
 			cine.togglePlay,
 			cine.increaseFps,

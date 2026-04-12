@@ -31,8 +31,11 @@ export const ImageOverlay = ({ overlayInfo, visible }: ImageOverlayProps) => {
 					{items.map((item) => (
 						<div
 							key={item.id}
-							className="text-xs leading-tight text-yellow-300/80"
-							style={{ textShadow: "0 0 3px rgba(0,0,0,0.8)" }}
+							className="font-mono text-[11px] leading-[1.35] text-amber-200/85"
+							style={{
+								textShadow:
+									"0 1px 2px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.6)",
+							}}
 						>
 							{item.value}
 						</div>

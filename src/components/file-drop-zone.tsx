@@ -1,3 +1,4 @@
+import { UploadCloud } from "lucide-react";
 import { type DragEvent, useCallback, useState } from "react";
 
 type FileDropZoneProps = {
@@ -63,35 +64,49 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	}, [loadFiles]);
 
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない）
+		// biome-ignore lint/a11y/noStaticElementInteractions: ドロップ対象は視覚的な余白を持つコンテナで、フォーカス可能なボタンは内側のカード
 		<div
-			role="button"
-			tabIndex={0}
-			className={`flex flex-1 cursor-pointer items-center justify-center transition-colors ${
-				isDragging
-					? "border-2 border-dashed border-blue-500 bg-blue-500/10"
-					: "border-2 border-dashed border-neutral-700 hover:border-neutral-500"
-			}`}
+			className="flex flex-1 items-center justify-center p-10"
 			onDrop={handleDrop}
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
-			onClick={handleClick}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") handleClick();
-			}}
 		>
-			{isLoading ? (
-				<p className="text-neutral-400">読込中...</p>
-			) : (
-				<div className="text-center">
-					<p className="text-lg text-neutral-400">
-						DICOMファイルをここにドロップ
-					</p>
-					<p className="mt-2 text-sm text-neutral-600">
-						またはクリックしてファイルを選択
-					</p>
+			{/* biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない） */}
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={handleClick}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") handleClick();
+				}}
+				className={`group relative flex w-full max-w-md cursor-pointer flex-col items-center gap-5 rounded-2xl panel-surface px-10 py-14 text-center transition-all duration-200 ${
+					isDragging
+						? "ring-2 ring-sky-400/70 ring-offset-0"
+						: "hover:-translate-y-[1px]"
+				}`}
+			>
+				<div
+					className={`flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] transition-colors ${
+						isDragging
+							? "text-sky-300"
+							: "text-zinc-400 group-hover:text-zinc-200"
+					}`}
+				>
+					<UploadCloud size={26} strokeWidth={1.5} />
 				</div>
-			)}
+				{isLoading ? (
+					<p className="font-sans text-[13px] text-zinc-400">読込中...</p>
+				) : (
+					<div className="flex flex-col gap-1.5">
+						<p className="font-sans text-[15px] font-medium text-zinc-100">
+							DICOMファイルをドロップ
+						</p>
+						<p className="font-sans text-[12px] text-zinc-400">
+							またはクリックして選択
+						</p>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 };

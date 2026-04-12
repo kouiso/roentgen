@@ -18,8 +18,13 @@ export default defineConfig({
 				onstart(args) {
 					args.startup(
 						process.env.VSCODE_DEBUG
-							? ["--inspect=9229", "--remote-debugging-port=9222"]
-							: [],
+							? [
+									".",
+									"--no-sandbox",
+									"--inspect=9229",
+									"--remote-debugging-port=9222",
+								]
+							: undefined,
 					);
 				},
 				vite: {

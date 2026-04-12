@@ -8,6 +8,7 @@ type UseOpenSeaDragonProps = {
 	imageWidth: number;
 	imageHeight: number;
 	onViewerCreated?: (viewer: OSDViewer) => void;
+	onViewerDestroyed?: () => void;
 };
 
 export const useOpenSeaDragon = ({
@@ -15,6 +16,7 @@ export const useOpenSeaDragon = ({
 	imageWidth,
 	imageHeight,
 	onViewerCreated,
+	onViewerDestroyed,
 }: UseOpenSeaDragonProps) => {
 	const viewerRef = useRef<OSDViewer | null>(null);
 	const tileCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -25,14 +27,52 @@ export const useOpenSeaDragon = ({
 	// OSDの初回タイル読込完了を追跡 — needsDraw()はタイル読込後でないと
 	// drawWorld()→imageLoader.clear()→タイルabortのサイクルに陥る
 	const [tileReady, setTileReady] = useState(false);
+	// 現在のOSDに適用済みの画像サイズを追跡
+	const activeSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
+
+	const onViewerDestroyedRef = useRef(onViewerDestroyed);
 
 	useEffect(() => {
 		onViewerCreatedRef.current = onViewerCreated;
 	}, [onViewerCreated]);
 
+	useEffect(() => {
+		onViewerDestroyedRef.current = onViewerDestroyed;
+	}, [onViewerDestroyed]);
+
+	// 画像サイズが変わったらOSDビューアを再作成
+	useEffect(() => {
+		if (imageWidth <= 0 || imageHeight <= 0) return;
+		if (
+			activeSizeRef.current.w === imageWidth &&
+			activeSizeRef.current.h === imageHeight
+		)
+			return;
+		// サイズ変更 — 古いビューアを破棄して再作成を許可
+		if (viewerRef.current) {
+			viewerRef.current.destroy();
+			viewerRef.current = null;
+			setTileReady(false);
+			activeSizeRef.current = { w: 0, h: 0 };
+			onViewerDestroyedRef.current?.();
+		}
+	}, [imageWidth, imageHeight]);
+
 	// OSDビューア作成
 	const initViewer = useCallback(async () => {
-		if (viewerRef.current || imageWidth <= 0 || imageHeight <= 0) return;
+		if (imageWidth <= 0 || imageHeight <= 0) return;
+		// 既に同じサイズで作成済みなら何もしない
+		if (
+			viewerRef.current &&
+			activeSizeRef.current.w === imageWidth &&
+			activeSizeRef.current.h === imageHeight
+		)
+			return;
+		// サイズ変更で古いビューアが残っていたら破棄
+		if (viewerRef.current) {
+			viewerRef.current.destroy();
+			viewerRef.current = null;
+		}
 
 		const container = document.getElementById(containerId);
 		if (!container) return;
@@ -120,12 +160,17 @@ export const useOpenSeaDragon = ({
 		viewer.addTiledImage({ tileSource });
 
 		viewerRef.current = viewer;
+		activeSizeRef.current = { w: imageWidth, h: imageHeight };
 
 		// OSD初期化完了 — getContext2DでCanvasを直接提供するためImageLoader不使用。
 		// tile-loadedイベントは発火しないため、openイベントでtileReadyをセットする。
 		// ハンドラはdestroy()前に除去するため、名前付き関数で登録
 		const onOpen = () => {
 			setTileReady(true);
+			// コンテナサイズ確定後にfitBoundsで画像をビューポートにフィット
+			requestAnimationFrame(() => {
+				viewer.viewport.fitBounds(viewer.viewport.getHomeBounds());
+			});
 			// 一度発火すれば不要 — 蓄積防止のため自己除去
 			viewer.removeAllHandlers("open");
 		};

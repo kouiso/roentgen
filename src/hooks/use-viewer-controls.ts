@@ -1,5 +1,5 @@
 // ビューア操作機能（renkeibox useDicom.ts + useRender.ts 参考）
-// WW/WC: cornerstone側で処理 → OSD再描画
+// WW/WC: cornerstone側で処理 → worldInfo useEffectで自動再描画
 // ズーム/パン: OSD.viewportに委譲
 import { useCallback } from "react";
 import type { ViewerWorldInfo } from "@/types/viewer";
@@ -20,16 +20,14 @@ type OSDViewport = {
 
 type UseViewerControlsProps = {
 	setWorldInfo: React.Dispatch<React.SetStateAction<ViewerWorldInfo>>;
-	triggerRedraw: () => void;
 	getViewport: () => OSDViewport | null;
 };
 
 export const useViewerControls = ({
 	setWorldInfo,
-	triggerRedraw,
 	getViewport,
 }: UseViewerControlsProps) => {
-	// WW/WC変更（マウスドラッグで呼ばれる）
+	// WW/WC変更
 	const setWwWc = useCallback(
 		(ww: number, wc: number) => {
 			setWorldInfo((prev) => ({
@@ -37,9 +35,8 @@ export const useViewerControls = ({
 				windowWidth: Math.max(1, ww),
 				windowCenter: wc,
 			}));
-			triggerRedraw();
 		},
-		[setWorldInfo, triggerRedraw],
+		[setWorldInfo],
 	);
 
 	// WW/WCをデルタ値で変更（マウスドラッグ用）
@@ -50,9 +47,8 @@ export const useViewerControls = ({
 				windowWidth: Math.max(1, prev.windowWidth + deltaWW),
 				windowCenter: prev.windowCenter + deltaWC,
 			}));
-			triggerRedraw();
 		},
-		[setWorldInfo, triggerRedraw],
+		[setWorldInfo],
 	);
 
 	// 白黒反転
@@ -61,8 +57,7 @@ export const useViewerControls = ({
 			...prev,
 			invert: !prev.invert,
 		}));
-		triggerRedraw();
-	}, [setWorldInfo, triggerRedraw]);
+	}, [setWorldInfo]);
 
 	// 枠サイズフィット（OSD.viewport.fitBounds）
 	const fitSize = useCallback(() => {
@@ -117,10 +112,8 @@ export const useViewerControls = ({
 				const bounds = viewport.getHomeBounds();
 				viewport.fitBounds(bounds);
 			}
-
-			triggerRedraw();
 		},
-		[setWorldInfo, getViewport, triggerRedraw],
+		[setWorldInfo, getViewport],
 	);
 
 	// 回転（90度単位）
@@ -130,9 +123,8 @@ export const useViewerControls = ({
 				...prev,
 				rotation: (prev.rotation + degrees) % 360,
 			}));
-			triggerRedraw();
 		},
-		[setWorldInfo, triggerRedraw],
+		[setWorldInfo],
 	);
 
 	// 水平反転
@@ -141,8 +133,7 @@ export const useViewerControls = ({
 			...prev,
 			flipHorizontal: !prev.flipHorizontal,
 		}));
-		triggerRedraw();
-	}, [setWorldInfo, triggerRedraw]);
+	}, [setWorldInfo]);
 
 	// 垂直反転
 	const toggleFlipVertical = useCallback(() => {
@@ -150,8 +141,7 @@ export const useViewerControls = ({
 			...prev,
 			flipVertical: !prev.flipVertical,
 		}));
-		triggerRedraw();
-	}, [setWorldInfo, triggerRedraw]);
+	}, [setWorldInfo]);
 
 	return {
 		setWwWc,

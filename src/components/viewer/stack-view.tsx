@@ -9,17 +9,11 @@ type StackViewProps = {
 
 export const StackView = ({ containerId, onViewerReady }: StackViewProps) => {
 	const containerRef = useRef<HTMLDivElement>(null);
-	const isInitialized = useRef(false);
 
 	useEffect(() => {
-		if (containerRef.current && !isInitialized.current) {
-			isInitialized.current = true;
+		if (containerRef.current) {
 			onViewerReady?.(containerRef.current);
 		}
-		// StrictMode対応: cleanup時にフラグをリセットし、re-mount時に再初期化を許可
-		return () => {
-			isInitialized.current = false;
-		};
 	}, [onViewerReady]);
 
 	return (

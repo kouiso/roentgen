@@ -1,5 +1,5 @@
 // メインビューア全体コンポーネント（複数ペインレイアウト対応版）
-// useViewerPane × 4 + ViewerLayout + 共有 ControlPanel の構成
+// useViewerPane × 4 + ViewerLayout + 右サイドToolPanel の構成
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -9,7 +9,7 @@ import type { DicomFileInfo } from "@/types/dicom";
 import { LAYOUT_PANE_COUNT } from "@/types/layout";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
 import { getAllSeries, groupByStudySeries } from "@/utils/study-grouper";
-import { ControlPanel } from "./control-panel";
+import { ToolPanel } from "./tool-panel";
 import { ViewerLayout } from "./viewer-layout";
 import { ViewerPane } from "./viewer-pane";
 
@@ -176,18 +176,7 @@ export const DicomViewer = ({
 	useKeyboardShortcuts(shortcutActions, activePane.isOsdReady);
 
 	return (
-		<div className="flex flex-1 flex-col">
-			<ControlPanel
-				{...activePane.controlPanelProps}
-				onClearSelected={handleClearSelected}
-				onClearAll={handleClearAll}
-				onScreenshot={handleScreenshot}
-				isFullscreen={isFullscreen}
-				onToggleFullscreen={toggleFullscreen}
-				layout={layout}
-				onSetLayout={setLayout}
-			/>
-
+		<div className="flex flex-1">
 			<ViewerLayout layout={layout}>
 				{allPanes.slice(0, paneCount).map((pane, i) => (
 					<ViewerPane
@@ -199,6 +188,18 @@ export const DicomViewer = ({
 					/>
 				))}
 			</ViewerLayout>
+
+			<ToolPanel
+				{...activePane.controlPanelProps}
+				onClearSelected={handleClearSelected}
+				onClearAll={handleClearAll}
+				onScreenshot={handleScreenshot}
+				isFullscreen={isFullscreen}
+				onToggleFullscreen={toggleFullscreen}
+				layout={layout}
+				onSetLayout={setLayout}
+				viewerReady={activePane.isOsdReady && !!activePane.currentFile}
+			/>
 		</div>
 	);
 };

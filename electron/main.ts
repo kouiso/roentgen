@@ -14,7 +14,8 @@ const createWindow = () => {
 		height: 900,
 		minWidth: 800,
 		minHeight: 600,
-		backgroundColor: "#0a0a0a",
+		// Keep in sync with --color-app in app.css
+		backgroundColor: "#09090b",
 		webPreferences: {
 			preload: join(__dirname, "preload.js"),
 			nodeIntegration: false,
@@ -25,7 +26,7 @@ const createWindow = () => {
 	// CSPを動的設定 — dev環境のみunsafe-eval許可（Vite HMR用）
 	const isDev = !!process.env.VITE_DEV_SERVER_URL;
 	const scriptSrc = isDev
-		? "script-src 'self' 'unsafe-eval'"
+		? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
 		: "script-src 'self'";
 	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 		callback({

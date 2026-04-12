@@ -9,6 +9,8 @@ type UseMouseInteractionProps = {
 	activeMode: ViewerControlType;
 	onModeChange: (mode: ViewerControlType) => void;
 	adjustWwWc: (deltaWW: number, deltaWC: number) => void;
+	zoomBy: (factor: number) => void;
+	panBy: (deltaX: number, deltaY: number) => void;
 	onNextFrame: () => void;
 	onPrevFrame: () => void;
 	enabled: boolean;
@@ -26,6 +28,8 @@ export const useMouseInteraction = ({
 	activeMode,
 	onModeChange,
 	adjustWwWc,
+	zoomBy,
+	panBy,
 	onNextFrame,
 	onPrevFrame,
 	enabled,
@@ -64,6 +68,15 @@ export const useMouseInteraction = ({
 		[onModeChange],
 	);
 
+	const zoomByRef = useRef(zoomBy);
+	const panByRef = useRef(panBy);
+	useEffect(() => {
+		zoomByRef.current = zoomBy;
+	}, [zoomBy]);
+	useEffect(() => {
+		panByRef.current = panBy;
+	}, [panBy]);
+
 	const handleMouseMove = useCallback(
 		(e: MouseEvent) => {
 			if (!isDraggingRef.current || bothButtonsRef.current) return;
@@ -72,15 +85,28 @@ export const useMouseInteraction = ({
 			const deltaY = e.clientY - lastMouseRef.current.y;
 			lastMouseRef.current = { x: e.clientX, y: e.clientY };
 
-			// WW/WCモードの場合のみカスタム処理
-			// ズーム・パンモードはOSD標準機能に委譲
-			if (activeModeRef.current === VIEWER_CONTROL_TYPE.WW_WC) {
-				// 水平ドラッグ → WW（コントラスト）変更
-				// 垂直ドラッグ → WC（明るさ）変更
-				adjustWwWc(deltaX, -deltaY);
+			switch (activeModeRef.current) {
+				case VIEWER_CONTROL_TYPE.WW_WC:
+					// 水平ドラッグ → WW（コントラスト）変更
+					// 垂直ドラッグ → WC（明るさ）変更
+					adjustWwWc(deltaX, -deltaY);
+					break;
+				case VIEWER_CONTROL_TYPE.ZOOM:
+					// 縦ドラッグで拡大縮小（renkeibox doZoom参考: offset + d * 0.01）
+					zoomByRef.current(1 - deltaY * 0.005);
+					break;
+				case VIEWER_CONTROL_TYPE.PAN: {
+					// ドラッグでパン（OSD viewport座標系: 画像幅=1.0）
+					const container = document.getElementById(containerId);
+					if (container) {
+						const w = container.clientWidth || 1;
+						panByRef.current(-deltaX / w, -deltaY / w);
+					}
+					break;
+				}
 			}
 		},
-		[adjustWwWc],
+		[adjustWwWc, containerId],
 	);
 
 	const handleMouseUp = useCallback(() => {
