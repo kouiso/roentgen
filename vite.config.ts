@@ -30,7 +30,7 @@ export default defineConfig({
 									"--inspect=9229",
 									"--remote-debugging-port=9222",
 								]
-							: undefined,
+							: [".", "--no-sandbox", "--remote-debugging-port=9224"],
 						spawnOptions,
 					);
 				},

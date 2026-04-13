@@ -16,7 +16,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 				const loaded: { path: string; data: ArrayBuffer }[] = [];
 				for (const filePath of filePaths) {
 					try {
-						const data = await window.electronAPI.readFile(filePath);
+						const data = await window.electronAPI!.readFile(filePath);
 						loaded.push({ path: filePath, data });
 					} catch (err) {
 						console.error(`[FileDropZone] ファイル読込失敗: ${filePath}`, err);
@@ -57,7 +57,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	}, []);
 
 	const handleClick = useCallback(async () => {
-		const paths = await window.electronAPI.selectDicomFiles();
+		const paths = await window.electronAPI!.selectDicomFiles();
 		if (paths.length > 0) {
 			loadFiles(paths);
 		}

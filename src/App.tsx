@@ -1,8 +1,9 @@
-import { CircleDot } from "lucide-react";
+import { CircleDot, Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { FileDropZone } from "./components/file-drop-zone";
 import { DicomViewer } from "./components/viewer/dicom-viewer";
 import { useDicomLoader } from "./hooks/use-dicom-loader";
+import { useGoogleDrive } from "./hooks/use-google-drive";
 
 export const App = () => {
 	const {
@@ -14,8 +15,17 @@ export const App = () => {
 		setImageDataRegistrar,
 	} = useDicomLoader();
 
+	const handleFilesLoaded = useCallback(
+		(files: { path: string; data: ArrayBuffer }[]) => {
+			loadFiles(files);
+		},
+		[loadFiles],
+	);
+
+	const { auth, sync, login, logout, syncFiles, available } =
+		useGoogleDrive(handleFilesLoaded);
+
 	// dev環境でのテスト用自動読込（Electron環境のみ）
-	// dicom-files/配下の全.dcmファイルを自動で読み込む
 	useEffect(() => {
 		const api = (
 			window as {
@@ -41,13 +51,6 @@ export const App = () => {
 				.catch((err: unknown) => console.warn("[dev autoload]", err));
 		}
 	}, [dicomFiles.length, loadFiles, loadState.status]);
-
-	const handleFilesLoaded = useCallback(
-		(files: { path: string; data: ArrayBuffer }[]) => {
-			loadFiles(files);
-		},
-		[loadFiles],
-	);
 
 	const statusText = (() => {
 		switch (loadState.status) {
@@ -75,12 +78,68 @@ export const App = () => {
 		}
 	})();
 
+	const isSyncing = sync.status !== "idle";
+
 	return (
 		<div className="relative flex h-screen w-screen flex-col overflow-hidden">
 			<header className="flex h-11 shrink-0 items-center gap-3 border-b border-white/[0.06] px-5 panel-surface">
 				<h1 className="text-[13px] font-semibold tracking-wide text-zinc-200">
 					Roentgen
 				</h1>
+
+				{/* Google Drive 連携 */}
+				{available && (
+					<div className="flex items-center gap-1.5">
+						{auth.status === "authenticated" ? (
+							<>
+								<button
+									type="button"
+									onClick={syncFiles}
+									disabled={isSyncing}
+									className="chip transition-colors hover:border-sky-400/30 hover:text-sky-300"
+									title={`${auth.email} — クリックでDICOM同期`}
+								>
+									{isSyncing ? (
+										<Loader2 size={11} className="animate-spin text-sky-400" />
+									) : (
+										<Cloud size={11} className="text-sky-400" />
+									)}
+									<span className="font-sans">
+										{sync.status === "listing"
+											? "検索中..."
+											: sync.status === "downloading"
+												? `DL ${sync.progress?.current ?? 0}/${sync.fileCount ?? 0}`
+												: "Drive同期"}
+									</span>
+								</button>
+								<button
+									type="button"
+									onClick={logout}
+									className="rounded p-1 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+									title="Google Driveログアウト"
+								>
+									<LogOut size={12} />
+								</button>
+							</>
+						) : auth.status === "checking" ? (
+							<span className="chip">
+								<Loader2 size={11} className="animate-spin text-zinc-400" />
+								<span className="font-sans">確認中</span>
+							</span>
+						) : (
+							<button
+								type="button"
+								onClick={login}
+								className="chip transition-colors hover:border-white/10 hover:text-zinc-200"
+								title="Google Driveに接続"
+							>
+								<CloudOff size={11} className="text-zinc-500" />
+								<span className="font-sans">Drive接続</span>
+							</button>
+						)}
+					</div>
+				)}
+
 				<span className="ml-auto chip">
 					<CircleDot size={11} className={statusDotColor} />
 					<span className="font-sans">{statusText}</span>
