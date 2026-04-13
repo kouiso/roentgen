@@ -33,26 +33,26 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.0",
+    "@biomejs/biome": "^2.4.11",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "autoprefixer": "^10.4.20",
-    "electron": "^41.0.0",
+    "electron": "^41.2.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.2",
     "lint-staged": "^16.4.0",
-    "postcss": "^8.5.1",
+    "postcss": "^8.5.9",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.7",
-    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.4"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
