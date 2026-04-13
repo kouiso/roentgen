@@ -12,9 +12,8 @@ export const ViewerLayout = ({ layout, children }: ViewerLayoutProps) => {
 
 	return (
 		<div
-			className="flex min-h-0 flex-1"
+			className="grid min-h-0 flex-1"
 			style={{
-				display: "grid",
 				gridTemplateColumns: cols,
 				gridTemplateRows: rows,
 			}}
