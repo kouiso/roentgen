@@ -18,8 +18,20 @@ export const useGoogleDrive = (
 ) => {
 	const [auth, setAuth] = useState<GDriveState>({ status: "idle" });
 	const [sync, setSync] = useState<GDriveSyncState>({ status: "idle" });
+	const [credentialsAvailable, setCredentialsAvailable] = useState<
+		boolean | null
+	>(null);
 
 	const gdrive = window.electronAPI?.gdrive;
+
+	// 起動時に credentials.json 存在チェック
+	useEffect(() => {
+		if (!gdrive) return;
+		gdrive
+			.hasCredentials()
+			.then((has) => setCredentialsAvailable(has))
+			.catch(() => setCredentialsAvailable(false));
+	}, [gdrive]);
 
 	// 起動時に認証状態チェック
 	useEffect(() => {
@@ -73,7 +85,38 @@ export const useGoogleDrive = (
 		setAuth({ status: "unauthenticated" });
 	}, [gdrive]);
 
-	// H7修正: download呼び出しにtry-catch追加
+	// 新フロー: Drive → dicom-files/ に保存 → 再読込
+	const syncToSeed = useCallback(async () => {
+		if (!gdrive) return;
+
+		setSync({ status: "listing" });
+
+		try {
+			const result = await gdrive.syncToSeed();
+
+			if (result.error) {
+				setSync({ status: "idle" });
+				setAuth((prev) => ({ ...prev, error: result.error }));
+				return;
+			}
+
+			if (result.files && result.files.length > 0) {
+				onFilesLoaded(result.files);
+			}
+
+			setSync({ status: "idle", fileCount: result.count + result.skipped });
+		} catch (err) {
+			console.error("[gdrive syncToSeed]", err);
+			setSync({ status: "idle" });
+			setAuth((prev) => ({
+				...prev,
+				error:
+					err instanceof Error ? err.message : "同期中にエラーが発生しました",
+			}));
+		}
+	}, [gdrive, onFilesLoaded]);
+
+	// 旧フロー (後方互換): メモリ経由でDICOMビューアに渡す
 	const syncFiles = useCallback(async () => {
 		if (!gdrive) return;
 
@@ -116,9 +159,11 @@ export const useGoogleDrive = (
 	return {
 		auth,
 		sync,
+		credentialsAvailable,
 		login,
 		logout: logoutAction,
 		syncFiles,
+		syncToSeed,
 		available: !!gdrive,
 	};
 };

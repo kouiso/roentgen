@@ -22,8 +22,15 @@ export const App = () => {
 		[loadFiles],
 	);
 
-	const { auth, sync, login, logout, syncFiles, available } =
-		useGoogleDrive(handleFilesLoaded);
+	const {
+		auth,
+		sync,
+		credentialsAvailable,
+		login,
+		logout,
+		syncToSeed,
+		available,
+	} = useGoogleDrive(handleFilesLoaded);
 
 	// dev環境でのテスト用自動読込（Electron環境のみ）
 	useEffect(() => {
@@ -90,14 +97,22 @@ export const App = () => {
 				{/* Google Drive 連携 */}
 				{available && (
 					<div className="flex items-center gap-1.5">
-						{auth.status === "authenticated" ? (
+						{credentialsAvailable === false ? (
+							<span
+								className="chip text-amber-400 border-amber-400/20"
+								title="GCPコンソールからOAuth2クライアントIDをダウンロードし、Electronのユーザーデータディレクトリに gdrive-credentials.json として配置してください"
+							>
+								<CloudOff size={11} className="text-amber-400" />
+								<span className="font-sans">Drive未設定</span>
+							</span>
+						) : auth.status === "authenticated" ? (
 							<>
 								<button
 									type="button"
-									onClick={syncFiles}
+									onClick={syncToSeed}
 									disabled={isSyncing}
 									className="chip transition-colors hover:border-sky-400/30 hover:text-sky-300"
-									title={`${auth.email} — クリックでDICOM同期`}
+									title={`${auth.email} — クリックでDICOMをdicom-files/に保存`}
 								>
 									{isSyncing ? (
 										<Loader2 size={11} className="animate-spin text-sky-400" />

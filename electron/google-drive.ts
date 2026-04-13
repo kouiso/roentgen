@@ -313,6 +313,88 @@ export const downloadDicomFiles = async (
 	return results;
 };
 
+export const hasCredentials = async (): Promise<boolean> => {
+	const credentials = await loadCredentials();
+	return credentials !== null;
+};
+
+// --- シードデータ同期 ---
+
+export type SyncToSeedResult = {
+	count: number;
+	skipped: number;
+	error?: string;
+};
+
+export const syncToSeedDir = async (
+	seedDirPath: string,
+	onProgress?: (current: number, total: number) => void,
+): Promise<SyncToSeedResult> => {
+	const client = await getAuthedClient();
+	if (!client) {
+		return {
+			count: 0,
+			skipped: 0,
+			error: "未認証。先にGoogle Drive認証を行ってください",
+		};
+	}
+
+	const { files, error } = await listDicomFiles();
+	if (error) {
+		return { count: 0, skipped: 0, error };
+	}
+	if (files.length === 0) {
+		return { count: 0, skipped: 0 };
+	}
+
+	await mkdir(seedDirPath, { recursive: true });
+
+	const drive = new drive_v3.Drive({ auth: client });
+	let saved = 0;
+	let skipped = 0;
+
+	for (let i = 0; i < files.length; i++) {
+		const file = files[i];
+		onProgress?.(i + 1, files.length);
+
+		try {
+			const destPath = join(seedDirPath, file.name);
+
+			// 既存ファイルはスキップ（サイズチェック）
+			try {
+				const { stat } = await import("node:fs/promises");
+				const existing = await stat(destPath);
+				if (existing.size === file.size) {
+					skipped++;
+					continue;
+				}
+			} catch {
+				// ファイルが存在しない — ダウンロード続行
+			}
+
+			const res = await drive.files.get(
+				{ fileId: file.id, alt: "media" },
+				{ responseType: "arraybuffer" },
+			);
+
+			if (!(res.data instanceof ArrayBuffer)) {
+				console.error(`[gdrive] 予期しないレスポンス型: ${file.name}`);
+				continue;
+			}
+
+			await writeFile(destPath, Buffer.from(res.data));
+			saved++;
+		} catch (err) {
+			console.error(
+				`[gdrive] 保存失敗: ${file.name}`,
+				err instanceof Error ? err.message : err,
+			);
+		}
+	}
+
+	return { count: saved, skipped };
+};
+
 export const getAuthStatus = async (): Promise<{
 	authenticated: boolean;
 	email?: string;

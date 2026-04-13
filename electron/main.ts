@@ -67,6 +67,58 @@ const registerGdriveHandlers = async () => {
 			});
 		}),
 	);
+
+	ipcMain.handle("gdrive:has-credentials", () => gdrive.hasCredentials());
+
+	ipcMain.handle("gdrive:sync-to-seed", async () => {
+		const seedDirPath = join(process.cwd(), "dicom-files");
+
+		const result = await gdrive.syncToSeedDir(seedDirPath, (current, total) => {
+			mainWindow?.webContents.send("gdrive:download-progress", {
+				current,
+				total,
+			});
+		});
+
+		if (result.error) {
+			return result;
+		}
+
+		// シードディレクトリから再読込（load-test-dicomと同ロジック）
+		try {
+			const { readdir: readdirFn, readFile: readFileFn } = await import(
+				"node:fs/promises"
+			);
+			const { resolve: resolveFn } = await import("node:path");
+
+			const entries = await readdirFn(seedDirPath);
+			const dcmFiles = entries.filter((f: string) =>
+				f.toLowerCase().endsWith(".dcm"),
+			);
+			const files: { path: string; data: ArrayBuffer }[] = [];
+
+			for (const fileName of dcmFiles) {
+				const filePath = join(seedDirPath, fileName);
+				allowedPaths.add(resolveFn(filePath));
+				const buffer = await readFileFn(filePath);
+				files.push({
+					path: filePath,
+					data: buffer.buffer.slice(
+						buffer.byteOffset,
+						buffer.byteOffset + buffer.byteLength,
+					),
+				});
+			}
+
+			return { ...result, files };
+		} catch (err) {
+			return {
+				...result,
+				error:
+					err instanceof Error ? err.message : "シードディレクトリ再読込失敗",
+			};
+		}
+	});
 };
 
 app.whenReady().then(async () => {

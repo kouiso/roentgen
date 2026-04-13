@@ -36,6 +36,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			fileIds: string[],
 		): Promise<{ path: string; data: ArrayBuffer }[]> =>
 			ipcRenderer.invoke("gdrive:download", fileIds),
+		hasCredentials: (): Promise<boolean> =>
+			ipcRenderer.invoke("gdrive:has-credentials"),
+		syncToSeed: (): Promise<{
+			count: number;
+			skipped: number;
+			files?: { path: string; data: ArrayBuffer }[];
+			error?: string;
+		}> => ipcRenderer.invoke("gdrive:sync-to-seed"),
 		onDownloadProgress: (
 			callback: (progress: { current: number; total: number }) => void,
 		): (() => void) => {

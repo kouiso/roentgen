@@ -31,6 +31,13 @@ interface ElectronAPI {
 		download: (
 			fileIds: string[],
 		) => Promise<{ path: string; data: ArrayBuffer }[]>;
+		hasCredentials: () => Promise<boolean>;
+		syncToSeed: () => Promise<{
+			count: number;
+			skipped: number;
+			files?: { path: string; data: ArrayBuffer }[];
+			error?: string;
+		}>;
 		onDownloadProgress: (
 			callback: (progress: { current: number; total: number }) => void,
 		) => () => void;

@@ -17,6 +17,8 @@ function defaultGdriveMock() {
 		logout: vi.fn().mockResolvedValue(undefined),
 		listDicom: vi.fn().mockResolvedValue({ files: [], error: undefined }),
 		download: vi.fn().mockResolvedValue([]),
+		hasCredentials: vi.fn().mockResolvedValue(true),
+		syncToSeed: vi.fn().mockResolvedValue({ count: 0, skipped: 0, files: [] }),
 		onDownloadProgress: vi.fn(),
 	};
 }
