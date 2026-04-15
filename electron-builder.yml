@@ -1,0 +1,48 @@
+appId: com.kouiso.roentgen
+productName: Roentgen
+copyright: Copyright © 2026 kouiso
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+
+mac:
+  category: public.app-category.medical
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  darkModeSupport: true
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.dmg
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup.exe
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+
+publish:
+  provider: github
+  owner: kouiso
+  repo: roentgen
+
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
