@@ -66,9 +66,21 @@ export type OverlayPlaneData = {
 	data: Uint8Array;
 };
 
+// 個別ファイルの読込エラー情報
+export type DicomFileError = {
+	filePath: string;
+	reason: "corrupt" | "not-dicom" | "read-error";
+	detail: string;
+};
+
 // DICOM画像の読み込み状態
 export type DicomLoadState =
 	| { status: "idle" }
-	| { status: "loading"; progress: number }
-	| { status: "loaded"; files: DicomFileInfo[] }
-	| { status: "error"; message: string };
+	| { status: "loading"; progress: number; cancelRequested?: boolean }
+	| {
+			status: "loaded";
+			files: DicomFileInfo[];
+			skipped: DicomFileError[];
+	  }
+	| { status: "error"; message: string; skipped?: DicomFileError[] }
+	| { status: "cancelled" };

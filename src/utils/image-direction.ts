@@ -2,6 +2,29 @@
 // direction cosinesから6軸方向マーカーを生成
 import type { ImageDirectionInfo } from "@/types/overlay";
 
+export type Species = "human" | "equine";
+
+// 人体方向 → 馬体方向の変換テーブル
+// R→Lateral, L→Medial, A→Dorsal, P→Palmar, H→Proximal, F→Distal
+const EQUINE_DIRECTION_MAP: Record<string, string> = {
+	R: "Lat",
+	L: "Med",
+	A: "Do", // Dorsal (肢部前面)
+	P: "Pa", // Palmar (前肢後面) / Plantar (後肢後面)
+	H: "Pr", // Proximal (近位)
+	F: "Di", // Distal (遠位)
+};
+
+// 人体方向文字列を馬体方向に変換
+// 例: "RA" → "LatDo", "PH" → "PaPr"
+const translateToEquine = (humanDirection: string): string => {
+	let result = "";
+	for (const char of humanDirection) {
+		result += EQUINE_DIRECTION_MAP[char] ?? char;
+	}
+	return result;
+};
+
 // direction cosine値から方向文字を取得
 const getDirectionChar = (
 	cosine: number,
@@ -30,8 +53,10 @@ const getDirectionString = (
 };
 
 // ImageOrientationPatient (0020,0037) から4方向マーカーを計算
+// species: "human" (default) はR/L/A/P/H/F、"equine" はLat/Med/Do/Pa/Pr/Di
 export const calculateImageDirection = (
 	imageOrientationPatient: number[] | null,
+	species: Species = "human",
 ): ImageDirectionInfo | null => {
 	if (!imageOrientationPatient || imageOrientationPatient.length !== 6) {
 		return null;
@@ -60,10 +85,21 @@ export const calculateImageDirection = (
 	const rowOpposite = getDirectionString(-rowCosX, -rowCosY, -rowCosZ);
 	const colOpposite = getDirectionString(-colCosX, -colCosY, -colCosZ);
 
-	return {
+	const result = {
 		left: rowOpposite,
 		right: rowDirection,
 		top: colOpposite,
 		bottom: colDirection,
 	};
+
+	if (species === "equine") {
+		return {
+			left: translateToEquine(result.left),
+			right: translateToEquine(result.right),
+			top: translateToEquine(result.top),
+			bottom: translateToEquine(result.bottom),
+		};
+	}
+
+	return result;
 };

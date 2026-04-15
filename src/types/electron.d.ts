@@ -16,6 +16,18 @@ interface ElectronAPI {
 	loadTestDicom?: () => Promise<{ path: string; data: ArrayBuffer }[] | null>;
 	saveScreenshot: (dataUrl: string) => Promise<boolean>;
 
+	windowState: {
+		getWwwc: () => Promise<{ ww: number; wc: number } | undefined>;
+		setWwwc: (ww: number, wc: number) => Promise<void>;
+	};
+
+	crashReporter: {
+		getStatus: () => Promise<{ enabled: boolean }>;
+		setEnabled: (
+			enabled: boolean,
+		) => Promise<{ enabled: boolean; requiresRestart: boolean }>;
+	};
+
 	gdrive: {
 		authStatus: () => Promise<{ authenticated: boolean; email?: string }>;
 		authorize: () => Promise<{

@@ -33,7 +33,10 @@ import {
 	ZoomIn,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
+import {
+	CLINICAL_WW_WC_PRESETS,
+	EQUINE_WW_WC_PRESETS,
+} from "@/constants/ww-wc-presets";
 import { LAYOUT_TYPE, type LayoutType } from "@/types/layout";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
@@ -345,10 +348,10 @@ export const ToolPanel = ({
 					/>
 				</div>
 
-				{/* プリセット */}
-				<SectionHeader label="プリセット" />
+				{/* プリセット — 臨床 */}
+				<SectionHeader label="臨床プリセット" />
 				<div className="flex flex-col gap-0.5 px-1">
-					{WW_WC_PRESETS.map((preset, i) => (
+					{CLINICAL_WW_WC_PRESETS.map((preset, i) => (
 						<button
 							key={preset.key}
 							type="button"
@@ -359,6 +362,24 @@ export const ToolPanel = ({
 							<span className="font-mono text-[10px] text-zinc-500">
 								{preset.ww}/{preset.wc}{" "}
 								<span className="text-zinc-600">[{i + 1}]</span>
+							</span>
+						</button>
+					))}
+				</div>
+
+				{/* プリセット — 馬用 */}
+				<SectionHeader label="馬用プリセット" />
+				<div className="flex flex-col gap-0.5 px-1">
+					{EQUINE_WW_WC_PRESETS.map((preset) => (
+						<button
+							key={preset.key}
+							type="button"
+							onClick={() => onSetWwWc(preset.ww, preset.wc)}
+							className="flex h-7 w-full items-center justify-between rounded-md px-3 text-[12px] text-zinc-400 transition-[background-color,color] duration-150 ease-out hover:bg-white/[0.04] hover:text-zinc-100"
+						>
+							<span>{preset.label}</span>
+							<span className="font-mono text-[10px] text-zinc-500">
+								{preset.ww}/{preset.wc}
 							</span>
 						</button>
 					))}

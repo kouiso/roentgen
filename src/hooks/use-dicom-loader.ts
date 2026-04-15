@@ -1,7 +1,11 @@
 // DICOMファイル読込フック（renkeibox useDicomLoader.ts 参考）
 // ローカルファイル専用に簡略化（サーバー依存コード不要）
 import { useCallback, useRef, useState } from "react";
-import type { DicomFileInfo, DicomLoadState } from "@/types/dicom";
+import type {
+	DicomFileError,
+	DicomFileInfo,
+	DicomLoadState,
+} from "@/types/dicom";
 import { buildDicomFileInfo } from "@/utils/dicom-parser";
 
 // dicom-parserライブラリの動的インポート型
@@ -20,6 +24,45 @@ const getDicomParser = async (): Promise<DicomParser> => {
 // rawDataの登録コールバック型
 type ImageDataRegistrar = (filePath: string, data: ArrayBuffer) => void;
 
+// DICOM MAGIC BYTES: "DICM" at offset 128
+const DICOM_MAGIC_OFFSET = 128;
+const DICOM_MAGIC = [0x44, 0x49, 0x43, 0x4d]; // "DICM"
+
+// DICOMファイルか事前検証（マジックバイトチェック）
+const isDicomFile = (data: ArrayBuffer): boolean => {
+	if (data.byteLength < DICOM_MAGIC_OFFSET + 4) return false;
+	const view = new Uint8Array(data, DICOM_MAGIC_OFFSET, 4);
+	return (
+		view[0] === DICOM_MAGIC[0] &&
+		view[1] === DICOM_MAGIC[1] &&
+		view[2] === DICOM_MAGIC[2] &&
+		view[3] === DICOM_MAGIC[3]
+	);
+};
+
+// エラー分類: パースエラーの原因を判定
+const classifyParseError = (
+	filePath: string,
+	error: unknown,
+	data: ArrayBuffer,
+): DicomFileError => {
+	const detail = error instanceof Error ? error.message : "不明なエラー";
+
+	if (!isDicomFile(data)) {
+		return {
+			filePath,
+			reason: "not-dicom",
+			detail: "DICOMファイルではありません",
+		};
+	}
+
+	return {
+		filePath,
+		reason: "corrupt",
+		detail: `ファイルが破損しています: ${detail}`,
+	};
+};
+
 export const useDicomLoader = () => {
 	const [loadState, setLoadState] = useState<DicomLoadState>({
 		status: "idle",
@@ -31,6 +74,8 @@ export const useDicomLoader = () => {
 	const registrarRef = useRef<ImageDataRegistrar | null>(null);
 	// registrar未接続時のバッファ（dev自動読込時に発生）
 	const pendingDataRef = useRef<Map<string, ArrayBuffer>>(new Map());
+	// キャンセルフラグ
+	const cancelRef = useRef(false);
 
 	const setImageDataRegistrar = useCallback((fn: ImageDataRegistrar) => {
 		registrarRef.current = fn;
@@ -41,8 +86,19 @@ export const useDicomLoader = () => {
 		pendingDataRef.current.clear();
 	}, []);
 
+	const cancelLoad = useCallback(() => {
+		cancelRef.current = true;
+		setLoadState((prev) => {
+			if (prev.status === "loading") {
+				return { ...prev, cancelRequested: true };
+			}
+			return prev;
+		});
+	}, []);
+
 	const loadFiles = useCallback(
 		async (fileDataList: { path: string; data: ArrayBuffer }[]) => {
+			cancelRef.current = false;
 			setLoadState({ status: "loading", progress: 0 });
 
 			let parser: DicomParser;
@@ -57,12 +113,33 @@ export const useDicomLoader = () => {
 			}
 
 			const loaded: DicomFileInfo[] = [];
+			const skipped: DicomFileError[] = [];
 
 			for (let i = 0; i < fileDataList.length; i++) {
+				// キャンセルチェック
+				if (cancelRef.current) {
+					setLoadState({ status: "cancelled" });
+					return;
+				}
+
 				const fileData = fileDataList[i];
 				if (!fileData) continue;
 
 				try {
+					// 事前DICOM検証（非DICOMファイルの早期検出）
+					if (!isDicomFile(fileData.data)) {
+						skipped.push({
+							filePath: fileData.path,
+							reason: "not-dicom",
+							detail: "DICOMファイルではありません",
+						});
+						setLoadState({
+							status: "loading",
+							progress: ((i + 1) / fileDataList.length) * 100,
+						});
+						continue;
+					}
+
 					const byteArray = new Uint8Array(fileData.data);
 					const dataSet = parser.parseDicom(byteArray);
 					const fileName = fileData.path.split("/").pop() ?? fileData.path;
@@ -87,8 +164,14 @@ export const useDicomLoader = () => {
 
 					loaded.push(fileInfo);
 				} catch (error) {
+					const fileError = classifyParseError(
+						fileData.path,
+						error,
+						fileData.data,
+					);
+					skipped.push(fileError);
 					console.error(
-						`[useDicomLoader] DICOMパースエラー: ${fileData.path}`,
+						`[useDicomLoader] ${fileError.detail}: ${fileData.path}`,
 						error,
 					);
 				}
@@ -100,9 +183,17 @@ export const useDicomLoader = () => {
 			}
 
 			if (loaded.length === 0) {
+				const primaryError =
+					skipped.length > 0
+						? skipped.some((s) => s.reason === "not-dicom")
+							? "DICOMファイルではありません"
+							: "ファイルが破損しているか、有効なDICOMデータを含んでいません"
+						: "有効なDICOMファイルが見つかりませんでした";
+
 				setLoadState({
 					status: "error",
-					message: "有効なDICOMファイルが見つかりませんでした",
+					message: primaryError,
+					skipped,
 				});
 				return;
 			}
@@ -115,7 +206,7 @@ export const useDicomLoader = () => {
 			});
 
 			setDicomFiles(loaded);
-			setLoadState({ status: "loaded", files: loaded });
+			setLoadState({ status: "loaded", files: loaded, skipped });
 		},
 		[],
 	);
@@ -143,6 +234,7 @@ export const useDicomLoader = () => {
 		loadFiles,
 		clearFiles,
 		removeFile,
+		cancelLoad,
 		setImageDataRegistrar,
 	};
 };

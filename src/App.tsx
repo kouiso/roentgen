@@ -1,5 +1,6 @@
 import { CircleDot, Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
 import { useCallback, useEffect } from "react";
+import { CrashReporterToggle } from "./components/crash-reporter-toggle";
 import { FileDropZone } from "./components/file-drop-zone";
 import { DicomViewer } from "./components/viewer/dicom-viewer";
 import { useDicomLoader } from "./hooks/use-dicom-loader";
@@ -12,6 +13,7 @@ export const App = () => {
 		loadFiles,
 		clearFiles,
 		removeFile,
+		cancelLoad,
 		setImageDataRegistrar,
 	} = useDicomLoader();
 
@@ -59,16 +61,28 @@ export const App = () => {
 		}
 	}, [dicomFiles.length, loadFiles, loadState.status]);
 
+	const skippedCount =
+		(loadState.status === "loaded" || loadState.status === "error") &&
+		loadState.skipped
+			? loadState.skipped.length
+			: 0;
+
 	const statusText = (() => {
 		switch (loadState.status) {
 			case "idle":
 				return "ファイル待機";
 			case "loading":
-				return `読込 ${Math.round(loadState.progress)}%`;
+				return loadState.cancelRequested
+					? "キャンセル中..."
+					: `読込 ${Math.round(loadState.progress)}%`;
 			case "loaded":
-				return `${dicomFiles.length} ファイル`;
+				return skippedCount > 0
+					? `${dicomFiles.length} ファイル（${skippedCount}件スキップ）`
+					: `${dicomFiles.length} ファイル`;
 			case "error":
 				return `エラー: ${loadState.message}`;
+			case "cancelled":
+				return "読込キャンセル";
 		}
 	})();
 
@@ -79,9 +93,11 @@ export const App = () => {
 			case "loading":
 				return "text-sky-400 animate-pulse";
 			case "loaded":
-				return "text-sky-400";
+				return skippedCount > 0 ? "text-amber-400" : "text-sky-400";
 			case "error":
 				return "text-rose-400";
+			case "cancelled":
+				return "text-zinc-500";
 		}
 	})();
 
@@ -155,10 +171,21 @@ export const App = () => {
 					</div>
 				)}
 
+				<CrashReporterToggle />
+
 				<span className="ml-auto chip">
 					<CircleDot size={11} className={statusDotColor} />
 					<span className="font-sans">{statusText}</span>
 				</span>
+				{loadState.status === "loading" && !loadState.cancelRequested && (
+					<button
+						type="button"
+						onClick={cancelLoad}
+						className="chip text-rose-400 border-rose-400/20 hover:border-rose-400/40"
+					>
+						キャンセル
+					</button>
+				)}
 				{dicomFiles.length > 0 && (
 					<button type="button" onClick={clearFiles} className="chip">
 						クリア

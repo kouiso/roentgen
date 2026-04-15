@@ -1,9 +1,13 @@
 // L/R/A/P/H/F 6軸方向マーカー表示（renkeibox ViewerImageDirection.tsx 移植）
+// equineモード時は Lat/Med/Do/Pa/Pr/Di を表示
+
 import type { ImageDirectionInfo } from "@/types/overlay";
+import type { Species } from "@/utils/image-direction";
 
 type ImageDirectionProps = {
 	directionInfo: ImageDirectionInfo | null;
 	visible: boolean;
+	species?: Species;
 };
 
 const BASE =
@@ -12,6 +16,7 @@ const BASE =
 export const ImageDirection = ({
 	directionInfo,
 	visible,
+	species: _species = "human",
 }: ImageDirectionProps) => {
 	if (!visible || !directionInfo) return null;
 
