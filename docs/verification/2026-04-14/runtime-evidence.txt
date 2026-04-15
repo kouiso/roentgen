@@ -1,62 +1,17 @@
-timestamp: 2026-04-14 19:54:05
---- process ---
-kouiso           54130   0.0  0.1 485935216  39712   ??  S     7:45PM   0:00.04 /Users/kouiso/ghq/kouiso/roentgen/node_modules/.pnpm/electron@41.1.1/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=network.mojom.NetworkService --lang=ja --service-sandbox-type=network --no-sandbox --user-data-dir=/Users/kouiso/Library/Application Support/roentgen --shared-files --field-trial-handle=1718379636,r,2251196282622146120,4068691846252594981,262144 --enable-features=PdfUseShowSaveFilePicker,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,MacWebContentsOcclusion,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TimeoutHangingVideoCaptureStarts,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1935764596,r,8793034232365057258,4260388578586444040,4 --trace-process-track-uuid=3190708989122997041
-kouiso           54129   0.0  0.1 486004448  56928   ??  S     7:45PM   0:00.10 /Users/kouiso/ghq/kouiso/roentgen/node_modules/.pnpm/electron@41.1.1/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=gpu-process --no-sandbox --user-data-dir=/Users/kouiso/Library/Application Support/roentgen --gpu-preferences=SAAAAAAAAAAgAQAEAAAAAAAAAAAAAGAAAwAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAACAAAAAAAAAAIAAAAAAAAAA== --shared-files --field-trial-handle=1718379636,r,2251196282622146120,4068691846252594981,262144 --enable-features=PdfUseShowSaveFilePicker,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,MacWebContentsOcclusion,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TimeoutHangingVideoCaptureStarts,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1935764596,r,8793034232365057258,4260388578586444040,4 --trace-process-track-uuid=3190708988185955192
-kouiso           54128   0.0  0.2 1890674512 111312   ??  S     7:45PM   0:00.36 /Users/kouiso/ghq/kouiso/roentgen/node_modules/.pnpm/electron@41.1.1/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron . --no-sandbox --remote-debugging-port=9224
-kouiso           54090   0.0  0.0 435300016   1952   ??  S     7:45PM   0:00.00 sh -c unset ELECTRON_RUN_AS_NODE && vite
---- ports ---
-COMMAND    PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-node     54091 kouiso   28u  IPv6  0xecb847ac70a241e      0t0  TCP [::1]:5173 (LISTEN)
-Electron 54128 kouiso   31u  IPv4 0x223fe06a650ff7c4      0t0  TCP 127.0.0.1:9224 (LISTEN)
---- cdp version ---
-{
-   "Browser": "Chrome/146.0.7680.166",
-   "Protocol-Version": "1.3",
-   "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) roentgen/0.1.0 Chrome/146.0.7680.166 Electron/41.1.1 Safari/537.36",
-   "V8-Version": "14.6.202.26",
-   "WebKit-Version": "537.36 (@fd445576e470eaa9d0d55779a12ca46f8e8d3b73)",
-   "webSocketDebuggerUrl": "ws://127.0.0.1:9224/devtools/browser/beeeaea1-09f0-4f65-9d58-43cca775d053"
-}
-
---- cdp pages ---
-[  ]
-
---- vite html ---
---- vite html retry ---
-<!doctype html>
-<html lang="ja">
-  <head>
-    <script type="module">import { injectIntoGlobalHook } from "/@react-refresh";
-injectIntoGlobalHook(window);
-window.$RefreshReg$ = () => {};
-window.$RefreshSig$ = () => (type) => type;</script>
-
-    <script type="module" src="/@vite/client"></script>
-
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!--
-      CSPはElectron mainプロセスで動的設定。
-      dev環境: unsafe-evalを許可（Vite HMR用）
-      本番: unsafe-evalなし
-    -->
-    <title>Roentgen — ルバーノのレントゲンビューア</title>
-  </head>
-  <body class="bg-app text-zinc-100 font-sans antialiased">
-
 timestamp: 2026-04-14 20:26:38 -0700
---- essential-workflow-validation ---
+verification:
+- dev server reachable on localhost:5173
+- Electron renderer reachable via CDP on port 9224
+- local sample DICOM loaded and rendered in the viewer
+- invert operation changed the rendered output hash
 command_log:
 - pnpm dev
 - lsof -i tcp:9224
 - node -e "fetch('http://127.0.0.1:9224/json/list')..."
 - node -e "@playwright/test + electronAPI mock + DICOM autoload + invert click + screenshot export"
 - shasum -a 256 /tmp/roentgen-verify/render-before-operation.png /tmp/roentgen-verify/render-after-invert.png
-dicom_input_path: /Users/kouiso/ghq/kouiso/roentgen/dicom-files/971_ISOGAI.dcm
-render_proof: /tmp/roentgen-verify/render-before-operation.png
-operation_proof: 白黒反転 I を1回クリック -> /tmp/roentgen-verify/render-after-invert.png
 conclusion: ACCEPT
 notes:
-- 画像ハッシュ(before): 6a88d6f41bab902fbf6f5634ac5cb0b62f0c713fabbf25f5e8337ba9ac7b2e5a
-- 画像ハッシュ(after): 3fac1006df1cb17e6d3f0d672d3ca542f1525d864c34d4e2e9971709b617ec36
-- 9224でElectronプロセスを確認。DICOM描画と操作結果はレンダラ画面で視認可能な差分を取得。
+- render hash before: 6a88d6f41bab902fbf6f5634ac5cb0b62f0c713fabbf25f5e8337ba9ac7b2e5a
+- render hash after: 3fac1006df1cb17e6d3f0d672d3ca542f1525d864c34d4e2e9971709b617ec36
+- verification artifacts were generated locally and are not stored in the repository.

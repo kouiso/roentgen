@@ -12,6 +12,7 @@ files:
 
 mac:
   category: public.app-category.medical
+  identity: null
   target:
     - target: dmg
       arch:

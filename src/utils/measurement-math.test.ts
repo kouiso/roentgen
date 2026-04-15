@@ -211,8 +211,9 @@ describe("imageToContainerCoord", () => {
 			viewport,
 		);
 		expect(result).not.toBeNull();
-		expect(result!.x).toBeCloseTo(400, 0);
-		expect(result!.y).toBeCloseTo(400, 0);
+		if (!result) throw new Error("container coordinate should be present");
+		expect(result.x).toBeCloseTo(400, 0);
+		expect(result.y).toBeCloseTo(400, 0);
 	});
 
 	it("converts top-left of image (0,0) to container coordinates", () => {
@@ -221,8 +222,9 @@ describe("imageToContainerCoord", () => {
 
 		const result = imageToContainerCoord({ x: 0, y: 0 }, 512, rect, viewport);
 		expect(result).not.toBeNull();
-		expect(result!.x).toBeCloseTo(0, 0);
-		expect(result!.y).toBeCloseTo(0, 0);
+		if (!result) throw new Error("container coordinate should be present");
+		expect(result.x).toBeCloseTo(0, 0);
+		expect(result.y).toBeCloseTo(0, 0);
 	});
 
 	it("round-trips with containerToImageCoord", () => {
@@ -244,15 +246,19 @@ describe("imageToContainerCoord", () => {
 			viewport,
 		);
 		expect(imgCoord).not.toBeNull();
+		if (!imgCoord) throw new Error("image coordinate should be present");
 
 		const containerCoord = imageToContainerCoord(
-			imgCoord!,
+			imgCoord,
 			imageWidth,
 			rect,
 			viewport,
 		);
 		expect(containerCoord).not.toBeNull();
-		expect(containerCoord!.x).toBeCloseTo(clientX, 0);
-		expect(containerCoord!.y).toBeCloseTo(clientY, 0);
+		if (!containerCoord) {
+			throw new Error("round-tripped container coordinate should be present");
+		}
+		expect(containerCoord.x).toBeCloseTo(clientX, 0);
+		expect(containerCoord.y).toBeCloseTo(clientY, 0);
 	});
 });

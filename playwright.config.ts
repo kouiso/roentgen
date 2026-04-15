@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
+const isHeaded = process.env.PLAYWRIGHT_HEADED === "1";
+
 export default defineConfig({
 	testDir: "./e2e",
 	timeout: 30_000,
@@ -9,7 +11,7 @@ export default defineConfig({
 		baseURL: "http://localhost:5173",
 		screenshot: "only-on-failure",
 		trace: "retain-on-failure",
-		headless: false,
+		headless: !isHeaded,
 		launchOptions: {
 			args: ["--no-sandbox"],
 		},

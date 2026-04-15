@@ -14,6 +14,28 @@ import {
 	parseVoiLut,
 } from "./dicom-parser";
 
+type MockElement = {
+	dataOffset: number;
+	length: number;
+	items?: MockItem[];
+};
+
+type MockDataSet = {
+	string: (tag: string) => string | undefined;
+	uint16: (tag: string) => number | undefined;
+	int16: (tag: string) => number | undefined;
+	int32: (tag: string) => number | undefined;
+	float: (tag: string) => number | undefined;
+	floatString: (tag: string) => number | undefined;
+	intString: (tag: string) => number | undefined;
+	elements: Record<string, MockElement>;
+	byteArray: Uint8Array;
+};
+
+type MockItem = {
+	dataSet: MockDataSet;
+};
+
 // ---------------------------------------------------------------------------
 // Mock DataSet factory
 // ---------------------------------------------------------------------------
@@ -25,11 +47,11 @@ type MockDataSetOptions = {
 	floats?: Record<string, number>;
 	floatStrings?: Record<string, number>;
 	intStrings?: Record<string, number>;
-	elements?: Record<string, any>;
+	elements?: Record<string, MockElement>;
 	byteArray?: Uint8Array;
 };
 
-function makeDataSet(opts: MockDataSetOptions = {}) {
+function makeDataSet(opts: MockDataSetOptions = {}): MockDataSet {
 	return {
 		string: (tag: string) => opts.strings?.[tag],
 		uint16: (tag: string) => opts.uint16s?.[tag],
@@ -158,7 +180,8 @@ describe("parseImageOrientation", () => {
 		});
 		const result = parseImageOrientation(ds);
 		expect(result).toHaveLength(6);
-		expect(result![0]).toBeCloseTo(0.707, 3);
+		if (!result) throw new Error("orientation should be present");
+		expect(result[0]).toBeCloseTo(Math.SQRT1_2, 3);
 	});
 });
 
@@ -639,8 +662,10 @@ describe("buildDicomFileInfo", () => {
 			buffer,
 		);
 
-		expect(info.thumbnailData).not.toBeNull();
-		expect(info.thumbnailData!.length).toBe(100 * 80 * 4); // THUMB_W * THUMB_H * 4
+		const thumbnailData = info.thumbnailData;
+		expect(thumbnailData).not.toBeNull();
+		if (!thumbnailData) throw new Error("thumbnail should be generated");
+		expect(thumbnailData.length).toBe(100 * 80 * 4); // THUMB_W * THUMB_H * 4
 	});
 
 	it("generates thumbnail with 8-bit pixel data", () => {
@@ -678,8 +703,10 @@ describe("buildDicomFileInfo", () => {
 			buffer,
 		);
 
-		expect(info.thumbnailData).not.toBeNull();
-		expect(info.thumbnailData!.length).toBe(100 * 80 * 4);
+		const thumbnailData = info.thumbnailData;
+		expect(thumbnailData).not.toBeNull();
+		if (!thumbnailData) throw new Error("thumbnail should be generated");
+		expect(thumbnailData.length).toBe(100 * 80 * 4);
 	});
 
 	it("auto-calculates WW/WC when tags are missing", () => {
