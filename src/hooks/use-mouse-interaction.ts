@@ -23,6 +23,18 @@ const MODE_CYCLE: ViewerControlType[] = [
 	VIEWER_CONTROL_TYPE.PAN,
 ];
 
+const CURSOR_LAYER_SELECTOR =
+	".openseadragon-container, .openseadragon-canvas, canvas";
+
+const updateViewerCursor = (container: HTMLElement, cursor: string) => {
+	container.style.cursor = cursor;
+	for (const element of container.querySelectorAll<HTMLElement>(
+		CURSOR_LAYER_SELECTOR,
+	)) {
+		element.style.cursor = cursor;
+	}
+};
+
 export const useMouseInteraction = ({
 	containerId,
 	activeMode,
@@ -42,6 +54,20 @@ export const useMouseInteraction = ({
 	useEffect(() => {
 		activeModeRef.current = activeMode;
 	}, [activeMode]);
+
+	// モード変更時のカーソル更新
+	useEffect(() => {
+		if (!enabled) return;
+		const container = document.getElementById(containerId);
+		if (!container) return;
+		updateViewerCursor(
+			container,
+			activeMode === VIEWER_CONTROL_TYPE.PAN ? "grab" : "default",
+		);
+		return () => {
+			updateViewerCursor(container, "");
+		};
+	}, [containerId, activeMode, enabled]);
 
 	const handleMouseDown = useCallback(
 		(e: MouseEvent) => {
@@ -63,9 +89,13 @@ export const useMouseInteraction = ({
 				isDraggingRef.current = true;
 				lastMouseRef.current = { x: e.clientX, y: e.clientY };
 				bothButtonsRef.current = false;
+				if (activeModeRef.current === VIEWER_CONTROL_TYPE.PAN) {
+					const container = document.getElementById(containerId);
+					if (container) updateViewerCursor(container, "grabbing");
+				}
 			}
 		},
-		[onModeChange],
+		[onModeChange, containerId],
 	);
 
 	const zoomByRef = useRef(zoomBy);
@@ -112,7 +142,11 @@ export const useMouseInteraction = ({
 	const handleMouseUp = useCallback(() => {
 		isDraggingRef.current = false;
 		bothButtonsRef.current = false;
-	}, []);
+		if (activeModeRef.current === VIEWER_CONTROL_TYPE.PAN) {
+			const container = document.getElementById(containerId);
+			if (container) updateViewerCursor(container, "grab");
+		}
+	}, [containerId]);
 
 	const onNextFrameRef = useRef(onNextFrame);
 	const onPrevFrameRef = useRef(onPrevFrame);

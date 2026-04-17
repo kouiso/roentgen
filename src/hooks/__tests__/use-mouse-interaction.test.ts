@@ -29,6 +29,14 @@ describe("useMouseInteraction", () => {
 	beforeEach(() => {
 		container = document.createElement("div");
 		container.id = "test-container";
+		const osdContainer = document.createElement("div");
+		osdContainer.className = "openseadragon-container";
+		const osdCanvas = document.createElement("div");
+		osdCanvas.className = "openseadragon-canvas";
+		const canvas = document.createElement("canvas");
+		osdCanvas.appendChild(canvas);
+		osdContainer.appendChild(osdCanvas);
+		container.appendChild(osdContainer);
 		// Set clientWidth for pan calculations
 		Object.defineProperty(container, "clientWidth", {
 			value: 800,
@@ -133,6 +141,47 @@ describe("useMouseInteraction", () => {
 		expect(props.panBy).toHaveBeenCalledWith(-20 / 800, -10 / 800);
 	});
 
+	it("applies grab cursor to OSD layers in PAN mode", () => {
+		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.PAN });
+		renderHook(() => useMouseInteraction(props));
+
+		const osdContainer = container.querySelector(".openseadragon-container");
+		const osdCanvas = container.querySelector(".openseadragon-canvas");
+		const canvas = container.querySelector("canvas");
+
+		expect(container.style.cursor).toBe("grab");
+		expect(osdContainer).not.toBeNull();
+		expect(osdCanvas).not.toBeNull();
+		expect(canvas).not.toBeNull();
+		expect((osdContainer as HTMLElement).style.cursor).toBe("grab");
+		expect((osdCanvas as HTMLElement).style.cursor).toBe("grab");
+		expect((canvas as HTMLCanvasElement).style.cursor).toBe("grab");
+	});
+
+	it("switches cursor to grabbing while dragging in PAN mode", () => {
+		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.PAN });
+		renderHook(() => useMouseInteraction(props));
+
+		container.dispatchEvent(
+			new MouseEvent("mousedown", {
+				button: 0,
+				buttons: 1,
+				clientX: 100,
+				clientY: 100,
+				bubbles: true,
+			}),
+		);
+
+		const osdCanvas = container.querySelector(".openseadragon-canvas");
+		expect(container.style.cursor).toBe("grabbing");
+		expect((osdCanvas as HTMLElement).style.cursor).toBe("grabbing");
+
+		container.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+		expect(container.style.cursor).toBe("grab");
+		expect((osdCanvas as HTMLElement).style.cursor).toBe("grab");
+	});
+
 	it("cycles mode on left+right simultaneous press (buttons=3)", () => {
 		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.WW_WC });
 		renderHook(() => useMouseInteraction(props));
@@ -196,6 +245,38 @@ describe("useMouseInteraction", () => {
 		);
 
 		expect(props.adjustWwWc).not.toHaveBeenCalled();
+	});
+
+	it("resets cursor to grab on mouseleave while dragging in PAN mode", () => {
+		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.PAN });
+		renderHook(() => useMouseInteraction(props));
+
+		container.dispatchEvent(
+			new MouseEvent("mousedown", {
+				button: 0,
+				buttons: 1,
+				clientX: 100,
+				clientY: 100,
+				bubbles: true,
+			}),
+		);
+		expect(container.style.cursor).toBe("grabbing");
+
+		container.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+		expect(container.style.cursor).toBe("grab");
+	});
+
+	it("resets cursor to default when switching from PAN to WW_WC mode", () => {
+		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.PAN });
+		const { rerender } = renderHook(
+			(p: Parameters<typeof useMouseInteraction>[0]) => useMouseInteraction(p),
+			{ initialProps: props },
+		);
+
+		expect(container.style.cursor).toBe("grab");
+
+		rerender({ ...props, activeMode: VIEWER_CONTROL_TYPE.WW_WC });
+		expect(container.style.cursor).toBe("default");
 	});
 
 	it("stops dragging on mouseleave", () => {
