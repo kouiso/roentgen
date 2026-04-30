@@ -10,10 +10,23 @@ vi.mock("dicom-parser", () => ({
 
 // dicom-parserの型をテスト用にインポート
 import * as dicomParser from "dicom-parser";
+import {
+	buildDicomFileInfo,
+	UnsupportedTransferSyntaxError,
+} from "@/utils/dicom-parser";
 import { useDicomLoader } from "../use-dicom-loader";
 
 // buildDicomFileInfoをモック（parserの結果からDicomFileInfoを生成する部分）
 vi.mock("@/utils/dicom-parser", () => ({
+	UnsupportedTransferSyntaxError: class UnsupportedTransferSyntaxError extends Error {
+		transferSyntaxUid: string;
+
+		constructor(transferSyntaxUid: string) {
+			super(`Unsupported Transfer Syntax UID: ${transferSyntaxUid}`);
+			this.name = "UnsupportedTransferSyntaxError";
+			this.transferSyntaxUid = transferSyntaxUid;
+		}
+	},
 	buildDicomFileInfo: vi.fn(
 		(
 			_dataSet: unknown,
@@ -133,6 +146,36 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		if (result.current.loadState.status === "loaded") {
 			expect(result.current.loadState.skipped).toHaveLength(1);
 			expect(result.current.loadState.skipped[0]?.reason).toBe("corrupt");
+		}
+	});
+
+	it("C5: 非対応Transfer Syntaxをユーザー向けエラーとして返す", async () => {
+		const mockParseDicom = vi.mocked(dicomParser.parseDicom);
+		mockParseDicom.mockReturnValue({
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		});
+		const mockBuildDicomFileInfo = vi.mocked(buildDicomFileInfo);
+		mockBuildDicomFileInfo.mockImplementationOnce(() => {
+			throw new UnsupportedTransferSyntaxError("1.2.840.10008.1.2.4.90");
+		});
+
+		const { result } = renderHook(() => useDicomLoader());
+
+		await act(async () => {
+			await result.current.loadFiles([makeFakeFileData("/test/jpeg2000.dcm")]);
+		});
+
+		expect(result.current.loadState.status).toBe("error");
+		if (result.current.loadState.status === "error") {
+			expect(result.current.loadState.message).toContain(
+				"対応していないDICOM圧縮形式",
+			);
+			expect(result.current.loadState.skipped).toHaveLength(1);
+			expect(result.current.loadState.skipped?.[0]?.detail).toContain(
+				"1.2.840.10008.1.2.4.90",
+			);
 		}
 	});
 

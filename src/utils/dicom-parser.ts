@@ -31,6 +31,30 @@ type DicomItem = {
 	dataSet: DicomDataSet;
 };
 
+const SUPPORTED_TRANSFER_SYNTAX_UIDS = new Set([
+	"1.2.840.10008.1.2",
+	"1.2.840.10008.1.2.1",
+	"1.2.840.10008.1.2.2",
+]);
+
+export class UnsupportedTransferSyntaxError extends Error {
+	readonly transferSyntaxUid: string;
+
+	constructor(transferSyntaxUid: string) {
+		super(`Unsupported Transfer Syntax UID: ${transferSyntaxUid}`);
+		this.name = "UnsupportedTransferSyntaxError";
+		this.transferSyntaxUid = transferSyntaxUid;
+	}
+}
+
+export const validateTransferSyntax = (dataSet: DicomDataSet): void => {
+	const transferSyntaxUid = dataSet.string("x00020010")?.trim();
+	if (!transferSyntaxUid) return;
+	if (SUPPORTED_TRANSFER_SYNTAX_UIDS.has(transferSyntaxUid)) return;
+
+	throw new UnsupportedTransferSyntaxError(transferSyntaxUid);
+};
+
 // DICOMタグから文字列を取得（日本語デコード対応）
 export const getStringTag = (dataSet: DicomDataSet, tag: string): string => {
 	return dataSet.string(tag)?.trim() ?? "";
@@ -381,6 +405,8 @@ export const buildDicomFileInfo = (
 	fileName: string,
 	rawData: ArrayBuffer,
 ): DicomFileInfo => {
+	validateTransferSyntax(dataSet);
+
 	const windowCenter = getNumberTag(dataSet, "x00281050");
 	const windowWidth = getNumberTag(dataSet, "x00281051");
 

@@ -12,6 +12,7 @@ import {
 	parseOverlayPlanes,
 	parsePixelSpacing,
 	parseVoiLut,
+	UnsupportedTransferSyntaxError,
 } from "./dicom-parser";
 
 type MockElement = {
@@ -510,6 +511,60 @@ describe("extractDicomTags", () => {
 // buildDicomFileInfo
 // ---------------------------------------------------------------------------
 describe("buildDicomFileInfo", () => {
+	it.each([
+		"1.2.840.10008.1.2",
+		"1.2.840.10008.1.2.1",
+		"1.2.840.10008.1.2.2",
+	])("allows uncompressed transfer syntax %s", (transferSyntaxUid) => {
+		const buffer = new ArrayBuffer(16);
+		const ds = makeDataSet({
+			strings: {
+				x00020010: transferSyntaxUid,
+			},
+			byteArray: new Uint8Array(buffer),
+		});
+
+		expect(() =>
+			buildDicomFileInfo(ds, "wadouri:ok", "/tmp/ok.dcm", "ok.dcm", buffer),
+		).not.toThrow();
+	});
+
+	it("throws a typed error for compressed transfer syntax", () => {
+		const buffer = new ArrayBuffer(16);
+		const ds = makeDataSet({
+			strings: {
+				x00020010: "1.2.840.10008.1.2.4.90",
+			},
+			byteArray: new Uint8Array(buffer),
+		});
+
+		expect(() =>
+			buildDicomFileInfo(
+				ds,
+				"wadouri:jpeg2000",
+				"/tmp/jpeg2000.dcm",
+				"jpeg2000.dcm",
+				buffer,
+			),
+		).toThrow(UnsupportedTransferSyntaxError);
+
+		try {
+			buildDicomFileInfo(
+				ds,
+				"wadouri:jpeg2000",
+				"/tmp/jpeg2000.dcm",
+				"jpeg2000.dcm",
+				buffer,
+			);
+			throw new Error("unsupported transfer syntax should throw");
+		} catch (error) {
+			expect(error).toBeInstanceOf(UnsupportedTransferSyntaxError);
+			if (!(error instanceof UnsupportedTransferSyntaxError)) return;
+			expect(error.transferSyntaxUid).toBe("1.2.840.10008.1.2.4.90");
+			expect(error.message).toContain("1.2.840.10008.1.2.4.90");
+		}
+	});
+
 	it("builds a complete DicomFileInfo from a dataset", () => {
 		// Create a minimal pixel data buffer for thumbnail generation
 		const pixelDataLength = 4 * 2; // 4 pixels, 16-bit

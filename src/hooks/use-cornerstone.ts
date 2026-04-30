@@ -301,12 +301,13 @@ export const useCornerstone = () => {
 			overlayDataRef.current = fileInfo.overlayData;
 
 			// 初期WW/WC設定
-			let ww = fileInfo.windowWidth || image.windowWidth;
-			let wc = fileInfo.windowCenter || image.windowCenter;
+			const hasDicomWindow = fileInfo.windowWidth > 0;
+			let ww = hasDicomWindow ? fileInfo.windowWidth : image.windowWidth;
+			let wc = hasDicomWindow ? fileInfo.windowCenter : image.windowCenter;
 
-			// WW/WCタグが無く全ピクセルレンジがフォールバックされた場合、2-98パーセンタイルで再計算
-			const fullRange = image.maxPixelValue - image.minPixelValue;
-			if (ww >= fullRange * 0.9) {
+			// WW/WCタグが無い場合のみ、2-98パーセンタイルで自動計算する
+			if (!hasDicomWindow) {
+				const fullRange = image.maxPixelValue - image.minPixelValue;
 				const pixels = image.getPixelData();
 				const histSize = 4096;
 				const hist = new Uint32Array(histSize);

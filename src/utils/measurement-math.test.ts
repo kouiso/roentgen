@@ -134,11 +134,26 @@ function makeContainerRect(
 	};
 }
 
-function makeViewport(zoom = 1, centerX = 0.5, centerY = 0.5, boundsWidth = 1) {
+function makeViewport(
+	zoom = 1,
+	centerX = 0.5,
+	centerY = 0.5,
+	boundsWidth = 1,
+	boundsHeight = 1,
+	rotation = 0,
+	flip = false,
+) {
 	return {
 		getZoom: () => zoom,
 		getCenter: () => ({ x: centerX, y: centerY }),
-		getHomeBounds: () => ({ x: 0, y: 0, width: boundsWidth, height: 1 }),
+		getHomeBounds: () => ({
+			x: 0,
+			y: 0,
+			width: boundsWidth,
+			height: boundsHeight,
+		}),
+		getRotation: () => rotation,
+		getFlip: () => flip,
 	};
 }
 
@@ -187,6 +202,18 @@ describe("containerToImageCoord", () => {
 		expect(result.x).toBeCloseTo(256, 0);
 		expect(result.y).toBeCloseTo(256, 0);
 	});
+
+	it("uses image height and home bounds height for the Y axis", () => {
+		const rect = makeContainerRect(0, 0, 800, 400);
+		const viewport = makeViewport(1, 0.5, 0.5, 1, 1);
+
+		const result = containerToImageCoord(400, 300, rect, 2048, 1024, viewport);
+
+		expect(result).not.toBeNull();
+		if (!result) return;
+		expect(result.x).toBeCloseTo(1024, 6);
+		expect(result.y).toBeCloseTo(640, 6);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -196,7 +223,7 @@ describe("imageToContainerCoord", () => {
 	it("returns null when viewport is null", () => {
 		const rect = makeContainerRect(0, 0, 800, 600);
 		expect(
-			imageToContainerCoord({ x: 256, y: 256 }, 512, rect, null),
+			imageToContainerCoord({ x: 256, y: 256 }, 512, 512, rect, null),
 		).toBeNull();
 	});
 
@@ -206,6 +233,7 @@ describe("imageToContainerCoord", () => {
 
 		const result = imageToContainerCoord(
 			{ x: 256, y: 256 },
+			512,
 			512,
 			rect,
 			viewport,
@@ -220,11 +248,35 @@ describe("imageToContainerCoord", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
 		const viewport = makeViewport(1, 0.5, 0.5, 1);
 
-		const result = imageToContainerCoord({ x: 0, y: 0 }, 512, rect, viewport);
+		const result = imageToContainerCoord(
+			{ x: 0, y: 0 },
+			512,
+			512,
+			rect,
+			viewport,
+		);
 		expect(result).not.toBeNull();
 		if (!result) throw new Error("container coordinate should be present");
 		expect(result.x).toBeCloseTo(0, 0);
 		expect(result.y).toBeCloseTo(0, 0);
+	});
+
+	it("uses image height and home bounds height for the Y axis", () => {
+		const rect = makeContainerRect(0, 0, 800, 400);
+		const viewport = makeViewport(1, 0.5, 0.5, 1, 1);
+
+		const result = imageToContainerCoord(
+			{ x: 1024, y: 768 },
+			2048,
+			1024,
+			rect,
+			viewport,
+		);
+
+		expect(result).not.toBeNull();
+		if (!result) throw new Error("container coordinate should be present");
+		expect(result.x).toBeCloseTo(400, 6);
+		expect(result.y).toBeCloseTo(400, 6);
 	});
 
 	it("round-trips with containerToImageCoord", () => {
@@ -251,6 +303,7 @@ describe("imageToContainerCoord", () => {
 		const containerCoord = imageToContainerCoord(
 			imgCoord,
 			imageWidth,
+			imageHeight,
 			rect,
 			viewport,
 		);
@@ -260,5 +313,51 @@ describe("imageToContainerCoord", () => {
 		}
 		expect(containerCoord.x).toBeCloseTo(clientX, 0);
 		expect(containerCoord.y).toBeCloseTo(clientY, 0);
+	});
+
+	it.each([
+		{ rotation: 0, flip: false, expected: { x: 600, y: 200 } },
+		{ rotation: 90, flip: false, expected: { x: 400, y: 400 } },
+		{ rotation: 180, flip: false, expected: { x: 200, y: 200 } },
+		{ rotation: 270, flip: false, expected: { x: 400, y: 0 } },
+		{ rotation: 0, flip: true, expected: { x: 200, y: 200 } },
+		{ rotation: 90, flip: true, expected: { x: 400, y: 0 } },
+		{ rotation: 180, flip: true, expected: { x: 600, y: 200 } },
+		{ rotation: 270, flip: true, expected: { x: 400, y: 400 } },
+	])("accounts for rotation $rotation and flip $flip", ({
+		rotation,
+		flip,
+		expected,
+	}) => {
+		const rect = makeContainerRect(0, 0, 800, 400);
+		const viewport = makeViewport(1, 0.5, 0.25, 1, 0.5, rotation, flip);
+		const imagePoint = { x: 1536, y: 512 };
+
+		const containerCoord = imageToContainerCoord(
+			imagePoint,
+			2048,
+			1024,
+			rect,
+			viewport,
+		);
+		expect(containerCoord).not.toBeNull();
+		if (!containerCoord) {
+			throw new Error("container coordinate should be present");
+		}
+		expect(containerCoord.x).toBeCloseTo(expected.x, 6);
+		expect(containerCoord.y).toBeCloseTo(expected.y, 6);
+
+		const roundTripped = containerToImageCoord(
+			containerCoord.x,
+			containerCoord.y,
+			rect,
+			2048,
+			1024,
+			viewport,
+		);
+		expect(roundTripped).not.toBeNull();
+		if (!roundTripped) throw new Error("image coordinate should be present");
+		expect(roundTripped.x).toBeCloseTo(imagePoint.x, 6);
+		expect(roundTripped.y).toBeCloseTo(imagePoint.y, 6);
 	});
 });

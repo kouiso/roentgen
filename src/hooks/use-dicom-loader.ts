@@ -6,7 +6,10 @@ import type {
 	DicomFileInfo,
 	DicomLoadState,
 } from "@/types/dicom";
-import { buildDicomFileInfo } from "@/utils/dicom-parser";
+import {
+	buildDicomFileInfo,
+	UnsupportedTransferSyntaxError,
+} from "@/utils/dicom-parser";
 
 // dicom-parserライブラリの動的インポート型
 // biome-ignore lint/suspicious/noExplicitAny: dicom-parserに型定義がないため
@@ -56,11 +59,30 @@ const classifyParseError = (
 		};
 	}
 
+	if (error instanceof UnsupportedTransferSyntaxError) {
+		return {
+			filePath,
+			reason: "corrupt",
+			detail: `対応していないDICOM圧縮形式です: ${error.transferSyntaxUid}`,
+		};
+	}
+
 	return {
 		filePath,
 		reason: "corrupt",
 		detail: `ファイルが破損しています: ${detail}`,
 	};
+};
+
+const getPrimaryLoadErrorMessage = (skipped: DicomFileError[]): string => {
+	if (skipped.length === 0) return "有効なDICOMファイルが見つかりませんでした";
+	if (skipped.some((s) => s.reason === "not-dicom")) {
+		return "DICOMファイルではありません";
+	}
+	if (skipped.some((s) => s.detail.includes("対応していないDICOM圧縮形式"))) {
+		return "対応していないDICOM圧縮形式です";
+	}
+	return "ファイルが破損しているか、有効なDICOMデータを含んでいません";
 };
 
 export const useDicomLoader = () => {
@@ -183,16 +205,9 @@ export const useDicomLoader = () => {
 			}
 
 			if (loaded.length === 0) {
-				const primaryError =
-					skipped.length > 0
-						? skipped.some((s) => s.reason === "not-dicom")
-							? "DICOMファイルではありません"
-							: "ファイルが破損しているか、有効なDICOMデータを含んでいません"
-						: "有効なDICOMファイルが見つかりませんでした";
-
 				setLoadState({
 					status: "error",
-					message: primaryError,
+					message: getPrimaryLoadErrorMessage(skipped),
 					skipped,
 				});
 				return;
