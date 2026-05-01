@@ -5,7 +5,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { drive_v3 } from "@googleapis/drive";
 import { oauth2_v2 } from "@googleapis/oauth2";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, safeStorage } from "electron";
 import { OAuth2Client } from "google-auth-library";
 
 // --- 設定 ---
@@ -27,6 +27,11 @@ type StoredToken = {
 	refresh_token: string;
 	token_type: string;
 	expiry_date: number;
+};
+
+type EncryptedStoredToken = {
+	version: 1;
+	encryptedToken: string;
 };
 
 type ClientCredentials = {
@@ -67,16 +72,59 @@ const createOAuth2Client = (
 const loadStoredToken = async (): Promise<StoredToken | null> => {
 	try {
 		const raw = await readFile(TOKEN_PATH(), "utf-8");
-		return JSON.parse(raw) as StoredToken;
-	} catch {
+		const parsed = JSON.parse(raw) as Partial<
+			StoredToken & EncryptedStoredToken
+		>;
+
+		if (parsed.refresh_token) {
+			console.error(
+				"[gdrive] 平文OAuthトークンを検出したため削除しました。再認証してください。",
+			);
+			await unlink(TOKEN_PATH());
+			return null;
+		}
+
+		if (!parsed.encryptedToken) {
+			console.error("[gdrive] OAuthトークンファイルの形式が不正です");
+			return null;
+		}
+
+		if (!safeStorage.isEncryptionAvailable()) {
+			console.error(
+				"[gdrive] OSキーチェーン暗号化が利用できません。キーチェーン設定を完了してから再認証してください。",
+			);
+			return null;
+		}
+
+		const decrypted = safeStorage.decryptString(
+			Buffer.from(parsed.encryptedToken, "base64"),
+		);
+		return JSON.parse(decrypted) as StoredToken;
+	} catch (err) {
+		if (err instanceof SyntaxError) {
+			console.error("[gdrive] OAuthトークンファイルのJSON解析に失敗しました");
+		}
 		return null;
 	}
 };
 
 const saveToken = async (token: StoredToken): Promise<void> => {
+	if (!safeStorage.isEncryptionAvailable()) {
+		console.error(
+			"[gdrive] OSキーチェーン暗号化が利用できないためOAuthトークンを保存できません。キーチェーン設定を完了してから再認証してください。",
+		);
+		throw new Error("OSキーチェーン暗号化が利用できません");
+	}
+
 	const dir = app.getPath("userData");
 	await mkdir(dir, { recursive: true });
-	await writeFile(TOKEN_PATH(), JSON.stringify(token, null, 2));
+	const encrypted: EncryptedStoredToken = {
+		version: 1,
+		encryptedToken: safeStorage
+			.encryptString(JSON.stringify(token))
+			.toString("base64"),
+	};
+	await writeFile(TOKEN_PATH(), JSON.stringify(encrypted, null, 2));
 };
 
 // --- 認証フロー ---

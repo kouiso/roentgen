@@ -1,5 +1,12 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import {
+	mkdir,
+	readdir,
+	readFile,
+	realpath,
+	writeFile,
+} from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 import log from "electron-log/main";
 import {
@@ -16,6 +23,56 @@ log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}";
 let mainWindow: BrowserWindow | null = null;
 
 const allowedPaths = new Set<string>();
+const resolvedAllowedPathCache = new Map<string, string>();
+
+const registerAllowedPath = (filePath: string) => {
+	const resolved = resolve(filePath);
+	allowedPaths.add(resolved);
+	resolvedAllowedPathCache.delete(resolved);
+};
+
+const getResolvedAllowedPath = async (allowedPath: string): Promise<string> => {
+	const resolved = resolve(allowedPath);
+	const cached = resolvedAllowedPathCache.get(resolved);
+	if (cached) return cached;
+
+	const realAllowed = await realpath(resolved);
+	resolvedAllowedPathCache.set(resolved, realAllowed);
+	return realAllowed;
+};
+
+export const resolveAllowedReadPath = async (
+	filePath: string,
+	allowedPathEntries: Iterable<string> = allowedPaths,
+): Promise<string> => {
+	let requestedRealPath: string;
+	try {
+		requestedRealPath = await realpath(resolve(filePath));
+	} catch (err) {
+		log.warn(`Blocked missing file access: ${filePath}`, err);
+		throw new Error(`ファイルが見つかりません: ${filePath}`);
+	}
+
+	for (const allowedPath of allowedPathEntries) {
+		const allowedRealPath = await getResolvedAllowedPath(allowedPath);
+		if (
+			requestedRealPath === allowedRealPath ||
+			requestedRealPath.startsWith(`${allowedRealPath}${sep}`)
+		) {
+			return requestedRealPath;
+		}
+	}
+
+	log.warn(`Blocked file access: ${filePath}`);
+	throw new Error(`許可されていないファイルパス: ${filePath}`);
+};
+
+const getSeedDirPath = () => {
+	if (app.isPackaged) {
+		return join(app.getPath("userData"), "dicom-files");
+	}
+	return join(__dirname, "..", "dicom-files");
+};
 
 // --- ウィンドウ状態の永続化 ---
 
@@ -69,6 +126,27 @@ const saveWindowState = async (
 	}
 };
 
+const saveWindowStateSync = (
+	win: BrowserWindow,
+	wwwc?: { ww: number; wc: number },
+): void => {
+	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
+	const bounds = win.getBounds();
+	const state: WindowState = {
+		width: bounds.width,
+		height: bounds.height,
+		x: bounds.x,
+		y: bounds.y,
+		wwwc,
+	};
+	try {
+		mkdirSync(app.getPath("userData"), { recursive: true });
+		writeFileSync(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
+	} catch (err) {
+		log.warn("[window-state] 同期保存失敗:", err);
+	}
+};
+
 // --- ウィンドウ作成 ---
 
 let lastWwwc: { ww: number; wc: number } | undefined;
@@ -115,7 +193,7 @@ const createWindow = async () => {
 	});
 
 	mainWindow.on("close", () => {
-		if (mainWindow) saveWindowState(mainWindow, lastWwwc);
+		if (mainWindow) saveWindowStateSync(mainWindow, lastWwwc);
 	});
 
 	if (isDev) {
@@ -151,7 +229,7 @@ const registerGdriveHandlers = async () => {
 	ipcMain.handle("gdrive:has-credentials", () => gdrive.hasCredentials());
 
 	ipcMain.handle("gdrive:sync-to-seed", async () => {
-		const seedDirPath = join(process.cwd(), "dicom-files");
+		const seedDirPath = getSeedDirPath();
 
 		const result = await gdrive.syncToSeedDir(seedDirPath, (current, total) => {
 			mainWindow?.webContents.send("gdrive:download-progress", {
@@ -179,7 +257,7 @@ const registerGdriveHandlers = async () => {
 
 			for (const fileName of dcmFiles) {
 				const filePath = join(seedDirPath, fileName);
-				allowedPaths.add(resolveFn(filePath));
+				registerAllowedPath(resolveFn(filePath));
 				const buffer = await readFileFn(filePath);
 				files.push({
 					path: filePath,
@@ -224,6 +302,10 @@ app.on("window-all-closed", () => {
 	}
 });
 
+app.on("before-quit", () => {
+	if (mainWindow) saveWindowStateSync(mainWindow, lastWwwc);
+});
+
 ipcMain.handle("select-dicom-files", async () => {
 	if (!mainWindow) return [];
 	const result = await dialog.showOpenDialog(mainWindow, {
@@ -237,17 +319,13 @@ ipcMain.handle("select-dicom-files", async () => {
 	if (result.canceled) return [];
 	log.info(`Selected ${result.filePaths.length} files`);
 	for (const filePath of result.filePaths) {
-		allowedPaths.add(resolve(filePath));
+		registerAllowedPath(filePath);
 	}
 	return result.filePaths;
 });
 
 ipcMain.handle("read-file", async (_event, filePath: string) => {
-	const resolved = resolve(filePath);
-	if (!allowedPaths.has(resolved)) {
-		log.warn(`Blocked file access: ${filePath}`);
-		throw new Error(`許可されていないファイルパス: ${filePath}`);
-	}
+	const resolved = await resolveAllowedReadPath(filePath);
 	const buffer = await readFile(resolved);
 	return buffer.buffer.slice(
 		buffer.byteOffset,
@@ -288,14 +366,14 @@ ipcMain.handle("window-state:set-wwwc", (_event, ww: number, wc: number) => {
 
 if (process.env.VITE_DEV_SERVER_URL) {
 	ipcMain.handle("load-test-dicom", async () => {
-		const dirPath = join(process.cwd(), "dicom-files");
+		const dirPath = getSeedDirPath();
 		try {
 			const entries = await readdir(dirPath);
 			const dcmFiles = entries.filter((f) => f.toLowerCase().endsWith(".dcm"));
 			const results: { path: string; data: ArrayBuffer }[] = [];
 			for (const fileName of dcmFiles) {
 				const filePath = join(dirPath, fileName);
-				allowedPaths.add(resolve(filePath));
+				registerAllowedPath(filePath);
 				const buffer = await readFile(filePath);
 				results.push({
 					path: filePath,

@@ -3,9 +3,35 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+const cornerstoneMock = vi.hoisted(() => ({
+	loadImage: vi.fn(),
+	registerImageLoader: vi.fn(),
+	renderToCanvas: vi.fn(),
+	imageLoader: {
+		purge: vi.fn(),
+	},
+	imageCache: {
+		removeImageLoadObject: vi.fn(),
+	},
+}));
+
 // dicom-parserモジュールをモック
 vi.mock("dicom-parser", () => ({
 	parseDicom: vi.fn(),
+	default: {
+		parseDicom: vi.fn(),
+	},
+}));
+
+vi.mock("cornerstone-core", () => ({
+	default: cornerstoneMock,
+}));
+
+vi.mock("cornerstone-wado-image-loader", () => ({
+	default: {
+		external: {},
+		configure: vi.fn(),
+	},
 }));
 
 // dicom-parserの型をテスト用にインポート
@@ -14,6 +40,7 @@ import {
 	buildDicomFileInfo,
 	UnsupportedTransferSyntaxError,
 } from "@/utils/dicom-parser";
+import { getSharedImageDataMapSize, useCornerstone } from "../use-cornerstone";
 import { useDicomLoader } from "../use-dicom-loader";
 
 // buildDicomFileInfoをモック（parserの結果からDicomFileInfoを生成する部分）
@@ -300,6 +327,43 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 
 		expect(result.current.loadState.status).toBe("idle");
 		expect(result.current.dicomFiles).toHaveLength(0);
+	});
+
+	it("C4: removeFileとclearFilesでcornerstone共有画像データを解放する", async () => {
+		const mockParseDicom = vi.mocked(dicomParser.parseDicom);
+		mockParseDicom.mockReturnValue({
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		});
+
+		const loader = renderHook(() => useDicomLoader());
+		const cornerstone = renderHook(() => useCornerstone());
+
+		act(() => {
+			cornerstone.result.current.clearAllImageData();
+			loader.result.current.setImageDataRegistrar(
+				cornerstone.result.current.registerImageData,
+			);
+		});
+
+		await act(async () => {
+			await loader.result.current.loadFiles([
+				makeFakeFileData("/test/a.dcm"),
+				makeFakeFileData("/test/b.dcm"),
+			]);
+		});
+		expect(getSharedImageDataMapSize()).toBe(2);
+
+		act(() => {
+			loader.result.current.removeFile(0);
+		});
+		expect(getSharedImageDataMapSize()).toBe(1);
+
+		act(() => {
+			loader.result.current.clearFiles();
+		});
+		expect(getSharedImageDataMapSize()).toBe(0);
 	});
 
 	it("空ファイルリスト → エラー状態", async () => {

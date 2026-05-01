@@ -1,6 +1,7 @@
 // DICOMファイル読込フック（renkeibox useDicomLoader.ts 参考）
 // ローカルファイル専用に簡略化（サーバー依存コード不要）
 import { useCallback, useRef, useState } from "react";
+import { releaseImage } from "@/hooks/use-cornerstone";
 import type {
 	DicomFileError,
 	DicomFileInfo,
@@ -227,7 +228,12 @@ export const useDicomLoader = () => {
 	);
 
 	const clearFiles = useCallback(() => {
-		setDicomFiles([]);
+		setDicomFiles((prev) => {
+			for (const file of prev) {
+				releaseImage(file.imageId);
+			}
+			return [];
+		});
 		setLoadState({ status: "idle" });
 		pendingDataRef.current.clear();
 	}, []);
@@ -235,6 +241,10 @@ export const useDicomLoader = () => {
 	// 指定インデックスのファイルを除去（選択クリア用）
 	const removeFile = useCallback((index: number) => {
 		setDicomFiles((prev) => {
+			const removed = prev[index];
+			if (removed) {
+				releaseImage(removed.imageId);
+			}
 			const next = prev.filter((_, i) => i !== index);
 			if (next.length === 0) {
 				setLoadState({ status: "idle" });
