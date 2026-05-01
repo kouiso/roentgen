@@ -1,6 +1,6 @@
 // DICOMファイル読込フック（renkeibox useDicomLoader.ts 参考）
 // ローカルファイル専用に簡略化（サーバー依存コード不要）
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { releaseImage } from "@/hooks/use-cornerstone";
 import type {
 	DicomFileError,
@@ -13,8 +13,8 @@ import {
 } from "@/utils/dicom-parser";
 
 // dicom-parserライブラリの動的インポート型
-// biome-ignore lint/suspicious/noExplicitAny: dicom-parserに型定義がないため
-type DicomParser = { parseDicom: (byteArray: Uint8Array) => any };
+type DicomDataSetLike = Parameters<typeof buildDicomFileInfo>[0];
+type DicomParser = typeof import("dicom-parser");
 
 let dicomParserModule: DicomParser | null = null;
 
@@ -22,11 +22,85 @@ const getDicomParser = async (): Promise<DicomParser> => {
 	if (!dicomParserModule) {
 		dicomParserModule = await import("dicom-parser");
 	}
+	if (!dicomParserModule) {
+		throw new Error("dicom-parser読込失敗");
+	}
 	return dicomParserModule;
 };
 
 // rawDataの登録コールバック型
 type ImageDataRegistrar = (filePath: string, data: ArrayBuffer) => void;
+
+type DicomParseInput = { path: string; data: ArrayBuffer };
+
+type DicomParseResult = {
+	fileInfo: DicomFileInfo;
+	rawData: ArrayBuffer;
+};
+
+type DicomParseWorkerRequest = {
+	id: number;
+	type: "parse";
+	payload: {
+		path: string;
+		fileName: string;
+		imageId: string;
+		data: ArrayBuffer;
+	};
+};
+
+type DicomParseWorkerSuccess = {
+	id: number;
+	type: "success";
+	fileInfo: DicomFileInfo;
+	rawData: ArrayBuffer;
+};
+
+type DicomParseWorkerError = {
+	id: number;
+	type: "error";
+	error: {
+		name: string;
+		message: string;
+		transferSyntaxUid?: string;
+	};
+};
+
+type DicomParseWorkerResponse = DicomParseWorkerSuccess | DicomParseWorkerError;
+
+type DicomParseWorker = {
+	addEventListener: (
+		eventName: "message",
+		listener: (event: MessageEvent<DicomParseWorkerResponse>) => void,
+	) => void;
+	removeEventListener: (
+		eventName: "message",
+		listener: (event: MessageEvent<DicomParseWorkerResponse>) => void,
+	) => void;
+	postMessage: (
+		message: DicomParseWorkerRequest,
+		transferList: Transferable[],
+	) => void;
+	terminate: () => void;
+};
+
+type DicomParseWorkerFactory = () => DicomParseWorker;
+
+type DicomParseWorkerPool = {
+	parse: (input: DicomParseInput) => Promise<DicomParseResult>;
+	terminate: () => void;
+};
+
+type PendingWorkerTask = {
+	input: DicomParseInput;
+	resolve: (result: DicomParseResult) => void;
+	reject: (error: Error) => void;
+};
+
+type WorkerSlot = {
+	worker: DicomParseWorker;
+	busy: boolean;
+};
 
 // DICOM MAGIC BYTES: "DICM" at offset 128
 const DICOM_MAGIC_OFFSET = 128;
@@ -49,10 +123,11 @@ const classifyParseError = (
 	filePath: string,
 	error: unknown,
 	data: ArrayBuffer,
+	dicomMagicVerified = false,
 ): DicomFileError => {
 	const detail = error instanceof Error ? error.message : "不明なエラー";
 
-	if (!isDicomFile(data)) {
+	if (!dicomMagicVerified && !isDicomFile(data)) {
 		return {
 			filePath,
 			reason: "not-dicom",
@@ -86,6 +161,169 @@ const getPrimaryLoadErrorMessage = (skipped: DicomFileError[]): string => {
 	return "ファイルが破損しているか、有効なDICOMデータを含んでいません";
 };
 
+const getFileName = (path: string): string => path.split("/").pop() ?? path;
+
+const parseDicomFileDirectly = async ({
+	path,
+	data,
+}: DicomParseInput): Promise<DicomParseResult> => {
+	const parser = await getDicomParser();
+	const dataSet = parser.parseDicom(new Uint8Array(data)) as DicomDataSetLike;
+	const fileName = getFileName(path);
+	const imageId = `roentgen:${path}`;
+	return {
+		fileInfo: buildDicomFileInfo(dataSet, imageId, path, fileName, data),
+		rawData: data,
+	};
+};
+
+const createDicomParseWorker = (): DicomParseWorker =>
+	new Worker(new URL("../workers/dicom-parse-worker.ts", import.meta.url), {
+		type: "module",
+	});
+
+const getWorkerCount = (): number => {
+	if (typeof Worker === "undefined") return 0;
+	return Math.max(1, Math.min(navigator.hardwareConcurrency || 1, 4));
+};
+
+const restoreWorkerError = (error: DicomParseWorkerError["error"]): Error => {
+	if (
+		error.name === "UnsupportedTransferSyntaxError" &&
+		error.transferSyntaxUid
+	) {
+		return new UnsupportedTransferSyntaxError(error.transferSyntaxUid);
+	}
+	return new Error(error.message);
+};
+
+export const createDicomParseWorkerPool = (
+	workerCount = getWorkerCount(),
+	workerFactory: DicomParseWorkerFactory | null = workerCount > 0
+		? createDicomParseWorker
+		: null,
+): DicomParseWorkerPool => {
+	if (workerCount <= 0 || !workerFactory) {
+		return {
+			parse: parseDicomFileDirectly,
+			terminate: () => undefined,
+		};
+	}
+
+	let nextId = 1;
+	let terminated = false;
+	const queue: PendingWorkerTask[] = [];
+	const pending = new Map<number, PendingWorkerTask>();
+	const slots: WorkerSlot[] = [];
+
+	const runNext = () => {
+		if (terminated) return;
+		const slot = slots.find((candidate) => !candidate.busy);
+		const task = queue.shift();
+		if (!slot || !task) return;
+
+		slot.busy = true;
+		const id = nextId++;
+		pending.set(id, task);
+		const fileName = getFileName(task.input.path);
+		slot.worker.postMessage(
+			{
+				id,
+				type: "parse",
+				payload: {
+					path: task.input.path,
+					fileName,
+					imageId: `roentgen:${task.input.path}`,
+					data: task.input.data,
+				},
+			},
+			[task.input.data],
+		);
+	};
+
+	for (let i = 0; i < workerCount; i++) {
+		const worker = workerFactory();
+		const slot: WorkerSlot = { worker, busy: false };
+		worker.addEventListener("message", (event) => {
+			const message = event.data;
+			const task = pending.get(message.id);
+			if (!task) return;
+
+			pending.delete(message.id);
+			slot.busy = false;
+
+			if (message.type === "success") {
+				task.resolve({
+					fileInfo: message.fileInfo,
+					rawData: message.rawData,
+				});
+			} else {
+				task.reject(restoreWorkerError(message.error));
+			}
+			runNext();
+		});
+		slots.push(slot);
+	}
+
+	return {
+		parse: (input) =>
+			new Promise((resolve, reject) => {
+				if (terminated) {
+					reject(new Error("DICOM parse worker pool is terminated"));
+					return;
+				}
+				queue.push({ input, resolve, reject });
+				runNext();
+			}),
+		terminate: () => {
+			terminated = true;
+			for (const slot of slots) {
+				slot.worker.terminate();
+			}
+			for (const task of queue) {
+				task.reject(new Error("DICOM parse worker pool is terminated"));
+			}
+			for (const task of pending.values()) {
+				task.reject(new Error("DICOM parse worker pool is terminated"));
+			}
+			queue.length = 0;
+			pending.clear();
+		},
+	};
+};
+
+const SINGLE_FILE_WARNING_BYTES = 1.5 * 1024 ** 3;
+const CUMULATIVE_WARNING_BYTES = 3 * 1024 ** 3;
+
+const estimatePixelBytes = (fileInfo: DicomFileInfo): number => {
+	const bytesPerSample = Math.max(1, Math.ceil(fileInfo.bitsAllocated / 8));
+	return (
+		fileInfo.columns *
+		fileInfo.rows *
+		Math.max(1, fileInfo.totalFrames) *
+		Math.max(1, fileInfo.samplesPerPixel) *
+		bytesPerSample
+	);
+};
+
+const warnIfOversizedDicom = (
+	fileInfo: DicomFileInfo,
+	cumulativeBytes: number,
+): number => {
+	const fileBytes = estimatePixelBytes(fileInfo);
+	const nextCumulativeBytes = cumulativeBytes + fileBytes;
+	if (
+		fileBytes > SINGLE_FILE_WARNING_BYTES ||
+		nextCumulativeBytes > CUMULATIVE_WARNING_BYTES
+	) {
+		console.warn(
+			`[useDicomLoader] 大容量DICOMの可能性があります: ${fileInfo.fileName} ` +
+				`(${(fileBytes / 1024 ** 3).toFixed(2)} GB, cumulative ${(nextCumulativeBytes / 1024 ** 3).toFixed(2)} GB)`,
+		);
+	}
+	return nextCumulativeBytes;
+};
+
 export const useDicomLoader = () => {
 	const [loadState, setLoadState] = useState<DicomLoadState>({
 		status: "idle",
@@ -99,6 +337,14 @@ export const useDicomLoader = () => {
 	const pendingDataRef = useRef<Map<string, ArrayBuffer>>(new Map());
 	// キャンセルフラグ
 	const cancelRef = useRef(false);
+	const workerPoolRef = useRef<DicomParseWorkerPool | null>(null);
+
+	useEffect(() => {
+		return () => {
+			workerPoolRef.current?.terminate();
+			workerPoolRef.current = null;
+		};
+	}, []);
 
 	const setImageDataRegistrar = useCallback((fn: ImageDataRegistrar) => {
 		registrarRef.current = fn;
@@ -123,20 +369,11 @@ export const useDicomLoader = () => {
 		async (fileDataList: { path: string; data: ArrayBuffer }[]) => {
 			cancelRef.current = false;
 			setLoadState({ status: "loading", progress: 0 });
-
-			let parser: DicomParser;
-			try {
-				parser = await getDicomParser();
-			} catch (err) {
-				setLoadState({
-					status: "error",
-					message: `dicom-parser読込失敗: ${err}`,
-				});
-				return;
-			}
+			workerPoolRef.current ??= createDicomParseWorkerPool();
 
 			const loaded: DicomFileInfo[] = [];
 			const skipped: DicomFileError[] = [];
+			let cumulativePixelBytes = 0;
 
 			for (let i = 0; i < fileDataList.length; i++) {
 				// キャンセルチェック
@@ -163,34 +400,28 @@ export const useDicomLoader = () => {
 						continue;
 					}
 
-					const byteArray = new Uint8Array(fileData.data);
-					const dataSet = parser.parseDicom(byteArray);
-					const fileName = fileData.path.split("/").pop() ?? fileData.path;
-					const imageId = `roentgen:${fileData.path}`;
-
-					const fileInfo = buildDicomFileInfo(
-						dataSet,
-						imageId,
-						fileData.path,
-						fileName,
-						fileData.data,
+					const parsed = await workerPoolRef.current.parse(fileData);
+					cumulativePixelBytes = warnIfOversizedDicom(
+						parsed.fileInfo,
+						cumulativePixelBytes,
 					);
 
 					// rawDataをcornerstoneのimageDataMapに直接登録
 					// DicomFileInfoにはrawDataを保持しない（メモリ節約）
 					if (registrarRef.current) {
-						registrarRef.current(fileData.path, fileData.data);
+						registrarRef.current(fileData.path, parsed.rawData);
 					} else {
 						// registrar未接続時はバッファに保持
-						pendingDataRef.current.set(fileData.path, fileData.data);
+						pendingDataRef.current.set(fileData.path, parsed.rawData);
 					}
 
-					loaded.push(fileInfo);
+					loaded.push(parsed.fileInfo);
 				} catch (error) {
 					const fileError = classifyParseError(
 						fileData.path,
 						error,
 						fileData.data,
+						true,
 					);
 					skipped.push(fileError);
 					console.error(

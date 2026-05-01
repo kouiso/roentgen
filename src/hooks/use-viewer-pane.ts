@@ -80,6 +80,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 
 	const cine = useCineMode({
 		nextFrame,
+		setFrame,
 		maxFrame: sliderState.maxFrame,
 		currentFrame: sliderState.currentFrame,
 	});

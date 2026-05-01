@@ -41,7 +41,10 @@ import {
 	UnsupportedTransferSyntaxError,
 } from "@/utils/dicom-parser";
 import { getSharedImageDataMapSize, useCornerstone } from "../use-cornerstone";
-import { useDicomLoader } from "../use-dicom-loader";
+import {
+	createDicomParseWorkerPool,
+	useDicomLoader,
+} from "../use-dicom-loader";
 
 // buildDicomFileInfoをモック（parserの結果からDicomFileInfoを生成する部分）
 vi.mock("@/utils/dicom-parser", () => ({
@@ -496,4 +499,198 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 			expect(result.current.loadState.skipped?.[0]?.reason).toBe("not-dicom");
 		}
 	});
+
+	it("M2: worker pool dispatcher returns the same FileInfo as direct parser", async () => {
+		const dataSet = {
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		};
+		const mockParseDicom = vi.mocked(dicomParser.parseDicom);
+		mockParseDicom.mockReturnValue(dataSet);
+
+		const expected = buildDicomFileInfo(
+			dataSet,
+			"roentgen:/test/worker.dcm",
+			"/test/worker.dcm",
+			"worker.dcm",
+			makeDicomBuffer(),
+		);
+
+		let worker: TestWorker | null = null;
+		const pool = createDicomParseWorkerPool(1, () => {
+			worker = makeSuccessfulWorker(expected);
+			return worker;
+		});
+
+		const result = await pool.parse({
+			path: "/test/worker.dcm",
+			data: makeDicomBuffer(),
+		});
+
+		expect(result.fileInfo).toEqual(expected);
+		expect(result.rawData.byteLength).toBeGreaterThan(0);
+		expect(worker?.getLastTransferList()).toHaveLength(1);
+
+		pool.terminate();
+	});
+
+	it("M2: worker pool rethrows UnsupportedTransferSyntaxError from worker", async () => {
+		const pool = createDicomParseWorkerPool(1, () =>
+			makeFailingWorker(new UnsupportedTransferSyntaxError("1.2.840.bad")),
+		);
+
+		await expect(
+			pool.parse({
+				path: "/test/unsupported.dcm",
+				data: makeDicomBuffer(),
+			}),
+		).rejects.toBeInstanceOf(UnsupportedTransferSyntaxError);
+
+		pool.terminate();
+	});
+
+	it("S6: oversized DICOM metadata emits an advisory warning", async () => {
+		const warnSpy = vi
+			.spyOn(console, "warn")
+			.mockImplementation(() => undefined);
+		const mockParseDicom = vi.mocked(dicomParser.parseDicom);
+		mockParseDicom.mockReturnValue({
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		});
+		const mockBuildDicomFileInfo = vi.mocked(buildDicomFileInfo);
+		mockBuildDicomFileInfo.mockReturnValueOnce({
+			imageId: "roentgen:/test/huge.dcm",
+			filePath: "/test/huge.dcm",
+			fileName: "huge.dcm",
+			frameIndex: 0,
+			totalFrames: 100,
+			rows: 4096,
+			columns: 4096,
+			bitsAllocated: 16,
+			bitsStored: 12,
+			highBit: 11,
+			pixelRepresentation: 0,
+			samplesPerPixel: 1,
+			photometricInterpretation: "MONOCHROME2",
+			rescaleIntercept: 0,
+			rescaleSlope: 1,
+			windowCenter: 400,
+			windowWidth: 1500,
+			pixelSpacing: null,
+			imageOrientationPatient: null,
+			imagePositionPatient: null,
+			sliceThickness: null,
+			sliceLocation: null,
+			instanceNumber: null,
+			studyInstanceUID: null,
+			seriesInstanceUID: null,
+			modalityLutSequence: null,
+			voiLutSequence: null,
+			overlayData: [],
+			tags: {},
+			thumbnailData: null,
+		});
+
+		const { result } = renderHook(() => useDicomLoader());
+
+		await act(async () => {
+			await result.current.loadFiles([makeFakeFileData("/test/huge.dcm")]);
+		});
+
+		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("huge.dcm"));
+
+		warnSpy.mockRestore();
+	});
 });
+
+type WorkerMessage = {
+	id: number;
+	type: "parse";
+	payload: {
+		path: string;
+		data: ArrayBuffer;
+	};
+};
+
+type WorkerSuccessResponse = {
+	id: number;
+	type: "success";
+	fileInfo: ReturnType<typeof buildDicomFileInfo>;
+	rawData: ArrayBuffer;
+};
+
+type WorkerErrorResponse = {
+	id: number;
+	type: "error";
+	error: {
+		name: string;
+		message: string;
+		transferSyntaxUid?: string;
+	};
+};
+
+type WorkerResponse = WorkerSuccessResponse | WorkerErrorResponse;
+
+type WorkerListener = (event: MessageEvent<WorkerResponse>) => void;
+
+const makeSuccessfulWorker = (
+	fileInfo: ReturnType<typeof buildDicomFileInfo>,
+) =>
+	new TestWorker((message) => ({
+		id: message.id,
+		type: "success",
+		fileInfo,
+		rawData: message.payload.data,
+	}));
+
+const makeFailingWorker = (error: UnsupportedTransferSyntaxError) =>
+	new TestWorker((message) => ({
+		id: message.id,
+		type: "error",
+		error: {
+			name: error.name,
+			message: error.message,
+			transferSyntaxUid: error.transferSyntaxUid,
+		},
+	}));
+
+class TestWorker {
+	private listener: WorkerListener | null = null;
+	private lastTransferList: Transferable[] = [];
+
+	constructor(
+		private readonly respond: (message: WorkerMessage) => WorkerResponse,
+	) {}
+
+	addEventListener(eventName: "message", listener: WorkerListener): void {
+		if (eventName === "message") {
+			this.listener = listener;
+		}
+	}
+
+	removeEventListener(eventName: "message", listener: WorkerListener): void {
+		if (eventName === "message" && this.listener === listener) {
+			this.listener = null;
+		}
+	}
+
+	postMessage(message: WorkerMessage, transferList: Transferable[]): void {
+		this.lastTransferList = transferList;
+		queueMicrotask(() => {
+			this.listener?.(
+				new MessageEvent("message", { data: this.respond(message) }),
+			);
+		});
+	}
+
+	getLastTransferList(): Transferable[] {
+		return this.lastTransferList;
+	}
+
+	terminate(): void {
+		this.listener = null;
+	}
+}

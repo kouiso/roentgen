@@ -124,4 +124,29 @@ describe("useCineMode", () => {
 
 		vi.useRealTimers();
 	});
+
+	it("resets to frame 0 before playing from the last frame", () => {
+		vi.useFakeTimers();
+		const nextFrame = vi.fn();
+		const setFrame = vi.fn();
+
+		const { result } = renderHook(() =>
+			useCineMode({
+				nextFrame,
+				setFrame,
+				maxFrame: 10,
+				currentFrame: 10,
+			}),
+		);
+
+		act(() => result.current.togglePlay());
+
+		expect(setFrame).toHaveBeenCalledWith(0);
+		expect(result.current.isPlaying).toBe(true);
+
+		act(() => vi.advanceTimersByTime(100));
+		expect(nextFrame).toHaveBeenCalled();
+
+		vi.useRealTimers();
+	});
 });

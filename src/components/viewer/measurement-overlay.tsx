@@ -211,18 +211,33 @@ export const MeasurementOverlay = ({
 	// ビューポート変更時に再描画するためのカウンター
 	const [, setRedrawCount] = useState(0);
 
-	// OSDのズーム/パン時にSVGを再描画（30fps）
-	// 計測が存在する場合のみタイマーを起動する
+	// OSDのズーム/パン/描画更新イベントに合わせてSVGを再描画
 	useEffect(() => {
 		if (!visible || (measurements.length === 0 && activePoints.length === 0))
 			return;
+		if (!viewport || typeof viewport.addHandler !== "function") return;
 
-		const intervalId = setInterval(() => {
+		const requestRedraw = () => {
 			setRedrawCount((c) => c + 1);
-		}, 33);
+		};
+		const events = [
+			"viewport-change",
+			"animation",
+			"animation-finish",
+			"update-viewport",
+		];
 
-		return () => clearInterval(intervalId);
-	}, [visible, measurements.length, activePoints.length]);
+		for (const eventName of events) {
+			viewport.addHandler(eventName, requestRedraw);
+		}
+
+		return () => {
+			if (typeof viewport.removeHandler !== "function") return;
+			for (const eventName of events) {
+				viewport.removeHandler(eventName, requestRedraw);
+			}
+		};
+	}, [visible, measurements.length, activePoints.length, viewport]);
 
 	if (!visible || (measurements.length === 0 && activePoints.length === 0)) {
 		return null;
