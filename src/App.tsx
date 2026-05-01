@@ -1,6 +1,7 @@
 import { CircleDot, Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CrashReporterToggle } from "./components/crash-reporter-toggle";
+import { ErrorBoundary } from "./components/error-boundary";
 import { FileDropZone } from "./components/file-drop-zone";
 import { DicomViewer } from "./components/viewer/dicom-viewer";
 import { useDicomLoader } from "./hooks/use-dicom-loader";
@@ -207,12 +208,14 @@ export const App = () => {
 				{dicomFiles.length === 0 ? (
 					<FileDropZone onFilesLoaded={handleFilesLoaded} />
 				) : (
-					<DicomViewer
-						files={dicomFiles}
-						onClearAll={clearFiles}
-						onRemoveFile={removeFile}
-						setImageDataRegistrar={setImageDataRegistrar}
-					/>
+					<ErrorBoundary>
+						<DicomViewer
+							files={dicomFiles}
+							onClearAll={clearFiles}
+							onRemoveFile={removeFile}
+							setImageDataRegistrar={setImageDataRegistrar}
+						/>
+					</ErrorBoundary>
 				)}
 			</main>
 		</div>

@@ -3,12 +3,19 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { DicomFileInfo } from "@/types/dicom";
 import { ENCAPSULATED_TRANSFER_SYNTAX_UIDS } from "@/utils/dicom-parser";
-import { useCornerstone } from "../use-cornerstone";
+import { releaseImage, useCornerstone } from "../use-cornerstone";
 
 const cornerstoneMock = vi.hoisted(() => ({
 	loadImage: vi.fn(),
 	registerImageLoader: vi.fn(),
 	renderToCanvas: vi.fn(),
+	imageLoader: {
+		purge: vi.fn(),
+	},
+	imageCache: {
+		getImageLoadObject: vi.fn(),
+		removeImageLoadObject: vi.fn(),
+	},
 }));
 const wadoMock = vi.hoisted(() => ({
 	external: {},
@@ -172,5 +179,37 @@ describe("useCornerstone", () => {
 		expect(cornerstoneMock.loadImage).toHaveBeenLastCalledWith(
 			`dicomfile:${ENCAPSULATED_TRANSFER_SYNTAX_UIDS.indexOf(transferSyntaxUid)}`,
 		);
+	});
+
+	it("removes image load objects only when cornerstone cache contains the imageId", async () => {
+		cornerstoneMock.imageCache.getImageLoadObject.mockImplementation(
+			(imageId: string) =>
+				imageId === "roentgen:/test/cached.dcm" ? { imageId } : undefined,
+		);
+		cornerstoneMock.imageCache.removeImageLoadObject.mockClear();
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData(
+				"/test/not-cached.dcm",
+				new ArrayBuffer(1),
+			);
+			result.current.registerImageData("/test/cached.dcm", new ArrayBuffer(1));
+		});
+
+		expect(() => releaseImage("roentgen:/test/not-cached.dcm")).not.toThrow();
+		expect(
+			cornerstoneMock.imageCache.removeImageLoadObject,
+		).not.toHaveBeenCalledWith("roentgen:/test/not-cached.dcm");
+
+		expect(() => releaseImage("roentgen:/test/cached.dcm")).not.toThrow();
+		expect(
+			cornerstoneMock.imageCache.removeImageLoadObject,
+		).toHaveBeenCalledWith("roentgen:/test/cached.dcm");
 	});
 });

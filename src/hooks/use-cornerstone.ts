@@ -175,13 +175,20 @@ export const releaseImage = (imageId: string): void => {
 			wadoImageId.replace("dicomfile:", ""),
 		);
 		_cornerstoneModule?.imageLoader?.purge?.(wadoImageId);
-		_cornerstoneModule?.imageCache?.removeImageLoadObject?.(wadoImageId);
+		const loadObject =
+			_cornerstoneModule?.imageCache?.getImageLoadObject?.(wadoImageId);
+		if (loadObject) {
+			_cornerstoneModule?.imageCache?.removeImageLoadObject?.(wadoImageId);
+		}
 	}
 
 	const cs = _cornerstoneModule;
 	if (!cs) return;
 	cs.imageLoader?.purge?.(imageId);
-	cs.imageCache?.removeImageLoadObject?.(imageId);
+	const loadObject = cs.imageCache?.getImageLoadObject?.(imageId);
+	if (loadObject) {
+		cs.imageCache?.removeImageLoadObject?.(imageId);
+	}
 };
 
 export const initializeCornerstone = (): Promise<void> => {
