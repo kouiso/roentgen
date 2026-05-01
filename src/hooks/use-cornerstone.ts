@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerWorldInfo } from "@/types/viewer";
 import { INITIAL_WORLD_INFO } from "@/types/viewer";
+import { isEncapsulatedTransferSyntax } from "@/utils/dicom-parser";
 
 // cornerstone-coreの型（旧版に型定義なし）
 type CornerstoneImage = {
@@ -29,6 +30,29 @@ type CornerstoneViewport = {
 	rotation?: number;
 	hflip?: boolean;
 	vflip?: boolean;
+};
+
+type CornerstoneWadoImageLoader = {
+	external?: {
+		cornerstone?: unknown;
+		dicomParser?: unknown;
+	};
+	configure?: (options: Record<string, unknown>) => void;
+	webWorkerManager?: {
+		initialize?: (config: Record<string, unknown>) => void;
+		terminate?: () => void;
+	};
+	wadouri?: {
+		fileManager?: {
+			add: (file: Blob) => string;
+			remove?: (index: number) => void;
+			purge?: () => void;
+		};
+		dataSetCacheManager?: {
+			unload?: (uri: string) => void;
+			purge?: () => void;
+		};
+	};
 };
 
 // OSD (OpenSeadragon)の型
@@ -78,9 +102,14 @@ export type OSDTileEvent = {
 // ============================================================
 // biome-ignore lint/suspicious/noExplicitAny: cornerstone-coreに型定義なし
 let _cornerstoneModule: any = null;
+let _cornerstoneWadoModule: CornerstoneWadoImageLoader | null = null;
 
 // 全ペインで共有するimageDataMap（rawDataのキャッシュ）
 const _sharedImageDataMap = new Map<string, ArrayBuffer>();
+const _sharedWadoImageIdMap = new Map<string, string>();
+
+const CORNERSTONE_CODEC_PUBLIC_PATH =
+	"/cornerstone-wado/cornerstoneWADOImageLoader.min.js";
 
 // 初期化は1回のみ実行する
 let _initPromise: Promise<void> | null = null;
@@ -103,6 +132,11 @@ const drainInitCallbacks = (error?: unknown) => {
 
 export const disposeCornerstoneHmrState = (): void => {
 	_sharedImageDataMap.clear();
+	_sharedWadoImageIdMap.clear();
+	_cornerstoneWadoModule?.webWorkerManager?.terminate?.();
+	_cornerstoneWadoModule?.wadouri?.fileManager?.purge?.();
+	_cornerstoneWadoModule?.wadouri?.dataSetCacheManager?.purge?.();
+	_cornerstoneWadoModule = null;
 	_cornerstoneModule = null;
 	_initPromise = null;
 	_isInitDone = false;
@@ -124,7 +158,25 @@ export const getSharedImageDataMapSize = (): number => {
 };
 
 export const releaseImage = (imageId: string): void => {
-	_sharedImageDataMap.delete(getSharedImageDataKey(imageId));
+	const sharedKey = getSharedImageDataKey(imageId);
+	_sharedImageDataMap.delete(sharedKey);
+
+	const wadoImageId = _sharedWadoImageIdMap.get(sharedKey);
+	if (wadoImageId) {
+		_sharedWadoImageIdMap.delete(sharedKey);
+		const fileIndex = Number.parseInt(
+			wadoImageId.replace("dicomfile:", ""),
+			10,
+		);
+		if (Number.isFinite(fileIndex)) {
+			_cornerstoneWadoModule?.wadouri?.fileManager?.remove?.(fileIndex);
+		}
+		_cornerstoneWadoModule?.wadouri?.dataSetCacheManager?.unload?.(
+			wadoImageId.replace("dicomfile:", ""),
+		);
+		_cornerstoneModule?.imageLoader?.purge?.(wadoImageId);
+		_cornerstoneModule?.imageCache?.removeImageLoadObject?.(wadoImageId);
+	}
 
 	const cs = _cornerstoneModule;
 	if (!cs) return;
@@ -147,15 +199,36 @@ export const initializeCornerstone = (): Promise<void> => {
 
 			try {
 				const cornerstoneWADO = await import("cornerstone-wado-image-loader");
-				const wado = cornerstoneWADO.default ?? cornerstoneWADO;
+				const wado: CornerstoneWadoImageLoader =
+					cornerstoneWADO.default ?? cornerstoneWADO;
+				_cornerstoneWadoModule = wado;
 				if (wado.external) {
 					wado.external.cornerstone = _cornerstoneModule;
 					const dicomParser = await import("dicom-parser");
 					wado.external.dicomParser = dicomParser.default ?? dicomParser;
 				}
 				if (wado.configure) {
-					wado.configure({ useWebWorkers: false });
+					wado.configure({
+						decodeConfig: {
+							convertFloatPixelDataToInt: true,
+							use16BitDataType: false,
+						},
+					});
 				}
+				wado.webWorkerManager?.initialize?.({
+					maxWebWorkers:
+						typeof navigator === "undefined"
+							? 1
+							: navigator.hardwareConcurrency || 1,
+					startWebWorkersOnDemand: true,
+					webWorkerTaskPaths: [],
+					taskConfiguration: {
+						decodeTask: {
+							codecsPath: CORNERSTONE_CODEC_PUBLIC_PATH,
+							initializeCodecsOnStartup: false,
+						},
+					},
+				});
 			} catch (err) {
 				console.error(
 					"[useCornerstone] cornerstone-wado-image-loader import失敗:",
@@ -284,6 +357,29 @@ export const initializeCornerstone = (): Promise<void> => {
 	return _initPromise;
 };
 
+const ensureWadoImageId = (fileInfo: DicomFileInfo): string => {
+	const sharedKey = getSharedImageDataKey(fileInfo.imageId);
+	const existing = _sharedWadoImageIdMap.get(sharedKey);
+	if (existing) return existing;
+
+	const arrayBuffer = _sharedImageDataMap.get(sharedKey);
+	const fileManager = _cornerstoneWadoModule?.wadouri?.fileManager;
+	if (!arrayBuffer || !fileManager) return fileInfo.imageId;
+
+	const wadoImageId = fileManager.add(
+		new Blob([arrayBuffer], { type: "application/dicom" }),
+	);
+	_sharedWadoImageIdMap.set(sharedKey, wadoImageId);
+	return wadoImageId;
+};
+
+const getLoadImageId = (fileInfo: DicomFileInfo): string => {
+	if (isEncapsulatedTransferSyntax(fileInfo.tags.TransferSyntaxUID)) {
+		return ensureWadoImageId(fileInfo);
+	}
+	return fileInfo.imageId;
+};
+
 export const useCornerstone = () => {
 	// ペインごとの状態（モジュールレベルシングルトンとは独立）
 	const osdViewerRef = useRef<OSDViewer | null>(null);
@@ -367,7 +463,7 @@ export const useCornerstone = () => {
 			if (!cs || options?.signal?.aborted) return;
 
 			try {
-				const image = await cs.loadImage(fileInfo.imageId);
+				const image = await cs.loadImage(getLoadImageId(fileInfo));
 				if (options?.signal?.aborted) return;
 				currentImageRef.current = image;
 				setCurrentImage(image);

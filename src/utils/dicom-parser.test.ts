@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildDicomFileInfo,
+	ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
 	extractDicomTags,
 	getInt16Tag,
 	getNumberTag,
 	getStringTag,
 	getUint16Tag,
+	isEncapsulatedTransferSyntax,
 	parseImageOrientation,
 	parseImagePosition,
 	parseModalityLut,
@@ -529,11 +531,39 @@ describe("buildDicomFileInfo", () => {
 		).not.toThrow();
 	});
 
-	it("throws a typed error for compressed transfer syntax", () => {
+	it.each(
+		ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
+	)("allows encapsulated transfer syntax %s", (transferSyntaxUid) => {
 		const buffer = new ArrayBuffer(16);
 		const ds = makeDataSet({
 			strings: {
-				x00020010: "1.2.840.10008.1.2.4.90",
+				x00020010: transferSyntaxUid,
+			},
+			byteArray: new Uint8Array(buffer),
+		});
+
+		expect(() =>
+			buildDicomFileInfo(
+				ds,
+				"wadouri:encapsulated",
+				"/tmp/encapsulated.dcm",
+				"encapsulated.dcm",
+				buffer,
+			),
+		).not.toThrow();
+		expect(isEncapsulatedTransferSyntax(transferSyntaxUid)).toBe(true);
+	});
+
+	it.each([
+		"1.2.840.10008.1.2.1.99",
+		"1.2.840.10008.1.2.4.100",
+		"1.2.840.10008.1.2.4.102",
+		"9.9.9.9",
+	])("throws a typed error for unsupported transfer syntax %s", (uid) => {
+		const buffer = new ArrayBuffer(16);
+		const ds = makeDataSet({
+			strings: {
+				x00020010: uid,
 			},
 			byteArray: new Uint8Array(buffer),
 		});
@@ -560,8 +590,8 @@ describe("buildDicomFileInfo", () => {
 		} catch (error) {
 			expect(error).toBeInstanceOf(UnsupportedTransferSyntaxError);
 			if (!(error instanceof UnsupportedTransferSyntaxError)) return;
-			expect(error.transferSyntaxUid).toBe("1.2.840.10008.1.2.4.90");
-			expect(error.message).toContain("1.2.840.10008.1.2.4.90");
+			expect(error.transferSyntaxUid).toBe(uid);
+			expect(error.message).toContain(uid);
 		}
 	});
 

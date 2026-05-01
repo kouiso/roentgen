@@ -31,11 +31,28 @@ type DicomItem = {
 	dataSet: DicomDataSet;
 };
 
+export const ENCAPSULATED_TRANSFER_SYNTAX_UIDS = [
+	"1.2.840.10008.1.2.4.50",
+	"1.2.840.10008.1.2.4.51",
+	"1.2.840.10008.1.2.4.57",
+	"1.2.840.10008.1.2.4.70",
+	"1.2.840.10008.1.2.4.80",
+	"1.2.840.10008.1.2.4.81",
+	"1.2.840.10008.1.2.4.90",
+	"1.2.840.10008.1.2.4.91",
+	"1.2.840.10008.1.2.5",
+] as const;
+
 const SUPPORTED_TRANSFER_SYNTAX_UIDS = new Set([
 	"1.2.840.10008.1.2",
 	"1.2.840.10008.1.2.1",
 	"1.2.840.10008.1.2.2",
+	...ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
 ]);
+
+const ENCAPSULATED_TRANSFER_SYNTAX_SET = new Set<string>(
+	ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
+);
 
 export class UnsupportedTransferSyntaxError extends Error {
 	readonly transferSyntaxUid: string;
@@ -53,6 +70,13 @@ export const validateTransferSyntax = (dataSet: DicomDataSet): void => {
 	if (SUPPORTED_TRANSFER_SYNTAX_UIDS.has(transferSyntaxUid)) return;
 
 	throw new UnsupportedTransferSyntaxError(transferSyntaxUid);
+};
+
+export const isEncapsulatedTransferSyntax = (
+	transferSyntaxUid: string | undefined,
+): boolean => {
+	if (!transferSyntaxUid) return false;
+	return ENCAPSULATED_TRANSFER_SYNTAX_SET.has(transferSyntaxUid.trim());
 };
 
 // DICOMタグから文字列を取得（日本語デコード対応）
@@ -247,6 +271,7 @@ export const extractDicomTags = (
 		x00081090: "ManufacturerModelName",
 		// 画像情報
 		x00080008: "ImageType",
+		x00020010: "TransferSyntaxUID",
 		x00200011: "SeriesNumber",
 		x00200012: "AcquisitionNumber",
 		x00200013: "InstanceNumber",
@@ -328,6 +353,10 @@ const generateThumbnail = (
 	dataSet: DicomDataSet,
 	arrayBuffer: ArrayBuffer,
 ): Uint8ClampedArray | null => {
+	if (isEncapsulatedTransferSyntax(dataSet.string("x00020010"))) {
+		return null;
+	}
+
 	const rows = dataSet.uint16("x00280010") ?? 0;
 	const columns = dataSet.uint16("x00280011") ?? 0;
 	const bitsAllocated = dataSet.uint16("x00280100") ?? 16;
