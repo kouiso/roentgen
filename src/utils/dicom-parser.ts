@@ -69,6 +69,18 @@ export const getNumberTag = (
 	return dataSet.floatString(tag) ?? dataSet.float(tag) ?? defaultValue;
 };
 
+const getIntStringTag = (
+	dataSet: DicomDataSet,
+	tag: string,
+	defaultValue = 0,
+): number => {
+	const value = dataSet.intString(tag);
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return defaultValue;
+	}
+	return value;
+};
+
 // DICOMタグからuint16を取得
 export const getUint16Tag = (
 	dataSet: DicomDataSet,
@@ -409,13 +421,14 @@ export const buildDicomFileInfo = (
 
 	const windowCenter = getNumberTag(dataSet, "x00281050");
 	const windowWidth = getNumberTag(dataSet, "x00281051");
+	const numberOfFrames = getIntStringTag(dataSet, "x00280008", 1);
 
 	const fileInfo: DicomFileInfo = {
 		imageId,
 		filePath,
 		fileName,
 		frameIndex: 0,
-		totalFrames: Math.max(1, getNumberTag(dataSet, "x00280008", 1)),
+		totalFrames: Math.max(1, Math.trunc(numberOfFrames)),
 		rows: getUint16Tag(dataSet, "x00280010"),
 		columns: getUint16Tag(dataSet, "x00280011"),
 		bitsAllocated: getUint16Tag(dataSet, "x00280100"),

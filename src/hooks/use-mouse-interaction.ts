@@ -72,7 +72,10 @@ export const useMouseInteraction = ({
 	const handleMouseDown = useCallback(
 		(e: MouseEvent) => {
 			// 左+右同時押し検出（renkeibox useShortcut.ts: マウスショートカット切替）
-			if (e.buttons === 3) {
+			if (
+				e.buttons === 3 ||
+				(e.shiftKey && e.button === 0 && e.buttons === 1)
+			) {
 				bothButtonsRef.current = true;
 				const currentIdx = MODE_CYCLE.indexOf(activeModeRef.current);
 				const nextIdx = (currentIdx + 1) % MODE_CYCLE.length;

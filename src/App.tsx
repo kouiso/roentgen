@@ -1,5 +1,5 @@
 import { CircleDot, Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CrashReporterToggle } from "./components/crash-reporter-toggle";
 import { FileDropZone } from "./components/file-drop-zone";
 import { DicomViewer } from "./components/viewer/dicom-viewer";
@@ -16,6 +16,8 @@ export const App = () => {
 		cancelLoad,
 		setImageDataRegistrar,
 	} = useDicomLoader();
+	const [viewerReady, setViewerReady] = useState(false);
+	const devAutoloadStartedRef = useRef(false);
 
 	const handleFilesLoaded = useCallback(
 		(files: { path: string; data: ArrayBuffer }[]) => {
@@ -34,6 +36,11 @@ export const App = () => {
 		available,
 	} = useGoogleDrive(handleFilesLoaded);
 
+	useEffect(() => {
+		const frameId = requestAnimationFrame(() => setViewerReady(true));
+		return () => cancelAnimationFrame(frameId);
+	}, []);
+
 	// dev環境でのテスト用自動読込（Electron環境のみ）
 	useEffect(() => {
 		const api = (
@@ -47,10 +54,13 @@ export const App = () => {
 		).electronAPI;
 		if (
 			import.meta.env.DEV &&
+			viewerReady &&
+			!devAutoloadStartedRef.current &&
 			dicomFiles.length === 0 &&
 			loadState.status === "idle" &&
 			api?.loadTestDicom
 		) {
+			devAutoloadStartedRef.current = true;
 			api
 				.loadTestDicom()
 				.then((results) => {
@@ -59,7 +69,7 @@ export const App = () => {
 				})
 				.catch((err: unknown) => console.warn("[dev autoload]", err));
 		}
-	}, [dicomFiles.length, loadFiles, loadState.status]);
+	}, [dicomFiles.length, loadFiles, loadState.status, viewerReady]);
 
 	const skippedCount =
 		(loadState.status === "loaded" || loadState.status === "error") &&

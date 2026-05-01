@@ -14,6 +14,8 @@ const SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
 const TOKEN_PATH = () => join(app.getPath("userData"), "gdrive-token.json");
 const CREDENTIALS_PATH = () =>
 	join(app.getPath("userData"), "gdrive-credentials.json");
+const DRIVE_FOLDER_ID_PATTERN = /^[a-zA-Z0-9_-]{28,44}$/;
+const OAUTH_WINDOW_PARTITION = "persist:google-oauth";
 
 const DICOM_QUERY = [
 	"(title contains '.dcm' or title contains '.DCM' or mimeType = 'application/dicom')",
@@ -171,6 +173,9 @@ export const authorize = async (): Promise<{
 			height: 700,
 			title: "Google Drive 認証",
 			autoHideMenuBar: true,
+			webPreferences: {
+				partition: OAUTH_WINDOW_PARTITION,
+			},
 		});
 
 		return new Promise((resolve) => {
@@ -243,6 +248,10 @@ export type DriveFileInfo = {
 export const listDicomFiles = async (
 	folderId?: string,
 ): Promise<{ files: DriveFileInfo[]; error?: string }> => {
+	if (folderId && !DRIVE_FOLDER_ID_PATTERN.test(folderId)) {
+		return { files: [], error: "Invalid folder ID" };
+	}
+
 	const client = await getAuthedClient();
 	if (!client) {
 		return { files: [], error: "未認証。先にGoogle Drive認証を行ってください" };
@@ -251,10 +260,6 @@ export const listDicomFiles = async (
 	const drive = new drive_v3.Drive({ auth: client });
 
 	try {
-		// C2: folderId検証 — Drive resource IDフォーマットのみ許可
-		if (folderId && !/^[a-zA-Z0-9_-]+$/.test(folderId)) {
-			return { files: [], error: "不正なフォルダID形式です" };
-		}
 		const query = folderId
 			? `${DICOM_QUERY} and '${folderId}' in parents`
 			: DICOM_QUERY;

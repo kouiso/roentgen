@@ -101,6 +101,18 @@ const drainInitCallbacks = (error?: unknown) => {
 	}
 };
 
+export const disposeCornerstoneHmrState = (): void => {
+	_sharedImageDataMap.clear();
+	_cornerstoneModule = null;
+	_initPromise = null;
+	_isInitDone = false;
+	drainInitCallbacks(new Error("cornerstone state disposed by Vite HMR"));
+};
+
+if (import.meta.hot) {
+	import.meta.hot.dispose(disposeCornerstoneHmrState);
+}
+
 const getSharedImageDataKey = (imageId: string): string => {
 	return imageId.startsWith("roentgen:")
 		? imageId.slice("roentgen:".length)
@@ -286,6 +298,7 @@ export const useCornerstone = () => {
 	const currentImageRef = useRef<CornerstoneImage | null>(null);
 	const worldInfoRef = useRef<ViewerWorldInfo>(INITIAL_WORLD_INFO);
 	const overlayDataRef = useRef<import("@/types/dicom").OverlayPlaneData[]>([]);
+	const photometricInterpretationRef = useRef("MONOCHROME2");
 
 	useEffect(() => {
 		currentImageRef.current = currentImage;
@@ -359,6 +372,8 @@ export const useCornerstone = () => {
 				currentImageRef.current = image;
 				setCurrentImage(image);
 				overlayDataRef.current = fileInfo.overlayData;
+				photometricInterpretationRef.current =
+					fileInfo.photometricInterpretation;
 
 				// 初期WW/WC設定
 				const hasDicomWindow = fileInfo.windowWidth > 0;
@@ -447,6 +462,10 @@ export const useCornerstone = () => {
 				if (overlays.length > 0) {
 					const ctx = canvas.getContext("2d");
 					if (ctx) {
+						const overlayColor =
+							photometricInterpretationRef.current === "MONOCHROME1"
+								? [0, 0, 0]
+								: [255, 255, 255];
 						for (const overlay of overlays) {
 							const imgData = ctx.getImageData(
 								overlay.originCol - 1,
@@ -463,9 +482,9 @@ export const useCornerstone = () => {
 									const isSet = (byteVal >> bitOffset) & 1;
 									if (isSet) {
 										const pixelIdx = (y * overlay.columns + x) * 4;
-										imgData.data[pixelIdx] = 255;
-										imgData.data[pixelIdx + 1] = 165;
-										imgData.data[pixelIdx + 2] = 0;
+										imgData.data[pixelIdx] = overlayColor[0] ?? 255;
+										imgData.data[pixelIdx + 1] = overlayColor[1] ?? 255;
+										imgData.data[pixelIdx + 2] = overlayColor[2] ?? 255;
 										imgData.data[pixelIdx + 3] = 180;
 									}
 								}
