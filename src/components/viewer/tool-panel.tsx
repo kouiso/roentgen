@@ -2,7 +2,9 @@
 // Mode/Toggle/Actionの3分類で視覚的に区別
 
 import {
+	ArrowUpRight,
 	Camera,
+	Circle,
 	Columns2,
 	Compass,
 	Contrast,
@@ -28,6 +30,7 @@ import {
 	Square,
 	Trash2,
 	Triangle,
+	Type,
 	X,
 	XCircle,
 	ZoomIn,
@@ -37,6 +40,7 @@ import {
 	CLINICAL_WW_WC_PRESETS,
 	EQUINE_WW_WC_PRESETS,
 } from "@/constants/ww-wc-presets";
+import type { AnnotationToolType } from "@/types/annotation";
 import { LAYOUT_TYPE, type LayoutType } from "@/types/layout";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
@@ -66,6 +70,13 @@ export type ToolPanelProps = {
 	onDecreaseFps: () => void;
 	onClearMeasurements: () => void;
 	hasMeasurements: boolean;
+	activeAnnotationTool: AnnotationToolType | null;
+	onStartTextTool: () => void;
+	onStartArrowTool: () => void;
+	onStartRectTool: () => void;
+	onStartEllipseTool: () => void;
+	onClearAnnotations: () => void;
+	hasAnnotations: boolean;
 	isInverted: boolean;
 	// DicomViewerから追加
 	onClearSelected: () => void;
@@ -210,6 +221,13 @@ export const ToolPanel = ({
 	onDecreaseFps,
 	onClearMeasurements,
 	hasMeasurements,
+	activeAnnotationTool,
+	onStartTextTool,
+	onStartArrowTool,
+	onStartRectTool,
+	onStartEllipseTool,
+	onClearAnnotations,
+	hasAnnotations,
 	isInverted,
 	onClearSelected,
 	onClearAll,
@@ -273,6 +291,42 @@ export const ToolPanel = ({
 							label="計測クリア"
 							shortcut="Del"
 							onClick={onClearMeasurements}
+						/>
+					)}
+				</div>
+
+				{/* 注釈 */}
+				<SectionHeader label="注釈" />
+				<div className="flex flex-col gap-0.5 px-1">
+					<ModeButton
+						icon={<Type size={ICON} />}
+						label="テキスト"
+						active={activeAnnotationTool === "text"}
+						onClick={onStartTextTool}
+					/>
+					<ModeButton
+						icon={<ArrowUpRight size={ICON} />}
+						label="矢印"
+						active={activeAnnotationTool === "arrow"}
+						onClick={onStartArrowTool}
+					/>
+					<ModeButton
+						icon={<Square size={ICON} />}
+						label="矩形ROI"
+						active={activeAnnotationTool === "rect"}
+						onClick={onStartRectTool}
+					/>
+					<ModeButton
+						icon={<Circle size={ICON} />}
+						label="楕円ROI"
+						active={activeAnnotationTool === "ellipse"}
+						onClick={onStartEllipseTool}
+					/>
+					{hasAnnotations && (
+						<ActionButton
+							icon={<Trash2 size={ICON} />}
+							label="注釈クリア"
+							onClick={onClearAnnotations}
 						/>
 					)}
 				</div>
