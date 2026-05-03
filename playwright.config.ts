@@ -8,7 +8,6 @@ export default defineConfig({
 	retries: 1,
 	workers: 1,
 	use: {
-		baseURL: "http://localhost:5173",
 		screenshot: "only-on-failure",
 		trace: "retain-on-failure",
 		headless: !isHeaded,
@@ -16,16 +15,25 @@ export default defineConfig({
 			args: ["--no-sandbox"],
 		},
 	},
-	webServer: {
-		command: "pnpm dev",
-		url: "http://localhost:5173",
-		timeout: 30_000,
-		reuseExistingServer: true,
-		env: { ELECTRON_RUN_AS_NODE: "" },
-	},
 	projects: [
 		{
 			name: "renderer",
+			testMatch: /app-launch\.spec\.ts/,
+			use: {
+				baseURL: "http://localhost:5173",
+			},
+			webServer: {
+				command: "pnpm dev",
+				url: "http://localhost:5173",
+				timeout: 30_000,
+				reuseExistingServer: true,
+				env: { ELECTRON_RUN_AS_NODE: "" },
+			},
+		},
+		{
+			name: "electron",
+			retries: 0,
+			testMatch: /electron\/.*\.spec\.ts/,
 		},
 	],
 });
