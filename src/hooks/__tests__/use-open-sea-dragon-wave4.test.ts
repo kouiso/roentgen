@@ -91,7 +91,9 @@ describe("useOpenSeaDragon Wave 4 polish", () => {
 
 		const viewer = osdState.viewers[0];
 		if (!viewer) throw new Error("viewer was not created");
-		expect(onViewerCreated).not.toHaveBeenCalled();
+		// onViewerCreated は open イベント前に呼ばれる
+		// (tile-drawing bridge を先にセットアップする必要があるため)
+		expect(onViewerCreated).toHaveBeenCalledWith(viewer);
 		expect(result.current.tileReady).toBe(false);
 
 		const open = viewer.handlers.get("open");
@@ -101,7 +103,6 @@ describe("useOpenSeaDragon Wave 4 polish", () => {
 		});
 
 		expect(result.current.tileReady).toBe(true);
-		expect(onViewerCreated).toHaveBeenCalledWith(viewer);
 	});
 
 	it("S4: ignores stale open callbacks after a StrictMode-style recreate", async () => {

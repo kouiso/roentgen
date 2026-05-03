@@ -168,6 +168,10 @@ export const useOpenSeaDragon = ({
 		// OSD初期化完了 — getContext2DでCanvasを直接提供するためImageLoader不使用。
 		// tile-loadedイベントは発火しないため、openイベントでtileReadyをセットする。
 		// ハンドラはdestroy()前に除去するため、名前付き関数で登録
+		// tile-drawing ブリッジは open イベント前にセットアップする。
+		// open 時点ではタイルが既にロード済みで、bridge 未登録だと初回描画が空になる。
+		onViewerCreatedRef.current?.(viewer);
+
 		const onOpen = () => {
 			if (
 				initGenerationRef.current !== generation ||
@@ -176,7 +180,6 @@ export const useOpenSeaDragon = ({
 				return;
 			}
 			setTileReady(true);
-			onViewerCreatedRef.current?.(viewer);
 			// コンテナサイズ確定後にfitBoundsで画像をビューポートにフィット
 			requestAnimationFrame(() => {
 				if (
