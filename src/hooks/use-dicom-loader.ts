@@ -11,6 +11,7 @@ import {
 	buildDicomFileInfo,
 	UnsupportedTransferSyntaxError,
 } from "@/utils/dicom-parser";
+import { parseDicomdir } from "@/utils/dicomdir-parser";
 
 // dicom-parserライブラリの動的インポート型
 type DicomDataSetLike = Parameters<typeof buildDicomFileInfo>[0];
@@ -163,7 +164,103 @@ const getPrimaryLoadErrorMessage = (skipped: DicomFileError[]): string => {
 	return "ファイルが破損しているか、有効なDICOMデータを含んでいません";
 };
 
-const getFileName = (path: string): string => path.split("/").pop() ?? path;
+const getPathSegments = (path: string): string[] => path.split(/[\\/]+/);
+
+const getFileName = (path: string): string => {
+	const segments = getPathSegments(path);
+	return segments[segments.length - 1] ?? path;
+};
+
+const getBaseDirectory = (path: string): string => {
+	const lastSlash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+	if (lastSlash === -1) return "";
+	return path.slice(0, lastSlash);
+};
+
+const normalizePathForLookup = (path: string): string =>
+	path
+		.replace(/\\/g, "/")
+		.replace(/\/+/g, "/")
+		.replace(/\/$/g, "")
+		.toLowerCase();
+
+const isDicomdirPath = (path: string): boolean => {
+	const segments = getPathSegments(path);
+	const fileName = segments[segments.length - 1] ?? path;
+	return fileName.toUpperCase() === "DICOMDIR";
+};
+
+const resolveDicomdirReference = (
+	dicomdirPath: string,
+	referencedFileId: string,
+): string => {
+	const baseDirectory = getBaseDirectory(dicomdirPath).replace(/\\/g, "/");
+	const relativePath = referencedFileId
+		.split(/[\\/]+/)
+		.filter((segment) => segment.length > 0)
+		.join("/");
+	return baseDirectory ? `${baseDirectory}/${relativePath}` : relativePath;
+};
+
+const selectDicomdirReferencedFiles = (
+	fileDataList: DicomParseInput[],
+	skipped: DicomFileError[],
+): DicomParseInput[] => {
+	const dicomdirFile = fileDataList.find((fileData) =>
+		isDicomdirPath(fileData.path),
+	);
+	if (!dicomdirFile) return fileDataList;
+
+	let entries: ReturnType<typeof parseDicomdir>;
+	try {
+		entries = parseDicomdir(dicomdirFile.data);
+	} catch (error) {
+		const fileError = classifyParseError(
+			dicomdirFile.path,
+			error,
+			dicomdirFile.data,
+		);
+		skipped.push(fileError);
+		console.error(
+			`[useDicomLoader] DICOMDIR解析失敗: ${dicomdirFile.path}`,
+			error,
+		);
+		return fileDataList.filter((fileData) => fileData !== dicomdirFile);
+	}
+
+	const fileByPath = new Map<string, DicomParseInput>();
+	for (const fileData of fileDataList) {
+		fileByPath.set(normalizePathForLookup(fileData.path), fileData);
+	}
+
+	const selected: DicomParseInput[] = [];
+	const selectedPaths = new Set<string>();
+	for (const entry of entries) {
+		if (entry.type !== "IMAGE" || !entry.referencedFileId) continue;
+
+		const resolvedPath = resolveDicomdirReference(
+			dicomdirFile.path,
+			entry.referencedFileId,
+		);
+		const lookupPath = normalizePathForLookup(resolvedPath);
+		const fileData = fileByPath.get(lookupPath);
+
+		if (!fileData) {
+			skipped.push({
+				filePath: resolvedPath,
+				reason: "read-error",
+				detail: "DICOMDIR参照ファイルが見つかりません",
+			});
+			continue;
+		}
+		if (selectedPaths.has(lookupPath)) continue;
+
+		selectedPaths.add(lookupPath);
+		selected.push(fileData);
+	}
+
+	return selected;
+};
 
 const parseDicomFileDirectly = async ({
 	path,
@@ -405,16 +502,17 @@ export const useDicomLoader = () => {
 
 			const loaded: DicomFileInfo[] = [];
 			const skipped: DicomFileError[] = [];
+			const filesToLoad = selectDicomdirReferencedFiles(fileDataList, skipped);
 			let cumulativePixelBytes = 0;
 
-			for (let i = 0; i < fileDataList.length; i++) {
+			for (let i = 0; i < filesToLoad.length; i++) {
 				// キャンセルチェック
 				if (cancelRef.current) {
 					setLoadState({ status: "cancelled" });
 					return;
 				}
 
-				const fileData = fileDataList[i];
+				const fileData = filesToLoad[i];
 				if (!fileData) continue;
 
 				try {
@@ -427,7 +525,7 @@ export const useDicomLoader = () => {
 						});
 						setLoadState({
 							status: "loading",
-							progress: ((i + 1) / fileDataList.length) * 100,
+							progress: ((i + 1) / filesToLoad.length) * 100,
 						});
 						continue;
 					}
@@ -464,7 +562,7 @@ export const useDicomLoader = () => {
 
 				setLoadState({
 					status: "loading",
-					progress: ((i + 1) / fileDataList.length) * 100,
+					progress: ((i + 1) / filesToLoad.length) * 100,
 				});
 			}
 

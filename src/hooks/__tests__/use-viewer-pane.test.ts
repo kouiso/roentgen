@@ -8,6 +8,7 @@ import { useViewerPane } from "../use-viewer-pane";
 const loadAndDisplayImageMock = vi.hoisted(() => vi.fn());
 const setupTileDrawingBridgeMock = vi.hoisted(() => vi.fn());
 const useMouseInteractionMock = vi.hoisted(() => vi.fn());
+const calculateImageDirectionMock = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("../use-cornerstone", () => ({
 	useCornerstone: () => ({
@@ -168,7 +169,7 @@ vi.mock("../use-mouse-interaction", () => ({
 }));
 
 vi.mock("@/utils/image-direction", () => ({
-	calculateImageDirection: () => null,
+	calculateImageDirection: calculateImageDirectionMock,
 }));
 
 const makeFileInfo = (imageId: string): DicomFileInfo => ({
@@ -209,6 +210,7 @@ describe("useViewerPane", () => {
 		loadAndDisplayImageMock.mockClear();
 		setupTileDrawingBridgeMock.mockClear();
 		useMouseInteractionMock.mockClear();
+		calculateImageDirectionMock.mockClear();
 	});
 
 	it("BUG-1: passes current WW to mouse interaction scaling", async () => {
@@ -276,5 +278,28 @@ describe("useViewerPane", () => {
 		});
 
 		expect(options.signal.aborted).toBe(true);
+	});
+
+	it("方向マーカーの種別は馬をデフォルトにして切替できる", () => {
+		const file = makeFileInfo("roentgen:/test/species.dcm");
+		file.imageOrientationPatient = [1, 0, 0, 0, 1, 0];
+
+		const { result } = renderHook(() => useViewerPane("pane-0", [file]));
+
+		expect(result.current.species).toBe("equine");
+		expect(calculateImageDirectionMock).toHaveBeenLastCalledWith(
+			file.imageOrientationPatient,
+			"equine",
+		);
+
+		act(() => {
+			result.current.controlPanelProps.onToggleSpecies();
+		});
+
+		expect(result.current.species).toBe("human");
+		expect(calculateImageDirectionMock).toHaveBeenLastCalledWith(
+			file.imageOrientationPatient,
+			"human",
+		);
 	});
 });

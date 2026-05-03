@@ -13,7 +13,7 @@ import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
-import { calculateImageDirection } from "@/utils/image-direction";
+import { calculateImageDirection, type Species } from "@/utils/image-direction";
 import { containerToImageCoord } from "@/utils/measurement-math";
 
 const PRELOAD_COUNT = 10;
@@ -24,6 +24,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	);
 	const [showOverlay, setShowOverlay] = useState(true);
 	const [showDirection, setShowDirection] = useState(true);
+	const [species, setSpecies] = useState<Species>("equine");
 	const [isOsdReady, setIsOsdReady] = useState(false);
 
 	const {
@@ -70,7 +71,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	);
 
 	const directionInfo = currentFile
-		? calculateImageDirection(currentFile.imageOrientationPatient)
+		? calculateImageDirection(currentFile.imageOrientationPatient, species)
 		: null;
 
 	const controls = useViewerControls({
@@ -311,6 +312,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onToggleOverlay: () => setShowOverlay((v) => !v),
 			showDirection,
 			onToggleDirection: () => setShowDirection((v) => !v),
+			species,
+			onToggleSpecies: () =>
+				setSpecies((current) => (current === "equine" ? "human" : "equine")),
 			onSetWwWc: controls.setWwWc,
 			isPlaying: cine.isPlaying,
 			fps: cine.fps,
@@ -340,6 +344,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			controls.toggleFlipVertical,
 			showOverlay,
 			showDirection,
+			species,
 			controls.setWwWc,
 			cine.isPlaying,
 			worldInfo.invert,
@@ -385,6 +390,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		directionInfo,
 		showOverlay,
 		showDirection,
+		species,
 		// 計測
 		measurements: measurement.measurements,
 		activePoints: measurement.activePoints,

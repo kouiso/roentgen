@@ -3,6 +3,7 @@
 
 import {
 	ArrowUpRight,
+	Bone,
 	Camera,
 	Circle,
 	Columns2,
@@ -44,6 +45,7 @@ import type { AnnotationToolType } from "@/types/annotation";
 import { LAYOUT_TYPE, type LayoutType } from "@/types/layout";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
+import type { Species } from "@/utils/image-direction";
 
 // --- Props ---
 
@@ -62,6 +64,8 @@ export type ToolPanelProps = {
 	onToggleOverlay: () => void;
 	showDirection: boolean;
 	onToggleDirection: () => void;
+	species: Species;
+	onToggleSpecies: () => void;
 	onSetWwWc: (ww: number, wc: number) => void;
 	isPlaying: boolean;
 	fps: number;
@@ -213,6 +217,8 @@ export const ToolPanel = ({
 	onToggleOverlay,
 	showDirection,
 	onToggleDirection,
+	species,
+	onToggleSpecies,
 	onSetWwWc,
 	isPlaying,
 	fps,
@@ -399,6 +405,12 @@ export const ToolPanel = ({
 						label="方向マーカー"
 						active={showDirection}
 						onClick={onToggleDirection}
+					/>
+					<ToggleButton
+						icon={<Bone size={ICON} />}
+						label={species === "equine" ? "馬" : "人"}
+						active={species === "equine"}
+						onClick={onToggleSpecies}
 					/>
 				</div>
 

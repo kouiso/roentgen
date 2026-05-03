@@ -16,7 +16,7 @@ const BASE =
 export const ImageDirection = ({
 	directionInfo,
 	visible,
-	species: _species = "human",
+	species: _species = "equine",
 }: ImageDirectionProps) => {
 	if (!visible || !directionInfo) return null;
 

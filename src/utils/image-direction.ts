@@ -25,15 +25,40 @@ const translateToEquine = (humanDirection: string): string => {
 	return result;
 };
 
-// direction cosine値から方向文字を取得
-const getDirectionChar = (
-	cosine: number,
-	positive: string,
-	negative: string,
-): string => {
-	const threshold = 0.0001;
-	if (Math.abs(cosine) < threshold) return "";
-	return cosine > 0 ? positive : negative;
+type UnitVector = readonly [number, number, number];
+
+const UNIT_VECTORS: UnitVector[] = [
+	[1, 0, 0],
+	[0, 1, 0],
+	[0, 0, 1],
+	[-1, 0, 0],
+	[0, -1, 0],
+	[0, 0, -1],
+	[0.7, 0.7, 0],
+	[0.7, 0, 0.7],
+	[0, 0.7, 0.7],
+	[-0.7, -0.7, 0],
+	[-0.7, 0, -0.7],
+	[0, -0.7, -0.7],
+	[-0.7, 0.7, 0],
+	[-0.7, 0, 0.7],
+	[0, -0.7, 0.7],
+	[0.7, -0.7, 0],
+	[0.7, 0, -0.7],
+	[0, 0.7, -0.7],
+];
+
+const getNearestAxis = (l: number, p: number, h: number): UnitVector => {
+	let maxProduct = 0;
+	let result: UnitVector = [0, 0, 0];
+	for (const vec of UNIT_VECTORS) {
+		const product = l * vec[0] + p * vec[1] + h * vec[2];
+		if (product > maxProduct) {
+			maxProduct = product;
+			result = vec;
+		}
+	}
+	return result;
 };
 
 // 3つのcosine値から方向文字列を構築
@@ -42,21 +67,25 @@ const getDirectionString = (
 	rowCosY: number,
 	rowCosZ: number,
 ): string => {
+	const nearestAxis = getNearestAxis(rowCosX, rowCosY, rowCosZ);
 	let result = "";
 	// R/L: 右/左 (X軸)
-	result += getDirectionChar(rowCosX, "R", "L");
+	if (nearestAxis[0] > 0) result += "R";
+	if (nearestAxis[0] < 0) result += "L";
 	// A/P: 前/後 (Y軸)
-	result += getDirectionChar(rowCosY, "A", "P");
+	if (nearestAxis[1] > 0) result += "A";
+	if (nearestAxis[1] < 0) result += "P";
 	// H/F: 頭/足 (Z軸)
-	result += getDirectionChar(rowCosZ, "H", "F");
+	if (nearestAxis[2] > 0) result += "H";
+	if (nearestAxis[2] < 0) result += "F";
 	return result;
 };
 
 // ImageOrientationPatient (0020,0037) から4方向マーカーを計算
-// species: "human" (default) はR/L/A/P/H/F、"equine" はLat/Med/Do/Pa/Pr/Di
+// species: "human" はR/L/A/P/H/F、"equine" (default) はLat/Med/Do/Pa/Pr/Di
 export const calculateImageDirection = (
 	imageOrientationPatient: number[] | null,
-	species: Species = "human",
+	species: Species = "equine",
 ): ImageDirectionInfo | null => {
 	if (!imageOrientationPatient || imageOrientationPatient.length !== 6) {
 		return null;

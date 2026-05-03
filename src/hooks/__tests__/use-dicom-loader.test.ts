@@ -500,6 +500,75 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		}
 	});
 
+	it("DICOMDIRがある場合はIMAGEレコードで参照されたファイルだけを読み込む", async () => {
+		const dicomdirDataSet = {
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {
+				x00041220: {
+					items: [
+						{
+							dataSet: {
+								string: (tag: string) =>
+									tag === "x00041430" ? "PATIENT" : undefined,
+								elements: {},
+							},
+						},
+						{
+							dataSet: {
+								string: (tag: string) => {
+									if (tag === "x00041430") return "IMAGE";
+									if (tag === "x00041500") return "IMAGE\\IM00001";
+									return undefined;
+								},
+								elements: {},
+							},
+						},
+						{
+							dataSet: {
+								string: (tag: string) => {
+									if (tag === "x00041430") return "IMAGE";
+									if (tag === "x00041500") return "IMAGE\\IM00002";
+									return undefined;
+								},
+								elements: {},
+							},
+						},
+					],
+				},
+			},
+		};
+		const imageDataSet = {
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		};
+		const mockParseDicom = vi.mocked(dicomParser.parseDicom);
+		mockParseDicom.mockReset();
+		mockParseDicom
+			.mockReturnValueOnce(dicomdirDataSet)
+			.mockReturnValue(imageDataSet);
+
+		const { result } = renderHook(() => useDicomLoader());
+
+		await act(async () => {
+			await result.current.loadFiles([
+				{ path: "/cd/DICOMDIR", data: makeDicomBuffer() },
+				makeFakeFileData("/cd/IMAGE/IM00001"),
+				makeFakeFileData("/cd/IMAGE/IM00002"),
+				makeFakeFileData("/cd/IMAGE/UNREFERENCED"),
+			]);
+		});
+
+		expect(result.current.loadState.status).toBe("loaded");
+		expect(result.current.dicomFiles.map((file) => file.filePath)).toEqual([
+			"/cd/IMAGE/IM00001",
+			"/cd/IMAGE/IM00002",
+		]);
+		expect(result.current.dicomFiles).toHaveLength(2);
+		expect(mockParseDicom).toHaveBeenCalledTimes(3);
+	});
+
 	it("M2: worker pool dispatcher returns the same FileInfo as direct parser", async () => {
 		const dataSet = {
 			string: () => undefined,

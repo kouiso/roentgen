@@ -46,6 +46,7 @@ export const ViewerPane = ({
 						<ImageDirection
 							directionInfo={pane.directionInfo}
 							visible={pane.showDirection}
+							species={pane.species}
 						/>
 						<MeasurementOverlay
 							measurements={pane.measurements}
