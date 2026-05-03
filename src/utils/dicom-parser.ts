@@ -31,6 +31,54 @@ type DicomItem = {
 	dataSet: DicomDataSet;
 };
 
+export const ENCAPSULATED_TRANSFER_SYNTAX_UIDS = [
+	"1.2.840.10008.1.2.4.50",
+	"1.2.840.10008.1.2.4.51",
+	"1.2.840.10008.1.2.4.57",
+	"1.2.840.10008.1.2.4.70",
+	"1.2.840.10008.1.2.4.80",
+	"1.2.840.10008.1.2.4.81",
+	"1.2.840.10008.1.2.4.90",
+	"1.2.840.10008.1.2.4.91",
+	"1.2.840.10008.1.2.5",
+] as const;
+
+const SUPPORTED_TRANSFER_SYNTAX_UIDS = new Set([
+	"1.2.840.10008.1.2",
+	"1.2.840.10008.1.2.1",
+	"1.2.840.10008.1.2.2",
+	...ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
+]);
+
+const ENCAPSULATED_TRANSFER_SYNTAX_SET = new Set<string>(
+	ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
+);
+
+export class UnsupportedTransferSyntaxError extends Error {
+	readonly transferSyntaxUid: string;
+
+	constructor(transferSyntaxUid: string) {
+		super(`Unsupported Transfer Syntax UID: ${transferSyntaxUid}`);
+		this.name = "UnsupportedTransferSyntaxError";
+		this.transferSyntaxUid = transferSyntaxUid;
+	}
+}
+
+export const validateTransferSyntax = (dataSet: DicomDataSet): void => {
+	const transferSyntaxUid = dataSet.string("x00020010")?.trim();
+	if (!transferSyntaxUid) return;
+	if (SUPPORTED_TRANSFER_SYNTAX_UIDS.has(transferSyntaxUid)) return;
+
+	throw new UnsupportedTransferSyntaxError(transferSyntaxUid);
+};
+
+export const isEncapsulatedTransferSyntax = (
+	transferSyntaxUid: string | undefined,
+): boolean => {
+	if (!transferSyntaxUid) return false;
+	return ENCAPSULATED_TRANSFER_SYNTAX_SET.has(transferSyntaxUid.trim());
+};
+
 // DICOMタグから文字列を取得（日本語デコード対応）
 export const getStringTag = (dataSet: DicomDataSet, tag: string): string => {
 	return dataSet.string(tag)?.trim() ?? "";
@@ -43,6 +91,18 @@ export const getNumberTag = (
 	defaultValue = 0,
 ): number => {
 	return dataSet.floatString(tag) ?? dataSet.float(tag) ?? defaultValue;
+};
+
+const getIntStringTag = (
+	dataSet: DicomDataSet,
+	tag: string,
+	defaultValue = 0,
+): number => {
+	const value = dataSet.intString(tag);
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return defaultValue;
+	}
+	return value;
 };
 
 // DICOMタグからuint16を取得
@@ -83,16 +143,21 @@ export const parseImagePosition = (dataSet: DicomDataSet): number[] | null => {
 	return parts;
 };
 
-// Pixel Spacing (0028,0030) のパース
-export const parsePixelSpacing = (
-	dataSet: DicomDataSet,
+const parseSpacingValue = (
+	value: string | undefined,
 ): [number, number] | null => {
-	const value = dataSet.string("x00280030");
 	if (!value) return null;
 	const parts = value.split("\\").map(Number);
 	if (parts.length !== 2 || parts.some(Number.isNaN)) return null;
 	return [parts[0] ?? 0, parts[1] ?? 0];
 };
+
+// Pixel Spacing (0028,0030) を優先し、無い場合は Imager Pixel Spacing (0018,1164) を使う
+export const parsePixelSpacing = (
+	dataSet: DicomDataSet,
+): [number, number] | null =>
+	parseSpacingValue(dataSet.string("x00280030")) ??
+	parseSpacingValue(dataSet.string("x00181164"));
 
 // Modality LUT Sequence (0028,3000) のパース
 export const parseModalityLut = (
@@ -211,6 +276,7 @@ export const extractDicomTags = (
 		x00081090: "ManufacturerModelName",
 		// 画像情報
 		x00080008: "ImageType",
+		x00020010: "TransferSyntaxUID",
 		x00200011: "SeriesNumber",
 		x00200012: "AcquisitionNumber",
 		x00200013: "InstanceNumber",
@@ -292,6 +358,10 @@ const generateThumbnail = (
 	dataSet: DicomDataSet,
 	arrayBuffer: ArrayBuffer,
 ): Uint8ClampedArray | null => {
+	if (isEncapsulatedTransferSyntax(dataSet.string("x00020010"))) {
+		return null;
+	}
+
 	const rows = dataSet.uint16("x00280010") ?? 0;
 	const columns = dataSet.uint16("x00280011") ?? 0;
 	const bitsAllocated = dataSet.uint16("x00280100") ?? 16;
@@ -381,15 +451,18 @@ export const buildDicomFileInfo = (
 	fileName: string,
 	rawData: ArrayBuffer,
 ): DicomFileInfo => {
+	validateTransferSyntax(dataSet);
+
 	const windowCenter = getNumberTag(dataSet, "x00281050");
 	const windowWidth = getNumberTag(dataSet, "x00281051");
+	const numberOfFrames = getIntStringTag(dataSet, "x00280008", 1);
 
 	const fileInfo: DicomFileInfo = {
 		imageId,
 		filePath,
 		fileName,
 		frameIndex: 0,
-		totalFrames: Math.max(1, getNumberTag(dataSet, "x00280008", 1)),
+		totalFrames: Math.max(1, Math.trunc(numberOfFrames)),
 		rows: getUint16Tag(dataSet, "x00280010"),
 		columns: getUint16Tag(dataSet, "x00280011"),
 		bitsAllocated: getUint16Tag(dataSet, "x00280100"),

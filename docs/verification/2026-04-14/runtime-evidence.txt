@@ -1,0 +1,17 @@
+timestamp: 2026-04-14 20:26:38 -0700
+verification:
+- dev server reachable on localhost:5173
+- Electron renderer reachable via CDP on port 9224
+- local sample DICOM loaded and rendered in the viewer
+- invert operation changed the rendered output hash
+command_log:
+- pnpm dev
+- lsof -i tcp:9224
+- node -e "fetch('http://127.0.0.1:9224/json/list')..."
+- node -e "@playwright/test + electronAPI mock + DICOM autoload + invert click + screenshot export"
+- shasum -a 256 /tmp/roentgen-verify/render-before-operation.png /tmp/roentgen-verify/render-after-invert.png
+conclusion: ACCEPT
+notes:
+- render hash before: 6a88d6f41bab902fbf6f5634ac5cb0b62f0c713fabbf25f5e8337ba9ac7b2e5a
+- render hash after: 3fac1006df1cb17e6d3f0d672d3ca542f1525d864c34d4e2e9971709b617ec36
+- verification artifacts were generated locally and are not stored in the repository.

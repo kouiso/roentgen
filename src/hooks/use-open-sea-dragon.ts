@@ -50,8 +50,10 @@ export const useOpenSeaDragon = ({
 			return;
 		// サイズ変更 — 古いビューアを破棄して再作成を許可
 		if (viewerRef.current) {
+			initGenerationRef.current++;
 			viewerRef.current.destroy();
 			viewerRef.current = null;
+			tileCanvasRef.current = null;
 			setTileReady(false);
 			activeSizeRef.current = { w: 0, h: 0 };
 			onViewerDestroyedRef.current?.();
@@ -70,8 +72,10 @@ export const useOpenSeaDragon = ({
 			return;
 		// サイズ変更で古いビューアが残っていたら破棄
 		if (viewerRef.current) {
+			initGenerationRef.current++;
 			viewerRef.current.destroy();
 			viewerRef.current = null;
+			tileCanvasRef.current = null;
 		}
 
 		const container = document.getElementById(containerId);
@@ -79,8 +83,7 @@ export const useOpenSeaDragon = ({
 
 		const generation = ++initGenerationRef.current;
 
-		// @ts-expect-error openseadragonに型定義なし
-		const OpenSeadragon = await import("openseadragon");
+		const OpenSeadragon = await import("openseadragon" as string);
 
 		// await後に世代チェック — StrictModeのcleanup→re-mountで新しい呼び出しが走った場合、
 		// 古い呼び出し(gen < current)は破棄する
@@ -165,18 +168,32 @@ export const useOpenSeaDragon = ({
 		// OSD初期化完了 — getContext2DでCanvasを直接提供するためImageLoader不使用。
 		// tile-loadedイベントは発火しないため、openイベントでtileReadyをセットする。
 		// ハンドラはdestroy()前に除去するため、名前付き関数で登録
+		// tile-drawing ブリッジは open イベント前にセットアップする。
+		// open 時点ではタイルが既にロード済みで、bridge 未登録だと初回描画が空になる。
+		onViewerCreatedRef.current?.(viewer);
+
 		const onOpen = () => {
+			if (
+				initGenerationRef.current !== generation ||
+				viewerRef.current !== viewer
+			) {
+				return;
+			}
 			setTileReady(true);
 			// コンテナサイズ確定後にfitBoundsで画像をビューポートにフィット
 			requestAnimationFrame(() => {
+				if (
+					initGenerationRef.current !== generation ||
+					viewerRef.current !== viewer
+				) {
+					return;
+				}
 				viewer.viewport.fitBounds(viewer.viewport.getHomeBounds());
 			});
 			// 一度発火すれば不要 — 蓄積防止のため自己除去
 			viewer.removeAllHandlers("open");
 		};
 		viewer.addHandler("open", onOpen);
-
-		onViewerCreatedRef.current?.(viewer);
 	}, [containerId, imageWidth, imageHeight]);
 
 	// ビューア破棄
@@ -188,6 +205,9 @@ export const useOpenSeaDragon = ({
 			if (viewerRef.current) {
 				viewerRef.current.destroy();
 				viewerRef.current = null;
+				tileCanvasRef.current = null;
+				activeSizeRef.current = { w: 0, h: 0 };
+				onViewerDestroyedRef.current?.();
 			}
 		};
 	}, []);

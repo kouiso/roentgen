@@ -11,9 +11,15 @@ import {
 	calculateDistanceMm,
 } from "@/utils/measurement-math";
 
-let measurementIdCounter = 0;
-
 type ActiveTool = "distance" | "angle" | null;
+
+const createMeasurementId = (): string => {
+	const cryptoApi = globalThis.crypto;
+	if (!cryptoApi?.randomUUID) {
+		throw new Error("crypto.randomUUID is required for measurement IDs");
+	}
+	return cryptoApi.randomUUID();
+};
 
 export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 	const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -23,6 +29,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 	const addPoint = useCallback(
 		(point: MeasurementPoint) => {
 			if (!activeTool) return;
+			const id = createMeasurementId();
 
 			setActivePoints((prev) => {
 				const next = [...prev, point];
@@ -30,9 +37,6 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 
 				if (next.length >= requiredPoints) {
 					// 計測完了
-					measurementIdCounter++;
-					const id = `m-${measurementIdCounter}`;
-
 					if (activeTool === "distance" && next.length >= 2) {
 						const p1 = next[0] as MeasurementPoint;
 						const p2 = next[1] as MeasurementPoint;
@@ -74,6 +78,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 	const clearAll = useCallback(() => {
 		setMeasurements([]);
 		setActivePoints([]);
+		setActiveTool(null);
 	}, []);
 
 	const startDistanceTool = useCallback(() => {

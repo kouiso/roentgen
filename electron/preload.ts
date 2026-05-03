@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+// Sentry preload — sets up IPC transport for renderer → main event forwarding
+import("@sentry/electron/preload")
+	.then(({ hookupIpc }) => hookupIpc())
+	.catch(() => {
+		// @sentry/electron may not be resolvable in all build configurations — safe to ignore
+	});
+
 contextBridge.exposeInMainWorld("electronAPI", {
 	selectDicomFiles: (): Promise<string[]> =>
 		ipcRenderer.invoke("select-dicom-files"),
@@ -9,6 +16,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.invoke("load-test-dicom"),
 	saveScreenshot: (dataUrl: string): Promise<boolean> =>
 		ipcRenderer.invoke("save-screenshot", dataUrl),
+
+	// Crash reporter — OPT-IN consent
+	crashReporter: {
+		getStatus: (): Promise<{ enabled: boolean }> =>
+			ipcRenderer.invoke("crash-reporter:get-status"),
+		setEnabled: (
+			enabled: boolean,
+		): Promise<{ enabled: boolean; requiresRestart: boolean }> =>
+			ipcRenderer.invoke("crash-reporter:set-enabled", enabled),
+	},
+
+	// Window state — WW/WC restore across sessions
+	windowState: {
+		getWwwc: (): Promise<{ ww: number; wc: number } | undefined> =>
+			ipcRenderer.invoke("window-state:get-wwwc"),
+		setWwwc: (ww: number, wc: number): Promise<void> =>
+			ipcRenderer.invoke("window-state:set-wwwc", ww, wc),
+	},
 
 	// Google Drive DICOM連携
 	gdrive: {
@@ -36,6 +61,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			fileIds: string[],
 		): Promise<{ path: string; data: ArrayBuffer }[]> =>
 			ipcRenderer.invoke("gdrive:download", fileIds),
+		hasCredentials: (): Promise<boolean> =>
+			ipcRenderer.invoke("gdrive:has-credentials"),
+		syncToSeed: (): Promise<{
+			count: number;
+			skipped: number;
+			files?: { path: string; data: ArrayBuffer }[];
+			error?: string;
+		}> => ipcRenderer.invoke("gdrive:sync-to-seed"),
 		onDownloadProgress: (
 			callback: (progress: { current: number; total: number }) => void,
 		): (() => void) => {

@@ -1,0 +1,427 @@
+// @vitest-environment jsdom
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { DicomFileInfo } from "@/types/dicom";
+import { ENCAPSULATED_TRANSFER_SYNTAX_UIDS } from "@/utils/dicom-parser";
+import {
+	getSharedImageDataMapSize,
+	releaseImage,
+	useCornerstone,
+} from "../use-cornerstone";
+
+const cornerstoneMock = vi.hoisted(() => ({
+	loadImage: vi.fn(),
+	registerImageLoader: vi.fn(),
+	renderToCanvas: vi.fn(),
+	imageLoader: {
+		purge: vi.fn(),
+	},
+	imageCache: {
+		getImageLoadObject: vi.fn(),
+		removeImageLoadObject: vi.fn(),
+	},
+}));
+const wadoMock = vi.hoisted(() => ({
+	external: {},
+	configure: vi.fn(),
+	webWorkerManager: {
+		initialize: vi.fn(),
+		terminate: vi.fn(),
+	},
+	wadouri: {
+		fileManager: {
+			add: vi.fn(() => "dicomfile:0"),
+			remove: vi.fn(),
+			purge: vi.fn(),
+		},
+		dataSetCacheManager: {
+			unload: vi.fn(),
+			purge: vi.fn(),
+		},
+	},
+}));
+const dicomParserMock = vi.hoisted(() => ({
+	parseDicom: vi.fn(),
+}));
+
+vi.mock("cornerstone-core", () => ({
+	default: cornerstoneMock,
+}));
+
+vi.mock("cornerstone-wado-image-loader", () => ({
+	default: wadoMock,
+}));
+
+vi.mock("dicom-parser", () => ({
+	default: dicomParserMock,
+	parseDicom: dicomParserMock.parseDicom,
+}));
+
+const makeFileInfo = (
+	windowWidth: number,
+	windowCenter: number,
+): DicomFileInfo => ({
+	imageId: "roentgen:/test/wide-window.dcm",
+	filePath: "/test/wide-window.dcm",
+	fileName: "wide-window.dcm",
+	frameIndex: 0,
+	totalFrames: 1,
+	rows: 2,
+	columns: 2,
+	bitsAllocated: 16,
+	bitsStored: 12,
+	highBit: 11,
+	pixelRepresentation: 0,
+	samplesPerPixel: 1,
+	photometricInterpretation: "MONOCHROME2",
+	rescaleIntercept: 0,
+	rescaleSlope: 1,
+	windowCenter,
+	windowWidth,
+	pixelSpacing: null,
+	imageOrientationPatient: null,
+	imagePositionPatient: null,
+	sliceThickness: null,
+	sliceLocation: null,
+	instanceNumber: null,
+	modalityLutSequence: null,
+	voiLutSequence: null,
+	studyInstanceUID: null,
+	seriesInstanceUID: null,
+	overlayData: [],
+	tags: {},
+	thumbnailData: null,
+});
+
+describe("useCornerstone", () => {
+	it("preserves explicit DICOM WW/WC tags even when they span most of the pixel range", async () => {
+		cornerstoneMock.loadImage.mockResolvedValue({
+			imageId: "roentgen:/test/wide-window.dcm",
+			rows: 2,
+			columns: 2,
+			width: 2,
+			height: 2,
+			getPixelData: () => new Uint16Array([100, 100, 100, 100]),
+			windowCenter: 2047.5,
+			windowWidth: 4095,
+			slope: 1,
+			intercept: 0,
+			invert: false,
+			minPixelValue: 0,
+			maxPixelValue: 4095,
+		});
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		await act(async () => {
+			await result.current.loadAndDisplayImage(makeFileInfo(4095, 2047.5));
+		});
+
+		expect(result.current.worldInfo.windowWidth).toBe(4095);
+		expect(result.current.worldInfo.windowCenter).toBe(2047.5);
+	});
+
+	it.each(
+		ENCAPSULATED_TRANSFER_SYNTAX_UIDS,
+	)("loads encapsulated transfer syntax %s through WADO dicomfile", async (transferSyntaxUid) => {
+		const image = {
+			imageId: "dicomfile:0",
+			rows: 2,
+			columns: 2,
+			width: 2,
+			height: 2,
+			getPixelData: () => new Uint16Array([100, 100, 100, 100]),
+			windowCenter: 128,
+			windowWidth: 256,
+			slope: 1,
+			intercept: 0,
+			invert: false,
+			minPixelValue: 0,
+			maxPixelValue: 255,
+		};
+		cornerstoneMock.loadImage.mockResolvedValue(image);
+		wadoMock.wadouri.fileManager.add.mockReturnValue(
+			`dicomfile:${ENCAPSULATED_TRANSFER_SYNTAX_UIDS.indexOf(transferSyntaxUid)}`,
+		);
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		const data = new ArrayBuffer(16);
+		const fileInfo = makeFileInfo(256, 128);
+		fileInfo.filePath = `/test/${transferSyntaxUid}.dcm`;
+		fileInfo.imageId = `roentgen:${fileInfo.filePath}`;
+		fileInfo.tags.TransferSyntaxUID = transferSyntaxUid;
+
+		act(() => {
+			result.current.registerImageData(fileInfo.filePath, data);
+		});
+		await act(async () => {
+			await result.current.loadAndDisplayImage(fileInfo);
+		});
+
+		expect(wadoMock.webWorkerManager.initialize).toHaveBeenCalledWith(
+			expect.objectContaining({
+				startWebWorkersOnDemand: true,
+				taskConfiguration: {
+					decodeTask: expect.objectContaining({
+						codecsPath: "/cornerstone-wado/",
+						initializeCodecsOnStartup: false,
+					}),
+				},
+			}),
+		);
+		expect(wadoMock.wadouri.fileManager.add).toHaveBeenCalledWith(
+			expect.any(Blob),
+		);
+		expect(cornerstoneMock.loadImage).toHaveBeenLastCalledWith(
+			`dicomfile:${ENCAPSULATED_TRANSFER_SYNTAX_UIDS.indexOf(transferSyntaxUid)}`,
+		);
+	});
+
+	it("unloads WADO data set cache with the full dicomfile imageId", async () => {
+		cornerstoneMock.loadImage.mockResolvedValue({
+			imageId: "dicomfile:42",
+			rows: 2,
+			columns: 2,
+			width: 2,
+			height: 2,
+			getPixelData: () => new Uint16Array([1, 2, 3, 4]),
+			windowCenter: 2,
+			windowWidth: 4,
+			slope: 1,
+			intercept: 0,
+			invert: false,
+			minPixelValue: 1,
+			maxPixelValue: 4,
+		});
+		wadoMock.wadouri.fileManager.add.mockReturnValue("dicomfile:42");
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		const fileInfo = makeFileInfo(4, 2);
+		fileInfo.filePath = "/test/wado-release.dcm";
+		fileInfo.imageId = "roentgen:/test/wado-release.dcm";
+		fileInfo.tags.TransferSyntaxUID = ENCAPSULATED_TRANSFER_SYNTAX_UIDS[0];
+
+		act(() => {
+			result.current.registerImageData(fileInfo.filePath, new ArrayBuffer(8));
+		});
+		await act(async () => {
+			await result.current.loadAndDisplayImage(fileInfo);
+		});
+
+		act(() => {
+			releaseImage(fileInfo.imageId);
+		});
+
+		expect(wadoMock.wadouri.dataSetCacheManager.unload).toHaveBeenCalledWith(
+			"dicomfile:42",
+		);
+		expect(
+			wadoMock.wadouri.dataSetCacheManager.unload,
+		).not.toHaveBeenCalledWith("42");
+	});
+
+	it("clearAllImageData releases every registered WADO entry", async () => {
+		cornerstoneMock.loadImage.mockResolvedValue({
+			imageId: "dicomfile:0",
+			rows: 1,
+			columns: 1,
+			width: 1,
+			height: 1,
+			getPixelData: () => new Uint16Array([1]),
+			windowCenter: 1,
+			windowWidth: 1,
+			slope: 1,
+			intercept: 0,
+			invert: false,
+			minPixelValue: 1,
+			maxPixelValue: 1,
+		});
+		wadoMock.wadouri.fileManager.add
+			.mockReturnValueOnce("dicomfile:10")
+			.mockReturnValueOnce("dicomfile:11")
+			.mockReturnValueOnce("dicomfile:12");
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		const files = ["/test/a.dcm", "/test/b.dcm", "/test/c.dcm"].map((path) => {
+			const fileInfo = makeFileInfo(1, 1);
+			fileInfo.filePath = path;
+			fileInfo.imageId = `roentgen:${path}`;
+			fileInfo.tags.TransferSyntaxUID = ENCAPSULATED_TRANSFER_SYNTAX_UIDS[0];
+			return fileInfo;
+		});
+
+		act(() => {
+			for (const file of files) {
+				result.current.registerImageData(file.filePath, new ArrayBuffer(2));
+			}
+		});
+		for (const file of files) {
+			await act(async () => {
+				await result.current.loadAndDisplayImage(file);
+			});
+		}
+
+		act(() => {
+			result.current.clearAllImageData();
+		});
+
+		expect(getSharedImageDataMapSize()).toBe(0);
+		expect(wadoMock.wadouri.dataSetCacheManager.unload).toHaveBeenCalledWith(
+			"dicomfile:10",
+		);
+		expect(wadoMock.wadouri.dataSetCacheManager.unload).toHaveBeenCalledWith(
+			"dicomfile:11",
+		);
+		expect(wadoMock.wadouri.dataSetCacheManager.unload).toHaveBeenCalledWith(
+			"dicomfile:12",
+		);
+	});
+
+	it("removes image load objects only when cornerstone cache contains the imageId", async () => {
+		cornerstoneMock.imageCache.getImageLoadObject.mockImplementation(
+			(imageId: string) =>
+				imageId === "roentgen:/test/cached.dcm" ? { imageId } : undefined,
+		);
+		cornerstoneMock.imageCache.removeImageLoadObject.mockClear();
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData(
+				"/test/not-cached.dcm",
+				new ArrayBuffer(1),
+			);
+			result.current.registerImageData("/test/cached.dcm", new ArrayBuffer(1));
+		});
+
+		expect(() => releaseImage("roentgen:/test/not-cached.dcm")).not.toThrow();
+		expect(
+			cornerstoneMock.imageCache.removeImageLoadObject,
+		).not.toHaveBeenCalledWith("roentgen:/test/not-cached.dcm");
+
+		expect(() => releaseImage("roentgen:/test/cached.dcm")).not.toThrow();
+		expect(
+			cornerstoneMock.imageCache.removeImageLoadObject,
+		).toHaveBeenCalledWith("roentgen:/test/cached.dcm");
+	});
+
+	it("uses ImagerPixelSpacing when local DICOM PixelSpacing is missing", async () => {
+		const data = new ArrayBuffer(8);
+		new Uint16Array(data).set([10, 20, 30, 40]);
+		dicomParserMock.parseDicom.mockReturnValue({
+			uint16: (tag: string) =>
+				({
+					x00280010: 2,
+					x00280011: 2,
+					x00280100: 16,
+					x00280101: 12,
+					x00280103: 0,
+					x00280002: 1,
+				})[tag],
+			string: (tag: string) =>
+				({
+					x00280004: "MONOCHROME2",
+					x00181164: "0.4\\0.8",
+				})[tag],
+			elements: {
+				x7fe00010: {
+					dataOffset: 0,
+					length: 8,
+				},
+			},
+		});
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData("/test/imager-spacing.dcm", data);
+		});
+
+		const loader = cornerstoneMock.registerImageLoader.mock.calls.find(
+			([scheme]) => scheme === "roentgen",
+		)?.[1];
+		if (!loader) throw new Error("roentgen image loader should be registered");
+
+		const image = await loader("roentgen:/test/imager-spacing.dcm").promise;
+
+		expect(image.rowPixelSpacing).toBe(0.4);
+		expect(image.columnPixelSpacing).toBe(0.8);
+	});
+
+	it("loads distinct pixel data for roentgen multi-frame imageIds", async () => {
+		const data = new ArrayBuffer(16);
+		new Uint16Array(data).set([1, 2, 3, 4, 101, 102, 103, 104]);
+		dicomParserMock.parseDicom.mockReturnValue({
+			uint16: (tag: string) =>
+				({
+					x00280010: 2,
+					x00280011: 2,
+					x00280100: 16,
+					x00280101: 12,
+					x00280103: 0,
+					x00280002: 1,
+				})[tag],
+			string: (tag: string) =>
+				({
+					x00280004: "MONOCHROME2",
+					x00280008: "2",
+				})[tag],
+			elements: {
+				x7fe00010: {
+					dataOffset: 0,
+					length: 16,
+				},
+			},
+		});
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData("/test/multiframe.dcm", data);
+		});
+
+		const loader = cornerstoneMock.registerImageLoader.mock.calls.find(
+			([scheme]) => scheme === "roentgen",
+		)?.[1];
+		if (!loader) throw new Error("roentgen image loader should be registered");
+
+		const frame0 = await loader("roentgen:/test/multiframe.dcm#frame=0")
+			.promise;
+		const frame1 = await loader("roentgen:/test/multiframe.dcm#frame=1")
+			.promise;
+
+		expect(Array.from(frame0.getPixelData())).toEqual([1, 2, 3, 4]);
+		expect(Array.from(frame1.getPixelData())).toEqual([101, 102, 103, 104]);
+	});
+});

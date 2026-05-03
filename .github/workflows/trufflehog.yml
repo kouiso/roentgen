@@ -6,6 +6,9 @@ on:
     paths-ignore:
       - "**/*.md"
 
+env:
+  RUNNER: blacksmith-4vcpu-ubuntu-2404
+
 permissions:
   contents: read
   security-events: write
@@ -17,14 +20,14 @@ concurrency:
 jobs:
   trufflehog:
     name: Secret Scan
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ env.RUNNER }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@v3.93.8
+        uses: trufflesecurity/trufflehog@v3.95.2
         with:
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}

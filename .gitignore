@@ -2,6 +2,17 @@ node_modules
 dist
 dist-electron
 *.log
+*.tgz
+
+# Build artifacts
+coverage/
+release/
+test-results/
+
+# Local verification screenshots
+evidence-*.png
+roentgen-*.png
+docs/verification/**/render-*.png
 
 # DICOM画像ファイル（プライバシー保護）
 dicom-files/

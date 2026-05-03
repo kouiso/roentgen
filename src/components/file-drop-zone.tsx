@@ -5,22 +5,47 @@ type FileDropZoneProps = {
 	onFilesLoaded: (files: { path: string; data: ArrayBuffer }[]) => void;
 };
 
+// ファイル読込エラーのユーザー向けメッセージ生成
+const toReadErrorMessage = (filePath: string, err: unknown): string => {
+	const msg = err instanceof Error ? err.message : String(err);
+	const fileName = filePath.split("/").pop() ?? filePath;
+
+	if (msg.includes("EACCES") || msg.includes("許可されていない")) {
+		return `${fileName}: アクセス権限がありません`;
+	}
+	if (msg.includes("ENOSPC")) {
+		return `${fileName}: ディスク容量が不足しています`;
+	}
+	if (msg.includes("ENOENT")) {
+		return `${fileName}: ファイルが見つかりません`;
+	}
+	return `${fileName}: 読込失敗 — ${msg}`;
+};
+
 export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	const [isDragging, setIsDragging] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
+	const [readErrors, setReadErrors] = useState<string[]>([]);
 
 	const loadFiles = useCallback(
 		async (filePaths: string[]) => {
 			setIsLoading(true);
+			setReadErrors([]);
 			try {
 				const loaded: { path: string; data: ArrayBuffer }[] = [];
+				const errors: string[] = [];
 				for (const filePath of filePaths) {
 					try {
-						const data = await window.electronAPI!.readFile(filePath);
+						const api = window.electronAPI;
+						if (!api) throw new Error("Electron API not available");
+						const data = await api.readFile(filePath);
 						loaded.push({ path: filePath, data });
 					} catch (err) {
-						console.error(`[FileDropZone] ファイル読込失敗: ${filePath}`, err);
+						errors.push(toReadErrorMessage(filePath, err));
 					}
+				}
+				if (errors.length > 0) {
+					setReadErrors(errors);
 				}
 				if (loaded.length > 0) {
 					onFilesLoaded(loaded);
@@ -57,7 +82,9 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	}, []);
 
 	const handleClick = useCallback(async () => {
-		const paths = await window.electronAPI!.selectDicomFiles();
+		const api = window.electronAPI;
+		if (!api) return;
+		const paths = await api.selectDicomFiles();
 		if (paths.length > 0) {
 			loadFiles(paths);
 		}
@@ -107,6 +134,21 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					</div>
 				)}
 			</div>
+
+			{readErrors.length > 0 && (
+				<div className="absolute bottom-6 left-1/2 w-full max-w-md -translate-x-1/2 rounded-lg border border-rose-500/20 bg-rose-950/80 px-4 py-3 backdrop-blur">
+					<p className="mb-1 font-sans text-[12px] font-medium text-rose-300">
+						ファイル読込エラー
+					</p>
+					<ul className="space-y-0.5">
+						{readErrors.map((err) => (
+							<li key={err} className="font-sans text-[11px] text-rose-200/80">
+								{err}
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
 		</div>
 	);
 };

@@ -121,7 +121,7 @@ export const useViewerControls = ({
 		(degrees: number) => {
 			setWorldInfo((prev) => ({
 				...prev,
-				rotation: (prev.rotation + degrees) % 360,
+				rotation: (((prev.rotation + degrees) % 360) + 360) % 360,
 			}));
 		},
 		[setWorldInfo],

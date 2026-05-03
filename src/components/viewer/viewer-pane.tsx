@@ -2,6 +2,7 @@
 // ControlPanelなし — DicomViewerがControlPanelを管理し、ViewerPaneは描画に集中
 import type { ViewerPaneHandle } from "@/hooks/use-viewer-pane";
 import type { DicomFileInfo } from "@/types/dicom";
+import { AnnotationOverlay } from "./annotation-overlay";
 import { ImageDirection } from "./image-direction";
 import { ImageOverlay } from "./image-overlay";
 import { MeasurementOverlay } from "./measurement-overlay";
@@ -45,6 +46,7 @@ export const ViewerPane = ({
 						<ImageDirection
 							directionInfo={pane.directionInfo}
 							visible={pane.showDirection}
+							species={pane.species}
 						/>
 						<MeasurementOverlay
 							measurements={pane.measurements}
@@ -53,6 +55,19 @@ export const ViewerPane = ({
 							containerId={pane.containerId}
 							viewport={pane.getViewport()}
 							onRemoveMeasurement={pane.removeMeasurement}
+							visible={true}
+						/>
+						<AnnotationOverlay
+							annotations={pane.annotations}
+							activePoints={pane.activeAnnotationPoints}
+							pendingTextPosition={pane.pendingTextPosition}
+							imageWidth={pane.imageWidth}
+							imageHeight={pane.imageHeight}
+							containerId={pane.containerId}
+							viewport={pane.getViewport()}
+							onRemoveAnnotation={pane.removeAnnotation}
+							onSubmitTextAnnotation={pane.submitTextAnnotation}
+							onCancelPendingText={pane.cancelPendingText}
 							visible={true}
 						/>
 					</div>

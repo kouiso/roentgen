@@ -5,7 +5,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { drive_v3 } from "@googleapis/drive";
 import { oauth2_v2 } from "@googleapis/oauth2";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, safeStorage } from "electron";
 import { OAuth2Client } from "google-auth-library";
 
 // --- 設定 ---
@@ -14,6 +14,8 @@ const SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
 const TOKEN_PATH = () => join(app.getPath("userData"), "gdrive-token.json");
 const CREDENTIALS_PATH = () =>
 	join(app.getPath("userData"), "gdrive-credentials.json");
+const DRIVE_FOLDER_ID_PATTERN = /^[a-zA-Z0-9_-]{28,44}$/;
+const OAUTH_WINDOW_PARTITION = "persist:google-oauth";
 
 const DICOM_QUERY = [
 	"(title contains '.dcm' or title contains '.DCM' or mimeType = 'application/dicom')",
@@ -27,6 +29,11 @@ type StoredToken = {
 	refresh_token: string;
 	token_type: string;
 	expiry_date: number;
+};
+
+type EncryptedStoredToken = {
+	version: 1;
+	encryptedToken: string;
 };
 
 type ClientCredentials = {
@@ -67,16 +74,59 @@ const createOAuth2Client = (
 const loadStoredToken = async (): Promise<StoredToken | null> => {
 	try {
 		const raw = await readFile(TOKEN_PATH(), "utf-8");
-		return JSON.parse(raw) as StoredToken;
-	} catch {
+		const parsed = JSON.parse(raw) as Partial<
+			StoredToken & EncryptedStoredToken
+		>;
+
+		if (parsed.refresh_token) {
+			console.error(
+				"[gdrive] 平文OAuthトークンを検出したため削除しました。再認証してください。",
+			);
+			await unlink(TOKEN_PATH());
+			return null;
+		}
+
+		if (!parsed.encryptedToken) {
+			console.error("[gdrive] OAuthトークンファイルの形式が不正です");
+			return null;
+		}
+
+		if (!safeStorage.isEncryptionAvailable()) {
+			console.error(
+				"[gdrive] OSキーチェーン暗号化が利用できません。キーチェーン設定を完了してから再認証してください。",
+			);
+			return null;
+		}
+
+		const decrypted = safeStorage.decryptString(
+			Buffer.from(parsed.encryptedToken, "base64"),
+		);
+		return JSON.parse(decrypted) as StoredToken;
+	} catch (err) {
+		if (err instanceof SyntaxError) {
+			console.error("[gdrive] OAuthトークンファイルのJSON解析に失敗しました");
+		}
 		return null;
 	}
 };
 
 const saveToken = async (token: StoredToken): Promise<void> => {
+	if (!safeStorage.isEncryptionAvailable()) {
+		console.error(
+			"[gdrive] OSキーチェーン暗号化が利用できないためOAuthトークンを保存できません。キーチェーン設定を完了してから再認証してください。",
+		);
+		throw new Error("OSキーチェーン暗号化が利用できません");
+	}
+
 	const dir = app.getPath("userData");
 	await mkdir(dir, { recursive: true });
-	await writeFile(TOKEN_PATH(), JSON.stringify(token, null, 2));
+	const encrypted: EncryptedStoredToken = {
+		version: 1,
+		encryptedToken: safeStorage
+			.encryptString(JSON.stringify(token))
+			.toString("base64"),
+	};
+	await writeFile(TOKEN_PATH(), JSON.stringify(encrypted, null, 2));
 };
 
 // --- 認証フロー ---
@@ -123,6 +173,9 @@ export const authorize = async (): Promise<{
 			height: 700,
 			title: "Google Drive 認証",
 			autoHideMenuBar: true,
+			webPreferences: {
+				partition: OAUTH_WINDOW_PARTITION,
+			},
 		});
 
 		return new Promise((resolve) => {
@@ -195,6 +248,10 @@ export type DriveFileInfo = {
 export const listDicomFiles = async (
 	folderId?: string,
 ): Promise<{ files: DriveFileInfo[]; error?: string }> => {
+	if (folderId && !DRIVE_FOLDER_ID_PATTERN.test(folderId)) {
+		return { files: [], error: "Invalid folder ID" };
+	}
+
 	const client = await getAuthedClient();
 	if (!client) {
 		return { files: [], error: "未認証。先にGoogle Drive認証を行ってください" };
@@ -203,10 +260,6 @@ export const listDicomFiles = async (
 	const drive = new drive_v3.Drive({ auth: client });
 
 	try {
-		// C2: folderId検証 — Drive resource IDフォーマットのみ許可
-		if (folderId && !/^[a-zA-Z0-9_-]+$/.test(folderId)) {
-			return { files: [], error: "不正なフォルダID形式です" };
-		}
 		const query = folderId
 			? `${DICOM_QUERY} and '${folderId}' in parents`
 			: DICOM_QUERY;
@@ -311,6 +364,88 @@ export const downloadDicomFiles = async (
 	}
 
 	return results;
+};
+
+export const hasCredentials = async (): Promise<boolean> => {
+	const credentials = await loadCredentials();
+	return credentials !== null;
+};
+
+// --- シードデータ同期 ---
+
+export type SyncToSeedResult = {
+	count: number;
+	skipped: number;
+	error?: string;
+};
+
+export const syncToSeedDir = async (
+	seedDirPath: string,
+	onProgress?: (current: number, total: number) => void,
+): Promise<SyncToSeedResult> => {
+	const client = await getAuthedClient();
+	if (!client) {
+		return {
+			count: 0,
+			skipped: 0,
+			error: "未認証。先にGoogle Drive認証を行ってください",
+		};
+	}
+
+	const { files, error } = await listDicomFiles();
+	if (error) {
+		return { count: 0, skipped: 0, error };
+	}
+	if (files.length === 0) {
+		return { count: 0, skipped: 0 };
+	}
+
+	await mkdir(seedDirPath, { recursive: true });
+
+	const drive = new drive_v3.Drive({ auth: client });
+	let saved = 0;
+	let skipped = 0;
+
+	for (let i = 0; i < files.length; i++) {
+		const file = files[i];
+		onProgress?.(i + 1, files.length);
+
+		try {
+			const destPath = join(seedDirPath, file.name);
+
+			// 既存ファイルはスキップ（サイズチェック）
+			try {
+				const { stat } = await import("node:fs/promises");
+				const existing = await stat(destPath);
+				if (existing.size === file.size) {
+					skipped++;
+					continue;
+				}
+			} catch {
+				// ファイルが存在しない — ダウンロード続行
+			}
+
+			const res = await drive.files.get(
+				{ fileId: file.id, alt: "media" },
+				{ responseType: "arraybuffer" },
+			);
+
+			if (!(res.data instanceof ArrayBuffer)) {
+				console.error(`[gdrive] 予期しないレスポンス型: ${file.name}`);
+				continue;
+			}
+
+			await writeFile(destPath, Buffer.from(res.data));
+			saved++;
+		} catch (err) {
+			console.error(
+				`[gdrive] 保存失敗: ${file.name}`,
+				err instanceof Error ? err.message : err,
+			);
+		}
+	}
+
+	return { count: saved, skipped };
 };
 
 export const getAuthStatus = async (): Promise<{

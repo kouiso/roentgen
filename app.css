@@ -44,6 +44,17 @@
 		0 0 0 1px rgb(0 0 0 / 0.4);
 }
 
+/* DICOM画像上のオーバーレイ文字(暗/明問わず可読性確保) */
+@utility overlay-text-shadow {
+	text-shadow: 0 0 3px rgb(0 0 0 / 0.8);
+}
+
+@utility overlay-text-shadow-strong {
+	text-shadow:
+		0 1px 2px rgb(0 0 0 / 0.85),
+		0 0 4px rgb(0 0 0 / 0.6);
+}
+
 @layer components {
 	.chip {
 		display: inline-flex;

@@ -7,6 +7,9 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
+env:
+  RUNNER: blacksmith-4vcpu-ubuntu-2404
+
 permissions:
   contents: read
 
@@ -17,22 +20,22 @@ concurrency:
 jobs:
   node:
     name: Node (${{ matrix.check-type }})
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ env.RUNNER }}
     if: github.event.pull_request.draft == false
     strategy:
       fail-fast: false
       matrix:
         check-type: [lint, typecheck, test]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "pnpm"
@@ -51,3 +54,66 @@ jobs:
       - name: Unit tests
         if: matrix.check-type == 'test'
         run: pnpm test
+
+  electron-e2e:
+    name: Electron E2E
+    runs-on: ${{ env.RUNNER }}
+    if: github.event.pull_request.draft == false
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Linux Electron runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            libnss3 \
+            libatk1.0-0t64 \
+            libatk-bridge2.0-0t64 \
+            libcups2t64 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libpango-1.0-0 \
+            libcairo2 \
+            libasound2t64 \
+            libgtk-3-0t64
+
+      # Chromium install is mostly insurance for future renderer specs.
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run Electron E2E
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" pnpm exec playwright test --project=electron
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-electron-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

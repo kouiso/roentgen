@@ -3,12 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type UseCineModeProps = {
 	nextFrame: () => void;
+	setFrame?: (frame: number) => void;
 	maxFrame: number;
 	currentFrame: number;
 };
 
 export const useCineMode = ({
 	nextFrame,
+	setFrame,
 	maxFrame,
 	currentFrame,
 }: UseCineModeProps) => {
@@ -49,10 +51,17 @@ export const useCineMode = ({
 
 	const togglePlay = useCallback(() => {
 		setIsPlaying((prev) => {
-			// 最終フレームから再生開始時は先頭に戻さない（nextFrameが自動停止する）
+			if (
+				!prev &&
+				currentFrameRef.current === maxFrameRef.current &&
+				setFrame
+			) {
+				setFrame(0);
+				currentFrameRef.current = 0;
+			}
 			return !prev;
 		});
-	}, []);
+	}, [setFrame]);
 
 	const increaseFps = useCallback(() => {
 		setFps((prev) => Math.min(30, prev + 5));

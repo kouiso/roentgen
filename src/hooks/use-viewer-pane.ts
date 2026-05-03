@@ -1,6 +1,7 @@
 // 単一ペインのビューア状態管理フック
 // DicomViewerから状態ロジックを抽出し、複数ペイン対応を実現
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAnnotation } from "@/hooks/use-annotation";
 import { useCineMode } from "@/hooks/use-cine-mode";
 import { useCornerstone } from "@/hooks/use-cornerstone";
 import { useImageOverlay } from "@/hooks/use-image-overlay";
@@ -12,7 +13,7 @@ import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
-import { calculateImageDirection } from "@/utils/image-direction";
+import { calculateImageDirection, type Species } from "@/utils/image-direction";
 import { containerToImageCoord } from "@/utils/measurement-math";
 
 const PRELOAD_COUNT = 10;
@@ -23,6 +24,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	);
 	const [showOverlay, setShowOverlay] = useState(true);
 	const [showDirection, setShowDirection] = useState(true);
+	const [species, setSpecies] = useState<Species>("equine");
 	const [isOsdReady, setIsOsdReady] = useState(false);
 
 	const {
@@ -69,7 +71,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	);
 
 	const directionInfo = currentFile
-		? calculateImageDirection(currentFile.imageOrientationPatient)
+		? calculateImageDirection(currentFile.imageOrientationPatient, species)
 		: null;
 
 	const controls = useViewerControls({
@@ -79,17 +81,29 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 
 	const cine = useCineMode({
 		nextFrame,
+		setFrame,
 		maxFrame: sliderState.maxFrame,
 		currentFrame: sliderState.currentFrame,
 	});
 
 	const measurement = useMeasurement(currentFile?.pixelSpacing ?? null);
+	const annotation = useAnnotation();
+
+	const setViewerMode = useCallback(
+		(mode: ViewerControlType) => {
+			annotation.cancelTool();
+			setActiveMode(mode);
+		},
+		[annotation.cancelTool],
+	);
 
 	// 計測モード連動
 	useEffect(() => {
 		if (activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE) {
+			annotation.cancelTool();
 			measurement.startDistanceTool();
 		} else if (activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE) {
+			annotation.cancelTool();
 			measurement.startAngleTool();
 		} else if (measurement.activeTool) {
 			measurement.cancelTool();
@@ -100,14 +114,18 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		measurement.startDistanceTool,
 		measurement.startAngleTool,
 		measurement.cancelTool,
+		annotation.cancelTool,
 	]);
 
-	// 計測モード時のクリックハンドラ
-	const handleMeasurementClick = useCallback(
+	const addImagePointFromClick = useCallback(
 		(e: MouseEvent) => {
+			const isMeasurementMode =
+				activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE ||
+				activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE;
 			if (
-				activeMode !== VIEWER_CONTROL_TYPE.MEASURE_DISTANCE &&
-				activeMode !== VIEWER_CONTROL_TYPE.MEASURE_ANGLE
+				!annotation.activeAnnotationTool &&
+				!annotation.pendingTextPosition &&
+				!isMeasurementMode
 			) {
 				return;
 			}
@@ -124,11 +142,18 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				viewport,
 			);
 			if (imageCoord) {
-				measurement.addPoint(imageCoord);
+				if (annotation.activeAnnotationTool || annotation.pendingTextPosition) {
+					annotation.addPoint(imageCoord);
+				} else {
+					measurement.addPoint(imageCoord);
+				}
 			}
 		},
 		[
 			activeMode,
+			annotation.activeAnnotationTool,
+			annotation.pendingTextPosition,
+			annotation.addPoint,
 			containerId,
 			getViewport,
 			imageWidth,
@@ -137,10 +162,13 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		],
 	);
 
-	// 計測クリックイベント登録
+	// 計測・注釈クリックイベント登録
 	useEffect(() => {
 		if (!isOsdReady) return;
+		const isAnnotationMode =
+			!!annotation.activeAnnotationTool || !!annotation.pendingTextPosition;
 		if (
+			!isAnnotationMode &&
 			activeMode !== VIEWER_CONTROL_TYPE.MEASURE_DISTANCE &&
 			activeMode !== VIEWER_CONTROL_TYPE.MEASURE_ANGLE
 		) {
@@ -148,21 +176,56 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		}
 		const container = document.getElementById(containerId);
 		if (!container) return;
-		container.addEventListener("click", handleMeasurementClick);
-		return () => container.removeEventListener("click", handleMeasurementClick);
-	}, [isOsdReady, activeMode, containerId, handleMeasurementClick]);
+		container.addEventListener("click", addImagePointFromClick);
+		return () => container.removeEventListener("click", addImagePointFromClick);
+	}, [
+		isOsdReady,
+		activeMode,
+		annotation.activeAnnotationTool,
+		annotation.pendingTextPosition,
+		containerId,
+		addImagePointFromClick,
+	]);
+
+	const startTextTool = useCallback(() => {
+		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		measurement.cancelTool();
+		annotation.startTextTool();
+	}, [annotation.startTextTool, measurement.cancelTool]);
+
+	const startArrowTool = useCallback(() => {
+		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		measurement.cancelTool();
+		annotation.startArrowTool();
+	}, [annotation.startArrowTool, measurement.cancelTool]);
+
+	const startRectTool = useCallback(() => {
+		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		measurement.cancelTool();
+		annotation.startRectTool();
+	}, [annotation.startRectTool, measurement.cancelTool]);
+
+	const startEllipseTool = useCallback(() => {
+		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		measurement.cancelTool();
+		annotation.startEllipseTool();
+	}, [annotation.startEllipseTool, measurement.cancelTool]);
 
 	// マウスインタラクション
 	useMouseInteraction({
 		containerId,
 		activeMode,
-		onModeChange: setActiveMode,
+		onModeChange: setViewerMode,
 		adjustWwWc: controls.adjustWwWc,
 		zoomBy: controls.zoomBy,
 		panBy: controls.panBy,
+		currentWindowWidth: worldInfo.windowWidth,
 		onNextFrame: nextFrame,
 		onPrevFrame: prevFrame,
-		enabled: isOsdReady,
+		enabled:
+			isOsdReady &&
+			!annotation.activeAnnotationTool &&
+			!annotation.pendingTextPosition,
 	});
 
 	// スライダー最大値設定（ファイル数変化時）
@@ -180,7 +243,11 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 現在フレーム変更時に画像読み込み
 	useEffect(() => {
 		if (!currentFile || !isOsdReady || !cornerstoneReady) return;
-		loadAndDisplayImage(currentFile);
+		const controller = new AbortController();
+		loadAndDisplayImage(currentFile, { signal: controller.signal });
+		return () => {
+			controller.abort();
+		};
 	}, [currentFile, isOsdReady, cornerstoneReady, loadAndDisplayImage]);
 
 	// 画像プリロード
@@ -232,7 +299,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const controlPanelProps = useMemo(
 		() => ({
 			activeMode,
-			onModeChange: setActiveMode,
+			onModeChange: setViewerMode,
 			onFitSize: controls.fitSize,
 			onOneToOne: controls.oneToOneSize,
 			onToggleInvert: controls.toggleInvert,
@@ -245,6 +312,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onToggleOverlay: () => setShowOverlay((v) => !v),
 			showDirection,
 			onToggleDirection: () => setShowDirection((v) => !v),
+			species,
+			onToggleSpecies: () =>
+				setSpecies((current) => (current === "equine" ? "human" : "equine")),
 			onSetWwWc: controls.setWwWc,
 			isPlaying: cine.isPlaying,
 			fps: cine.fps,
@@ -253,10 +323,18 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onDecreaseFps: cine.decreaseFps,
 			onClearMeasurements: measurement.clearAll,
 			hasMeasurements: measurement.measurements.length > 0,
+			activeAnnotationTool: annotation.activeAnnotationTool,
+			onStartTextTool: startTextTool,
+			onStartArrowTool: startArrowTool,
+			onStartRectTool: startRectTool,
+			onStartEllipseTool: startEllipseTool,
+			onClearAnnotations: annotation.clearAllAnnotations,
+			hasAnnotations: annotation.annotations.length > 0,
 			isInverted: worldInfo.invert,
 		}),
 		[
 			activeMode,
+			setViewerMode,
 			controls.fitSize,
 			controls.oneToOneSize,
 			controls.toggleInvert,
@@ -266,6 +344,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			controls.toggleFlipVertical,
 			showOverlay,
 			showDirection,
+			species,
 			controls.setWwWc,
 			cine.isPlaying,
 			worldInfo.invert,
@@ -275,6 +354,13 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			cine.decreaseFps,
 			measurement.clearAll,
 			measurement.measurements,
+			annotation.activeAnnotationTool,
+			startTextTool,
+			startArrowTool,
+			startRectTool,
+			startEllipseTool,
+			annotation.clearAllAnnotations,
+			annotation.annotations,
 		],
 	);
 
@@ -304,16 +390,25 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		directionInfo,
 		showOverlay,
 		showDirection,
+		species,
 		// 計測
 		measurements: measurement.measurements,
 		activePoints: measurement.activePoints,
 		removeMeasurement: measurement.removeMeasurement,
+		annotations: annotation.annotations,
+		activeAnnotationPoints: annotation.activePoints,
+		activeAnnotationTool: annotation.activeAnnotationTool,
+		pendingTextPosition: annotation.pendingTextPosition,
+		removeAnnotation: annotation.removeAnnotation,
+		submitTextAnnotation: annotation.submitTextAnnotation,
+		cancelPendingText: annotation.cancelPendingText,
 		// 操作
 		controls,
 		cine,
 		measurement,
+		annotation,
 		activeMode,
-		setActiveMode,
+		setActiveMode: setViewerMode,
 		// データ管理
 		registerImageData,
 		unregisterImageData,

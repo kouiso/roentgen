@@ -4,7 +4,7 @@ import { calculateImageDirection } from "./image-direction";
 describe("calculateImageDirection", () => {
 	it("標準的なAxial画像の方向を正しく計算する", () => {
 		// 標準Axial: row=[1,0,0], col=[0,1,0]
-		const result = calculateImageDirection([1, 0, 0, 0, 1, 0]);
+		const result = calculateImageDirection([1, 0, 0, 0, 1, 0], "human");
 		expect(result).toEqual({
 			left: "L",
 			right: "R",
@@ -27,7 +27,7 @@ describe("calculateImageDirection", () => {
 
 	it("標準的なCoronal画像の方向を正しく計算する", () => {
 		// 標準Coronal: row=[1,0,0], col=[0,0,-1]
-		const result = calculateImageDirection([1, 0, 0, 0, 0, -1]);
+		const result = calculateImageDirection([1, 0, 0, 0, 0, -1], "human");
 		expect(result).toEqual({
 			left: "L",
 			right: "R",
@@ -38,12 +38,107 @@ describe("calculateImageDirection", () => {
 
 	it("標準的なSagittal画像の方向を正しく計算する", () => {
 		// 標準Sagittal: row=[0,1,0], col=[0,0,-1]
-		const result = calculateImageDirection([0, 1, 0, 0, 0, -1]);
+		const result = calculateImageDirection([0, 1, 0, 0, 0, -1], "human");
 		expect(result).toEqual({
 			left: "P",
 			right: "A",
 			top: "H",
 			bottom: "F",
+		});
+	});
+
+	it("species='human'を明示しても既存動作と同じ", () => {
+		const result = calculateImageDirection([1, 0, 0, 0, 1, 0], "human");
+		expect(result).toEqual({
+			left: "L",
+			right: "R",
+			top: "P",
+			bottom: "A",
+		});
+	});
+
+	it("species省略時は馬体方向で計算する", () => {
+		const result = calculateImageDirection([1, 0, 0, 0, 1, 0]);
+		expect(result).toEqual({
+			left: "Med",
+			right: "Lat",
+			top: "Pa",
+			bottom: "Do",
+		});
+	});
+
+	it("斜め方向は6軸最近傍で複合ラベルを選ぶ", () => {
+		const result = calculateImageDirection(
+			[0.6, 0.6, 0.529, 0, 0, -1],
+			"human",
+		);
+		expect(result).toEqual({
+			left: "LP",
+			right: "RA",
+			top: "H",
+			bottom: "F",
+		});
+	});
+});
+
+describe("calculateImageDirection (equine mode)", () => {
+	it("Axial画像の馬体方向を正しく計算する", () => {
+		// 標準Axial: row=[1,0,0], col=[0,1,0]
+		// Human: left=L, right=R, top=P, bottom=A
+		// Equine: left=Med, right=Lat, top=Pa, bottom=Do
+		const result = calculateImageDirection([1, 0, 0, 0, 1, 0], "equine");
+		expect(result).toEqual({
+			left: "Med",
+			right: "Lat",
+			top: "Pa",
+			bottom: "Do",
+		});
+	});
+
+	it("Coronal画像の馬体方向を正しく計算する", () => {
+		// 標準Coronal: row=[1,0,0], col=[0,0,-1]
+		// Human: left=L, right=R, top=H, bottom=F
+		// Equine: left=Med, right=Lat, top=Pr, bottom=Di
+		const result = calculateImageDirection([1, 0, 0, 0, 0, -1], "equine");
+		expect(result).toEqual({
+			left: "Med",
+			right: "Lat",
+			top: "Pr",
+			bottom: "Di",
+		});
+	});
+
+	it("Sagittal画像の馬体方向を正しく計算する", () => {
+		// 標準Sagittal: row=[0,1,0], col=[0,0,-1]
+		// Human: left=P, right=A, top=H, bottom=F
+		// Equine: left=Pa, right=Do, top=Pr, bottom=Di
+		const result = calculateImageDirection([0, 1, 0, 0, 0, -1], "equine");
+		expect(result).toEqual({
+			left: "Pa",
+			right: "Do",
+			top: "Pr",
+			bottom: "Di",
+		});
+	});
+
+	it("equineモードでもnull入力はnullを返す", () => {
+		expect(calculateImageDirection(null, "equine")).toBeNull();
+	});
+
+	it("equineモードでも不正な配列長はnullを返す", () => {
+		expect(calculateImageDirection([1, 0, 0], "equine")).toBeNull();
+	});
+
+	it("斜め方向（複合cosine）の馬体方向を正しく変換する", () => {
+		// row=[0.7, 0.7, 0], col=[0, 0, -1]
+		// Human: right="RA", left="LP", top="H", bottom="F"
+		// Equine: right="LatDo", left="MedPa", top="Pr", bottom="Di"
+		const result = calculateImageDirection([0.7, 0.7, 0, 0, 0, -1], "equine");
+		expect(result).toEqual({
+			left: "MedPa",
+			right: "LatDo",
+			top: "Pr",
+			bottom: "Di",
 		});
 	});
 });

@@ -16,6 +16,18 @@ interface ElectronAPI {
 	loadTestDicom?: () => Promise<{ path: string; data: ArrayBuffer }[] | null>;
 	saveScreenshot: (dataUrl: string) => Promise<boolean>;
 
+	windowState: {
+		getWwwc: () => Promise<{ ww: number; wc: number } | undefined>;
+		setWwwc: (ww: number, wc: number) => Promise<void>;
+	};
+
+	crashReporter: {
+		getStatus: () => Promise<{ enabled: boolean }>;
+		setEnabled: (
+			enabled: boolean,
+		) => Promise<{ enabled: boolean; requiresRestart: boolean }>;
+	};
+
 	gdrive: {
 		authStatus: () => Promise<{ authenticated: boolean; email?: string }>;
 		authorize: () => Promise<{
@@ -31,6 +43,13 @@ interface ElectronAPI {
 		download: (
 			fileIds: string[],
 		) => Promise<{ path: string; data: ArrayBuffer }[]>;
+		hasCredentials: () => Promise<boolean>;
+		syncToSeed: () => Promise<{
+			count: number;
+			skipped: number;
+			files?: { path: string; data: ArrayBuffer }[];
+			error?: string;
+		}>;
 		onDownloadProgress: (
 			callback: (progress: { current: number; total: number }) => void,
 		) => () => void;

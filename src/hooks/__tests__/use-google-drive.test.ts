@@ -17,6 +17,8 @@ function defaultGdriveMock() {
 		logout: vi.fn().mockResolvedValue(undefined),
 		listDicom: vi.fn().mockResolvedValue({ files: [], error: undefined }),
 		download: vi.fn().mockResolvedValue([]),
+		hasCredentials: vi.fn().mockResolvedValue(true),
+		syncToSeed: vi.fn().mockResolvedValue({ count: 0, skipped: 0, files: [] }),
 		onDownloadProgress: vi.fn(),
 	};
 }
@@ -446,6 +448,222 @@ describe("useGoogleDrive", () => {
 
 			expect(onFilesLoaded).not.toHaveBeenCalled();
 			expect(result.current.sync.status).toBe("idle");
+		});
+
+		it("handles exception from listDicom and sets error", async () => {
+			const gdrive = makeGdriveMock({
+				authStatus: vi
+					.fn()
+					.mockResolvedValue({ authenticated: true, email: "u@x.com" }),
+				listDicom: vi.fn().mockRejectedValue(new Error("network timeout")),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("authenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncFiles();
+			});
+
+			expect(result.current.sync.status).toBe("idle");
+			expect(result.current.auth.error).toBe("network timeout");
+			expect(onFilesLoaded).not.toHaveBeenCalled();
+		});
+
+		it("handles non-Error exception from syncFiles", async () => {
+			const gdrive = makeGdriveMock({
+				authStatus: vi.fn().mockResolvedValue({ authenticated: false }),
+				listDicom: vi.fn().mockRejectedValue("string error"),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("unauthenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncFiles();
+			});
+
+			expect(result.current.sync.status).toBe("idle");
+			expect(result.current.auth.error).toBe("同期中にエラーが発生しました");
+		});
+	});
+
+	// ---------------------------------------------------------------------------
+	// 6. syncToSeed()
+	// ---------------------------------------------------------------------------
+	describe("syncToSeed()", () => {
+		it("calls syncToSeed and passes files to onFilesLoaded", async () => {
+			const mockFiles = [{ path: "/tmp/seed1.dcm", data: new ArrayBuffer(4) }];
+			const gdrive = makeGdriveMock({
+				authStatus: vi
+					.fn()
+					.mockResolvedValue({ authenticated: true, email: "u@x.com" }),
+				syncToSeed: vi.fn().mockResolvedValue({
+					count: 1,
+					skipped: 0,
+					files: mockFiles,
+				}),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("authenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncToSeed();
+			});
+
+			expect(gdrive.syncToSeed).toHaveBeenCalledTimes(1);
+			expect(onFilesLoaded).toHaveBeenCalledWith(mockFiles);
+			expect(result.current.sync.status).toBe("idle");
+			expect(result.current.sync.fileCount).toBe(1);
+		});
+
+		it("sets error when syncToSeed returns an error", async () => {
+			const gdrive = makeGdriveMock({
+				authStatus: vi
+					.fn()
+					.mockResolvedValue({ authenticated: true, email: "u@x.com" }),
+				syncToSeed: vi.fn().mockResolvedValue({
+					count: 0,
+					skipped: 0,
+					files: [],
+					error: "quota_exceeded",
+				}),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("authenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncToSeed();
+			});
+
+			expect(result.current.sync.status).toBe("idle");
+			expect(result.current.auth.error).toBe("quota_exceeded");
+			expect(onFilesLoaded).not.toHaveBeenCalled();
+		});
+
+		it("handles exception from syncToSeed", async () => {
+			const gdrive = makeGdriveMock({
+				authStatus: vi
+					.fn()
+					.mockResolvedValue({ authenticated: true, email: "u@x.com" }),
+				syncToSeed: vi.fn().mockRejectedValue(new Error("network error")),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("authenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncToSeed();
+			});
+
+			expect(result.current.sync.status).toBe("idle");
+			expect(result.current.auth.error).toBe("network error");
+		});
+
+		it("handles non-Error exception from syncToSeed", async () => {
+			const gdrive = makeGdriveMock({
+				authStatus: vi.fn().mockResolvedValue({ authenticated: false }),
+				syncToSeed: vi.fn().mockRejectedValue("unknown"),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("unauthenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncToSeed();
+			});
+
+			expect(result.current.auth.error).toBe("同期中にエラーが発生しました");
+		});
+
+		it("does nothing when gdrive is unavailable", async () => {
+			Object.defineProperty(window, "electronAPI", {
+				value: undefined,
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+
+			await act(async () => {
+				await result.current.syncToSeed();
+			});
+
+			expect(onFilesLoaded).not.toHaveBeenCalled();
+		});
+
+		it("does not call onFilesLoaded when syncToSeed returns empty files", async () => {
+			const gdrive = makeGdriveMock({
+				authStatus: vi
+					.fn()
+					.mockResolvedValue({ authenticated: true, email: "u@x.com" }),
+				syncToSeed: vi.fn().mockResolvedValue({
+					count: 0,
+					skipped: 0,
+					files: [],
+				}),
+			});
+			Object.defineProperty(window, "electronAPI", {
+				value: { gdrive },
+				writable: true,
+				configurable: true,
+			});
+
+			const { result } = renderHook(() => useGoogleDrive(onFilesLoaded));
+			await waitFor(() =>
+				expect(result.current.auth.status).toBe("authenticated"),
+			);
+
+			await act(async () => {
+				await result.current.syncToSeed();
+			});
+
+			expect(onFilesLoaded).not.toHaveBeenCalled();
+			expect(result.current.sync.fileCount).toBe(0);
 		});
 	});
 });
