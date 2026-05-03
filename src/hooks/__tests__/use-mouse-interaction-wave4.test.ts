@@ -11,6 +11,7 @@ const makeProps = () => ({
 	adjustWwWc: vi.fn(),
 	zoomBy: vi.fn(),
 	panBy: vi.fn(),
+	currentWindowWidth: 400,
 	onNextFrame: vi.fn(),
 	onPrevFrame: vi.fn(),
 	enabled: true,

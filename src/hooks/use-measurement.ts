@@ -29,6 +29,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 	const addPoint = useCallback(
 		(point: MeasurementPoint) => {
 			if (!activeTool) return;
+			const id = createMeasurementId();
 
 			setActivePoints((prev) => {
 				const next = [...prev, point];
@@ -36,8 +37,6 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 
 				if (next.length >= requiredPoints) {
 					// 計測完了
-					const id = createMeasurementId();
-
 					if (activeTool === "distance" && next.length >= 2) {
 						const p1 = next[0] as MeasurementPoint;
 						const p2 = next[1] as MeasurementPoint;
@@ -79,6 +78,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 	const clearAll = useCallback(() => {
 		setMeasurements([]);
 		setActivePoints([]);
+		setActiveTool(null);
 	}, []);
 
 	const startDistanceTool = useCallback(() => {

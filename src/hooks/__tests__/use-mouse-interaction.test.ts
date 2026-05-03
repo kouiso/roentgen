@@ -16,6 +16,7 @@ function makeProps(
 		adjustWwWc: vi.fn(),
 		zoomBy: vi.fn(),
 		panBy: vi.fn(),
+		currentWindowWidth: 400,
 		onNextFrame: vi.fn(),
 		onPrevFrame: vi.fn(),
 		enabled: true,
@@ -71,8 +72,11 @@ describe("useMouseInteraction", () => {
 		expect(spy).not.toHaveBeenCalled();
 	});
 
-	it("adjusts WW/WC on left-button drag in WW_WC mode", () => {
-		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.WW_WC });
+	it("adjusts WW/WC with window-width scaling on left-button drag in WW_WC mode", () => {
+		const props = makeProps({
+			activeMode: VIEWER_CONTROL_TYPE.WW_WC,
+			currentWindowWidth: 4000,
+		});
 		renderHook(() => useMouseInteraction(props));
 
 		// Mouse down (left button)
@@ -91,8 +95,8 @@ describe("useMouseInteraction", () => {
 			new MouseEvent("mousemove", { clientX: 110, clientY: 90, bubbles: true }),
 		);
 
-		// deltaX=10, deltaY=-10 → adjustWwWc(10, 10) because adjustWwWc(deltaX, -deltaY)
-		expect(props.adjustWwWc).toHaveBeenCalledWith(10, 10);
+		// scale = currentWindowWidth / containerWidth + 1 = 4000 / 800 + 1 = 6
+		expect(props.adjustWwWc).toHaveBeenCalledWith(60, 60);
 	});
 
 	it("zooms on left-button drag in ZOOM mode", () => {
@@ -236,6 +240,33 @@ describe("useMouseInteraction", () => {
 		container.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
 		// Move after mouseup should not trigger anything
+		container.dispatchEvent(
+			new MouseEvent("mousemove", {
+				clientX: 200,
+				clientY: 200,
+				bubbles: true,
+			}),
+		);
+
+		expect(props.adjustWwWc).not.toHaveBeenCalled();
+	});
+
+	it("stops dragging on window mouseup outside the container", () => {
+		const props = makeProps({ activeMode: VIEWER_CONTROL_TYPE.WW_WC });
+		renderHook(() => useMouseInteraction(props));
+
+		container.dispatchEvent(
+			new MouseEvent("mousedown", {
+				button: 0,
+				buttons: 1,
+				clientX: 100,
+				clientY: 100,
+				bubbles: true,
+			}),
+		);
+
+		window.dispatchEvent(new MouseEvent("mouseup"));
+
 		container.dispatchEvent(
 			new MouseEvent("mousemove", {
 				clientX: 200,

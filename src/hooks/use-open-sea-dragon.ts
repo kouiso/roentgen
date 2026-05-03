@@ -176,6 +176,7 @@ export const useOpenSeaDragon = ({
 				return;
 			}
 			setTileReady(true);
+			onViewerCreatedRef.current?.(viewer);
 			// コンテナサイズ確定後にfitBoundsで画像をビューポートにフィット
 			requestAnimationFrame(() => {
 				if (
@@ -190,8 +191,6 @@ export const useOpenSeaDragon = ({
 			viewer.removeAllHandlers("open");
 		};
 		viewer.addHandler("open", onOpen);
-
-		onViewerCreatedRef.current?.(viewer);
 	}, [containerId, imageWidth, imageHeight]);
 
 	// ビューア破棄

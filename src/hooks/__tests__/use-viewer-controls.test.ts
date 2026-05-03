@@ -169,7 +169,10 @@ describe("useViewerControls", () => {
 		const { result } = renderViewerControls();
 
 		act(() => result.current.controls.rotate(-90));
-		expect(result.current.worldInfo.rotation).toBe(-90);
+		expect(result.current.worldInfo.rotation).toBe(270);
+
+		act(() => result.current.controls.rotate(-450));
+		expect(result.current.worldInfo.rotation).toBe(180);
 	});
 
 	it("toggleFlipHorizontal flips horizontal state", () => {

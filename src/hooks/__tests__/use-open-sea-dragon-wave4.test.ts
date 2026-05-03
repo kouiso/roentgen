@@ -74,6 +74,36 @@ describe("useOpenSeaDragon Wave 4 polish", () => {
 		vi.unstubAllGlobals();
 	});
 
+	it("R5: calls onViewerCreated only after the OSD open event", async () => {
+		const onViewerCreated = vi.fn();
+		const { result } = renderHook(() =>
+			useOpenSeaDragon({
+				containerId: "osd-test",
+				imageWidth: 10,
+				imageHeight: 10,
+				onViewerCreated,
+			}),
+		);
+
+		await act(async () => {
+			await result.current.initViewer();
+		});
+
+		const viewer = osdState.viewers[0];
+		if (!viewer) throw new Error("viewer was not created");
+		expect(onViewerCreated).not.toHaveBeenCalled();
+		expect(result.current.tileReady).toBe(false);
+
+		const open = viewer.handlers.get("open");
+		if (!open) throw new Error("open handler was not registered");
+		act(() => {
+			open();
+		});
+
+		expect(result.current.tileReady).toBe(true);
+		expect(onViewerCreated).toHaveBeenCalledWith(viewer);
+	});
+
 	it("S4: ignores stale open callbacks after a StrictMode-style recreate", async () => {
 		const onViewerCreated = vi.fn();
 		const onViewerDestroyed = vi.fn();

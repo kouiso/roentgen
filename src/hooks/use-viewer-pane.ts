@@ -161,6 +161,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		adjustWwWc: controls.adjustWwWc,
 		zoomBy: controls.zoomBy,
 		panBy: controls.panBy,
+		currentWindowWidth: worldInfo.windowWidth,
 		onNextFrame: nextFrame,
 		onPrevFrame: prevFrame,
 		enabled: isOsdReady,

@@ -136,6 +136,7 @@ describe("useMeasurement", () => {
 
 		expect(result.current.measurements).toEqual([]);
 		expect(result.current.activePoints).toEqual([]);
+		expect(result.current.activeTool).toBeNull();
 	});
 
 	it("cancelTool resets activeTool and activePoints", () => {

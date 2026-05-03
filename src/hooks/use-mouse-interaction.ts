@@ -11,6 +11,7 @@ type UseMouseInteractionProps = {
 	adjustWwWc: (deltaWW: number, deltaWC: number) => void;
 	zoomBy: (factor: number) => void;
 	panBy: (deltaX: number, deltaY: number) => void;
+	currentWindowWidth: number;
 	onNextFrame: () => void;
 	onPrevFrame: () => void;
 	enabled: boolean;
@@ -42,6 +43,7 @@ export const useMouseInteraction = ({
 	adjustWwWc,
 	zoomBy,
 	panBy,
+	currentWindowWidth,
 	onNextFrame,
 	onPrevFrame,
 	enabled,
@@ -49,11 +51,19 @@ export const useMouseInteraction = ({
 	const isDraggingRef = useRef(false);
 	const lastMouseRef = useRef({ x: 0, y: 0 });
 	const activeModeRef = useRef(activeMode);
+	const currentWindowWidthRef = useRef(currentWindowWidth);
+	const windowMouseUpHandlerRef = useRef<((e: MouseEvent) => void) | null>(
+		null,
+	);
 	const bothButtonsRef = useRef(false);
 
 	useEffect(() => {
 		activeModeRef.current = activeMode;
 	}, [activeMode]);
+
+	useEffect(() => {
+		currentWindowWidthRef.current = currentWindowWidth;
+	}, [currentWindowWidth]);
 
 	// モード変更時のカーソル更新
 	useEffect(() => {
@@ -68,6 +78,64 @@ export const useMouseInteraction = ({
 			updateViewerCursor(container, "");
 		};
 	}, [containerId, activeMode, enabled]);
+
+	const zoomByRef = useRef(zoomBy);
+	const panByRef = useRef(panBy);
+	useEffect(() => {
+		zoomByRef.current = zoomBy;
+	}, [zoomBy]);
+	useEffect(() => {
+		panByRef.current = panBy;
+	}, [panBy]);
+
+	const handleMouseMove = useCallback(
+		(e: MouseEvent) => {
+			if (!isDraggingRef.current || bothButtonsRef.current) return;
+
+			const deltaX = e.clientX - lastMouseRef.current.x;
+			const deltaY = e.clientY - lastMouseRef.current.y;
+			lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
+			switch (activeModeRef.current) {
+				case VIEWER_CONTROL_TYPE.WW_WC: {
+					// 水平ドラッグ → WW（コントラスト）変更
+					// 垂直ドラッグ → WC（明るさ）変更
+					const container = document.getElementById(containerId);
+					const containerWidth = container?.clientWidth || 1;
+					const scale = currentWindowWidthRef.current / containerWidth + 1;
+					adjustWwWc(deltaX * scale, -deltaY * scale);
+					break;
+				}
+				case VIEWER_CONTROL_TYPE.ZOOM:
+					// 縦ドラッグで拡大縮小（renkeibox doZoom参考: offset + d * 0.01）
+					zoomByRef.current(1 - deltaY * 0.005);
+					break;
+				case VIEWER_CONTROL_TYPE.PAN: {
+					// ドラッグでパン（OSD viewport座標系: 画像幅=1.0）
+					const container = document.getElementById(containerId);
+					if (container) {
+						const w = container.clientWidth || 1;
+						panByRef.current(-deltaX / w, -deltaY / w);
+					}
+					break;
+				}
+			}
+		},
+		[adjustWwWc, containerId],
+	);
+
+	const handleMouseUp = useCallback(() => {
+		if (windowMouseUpHandlerRef.current) {
+			window.removeEventListener("mouseup", windowMouseUpHandlerRef.current);
+			windowMouseUpHandlerRef.current = null;
+		}
+		isDraggingRef.current = false;
+		bothButtonsRef.current = false;
+		if (activeModeRef.current === VIEWER_CONTROL_TYPE.PAN) {
+			const container = document.getElementById(containerId);
+			if (container) updateViewerCursor(container, "grab");
+		}
+	}, [containerId]);
 
 	const handleMouseDown = useCallback(
 		(e: MouseEvent) => {
@@ -92,64 +160,16 @@ export const useMouseInteraction = ({
 				isDraggingRef.current = true;
 				lastMouseRef.current = { x: e.clientX, y: e.clientY };
 				bothButtonsRef.current = false;
+				windowMouseUpHandlerRef.current = handleMouseUp;
+				window.addEventListener("mouseup", handleMouseUp, { once: true });
 				if (activeModeRef.current === VIEWER_CONTROL_TYPE.PAN) {
 					const container = document.getElementById(containerId);
 					if (container) updateViewerCursor(container, "grabbing");
 				}
 			}
 		},
-		[onModeChange, containerId],
+		[onModeChange, containerId, handleMouseUp],
 	);
-
-	const zoomByRef = useRef(zoomBy);
-	const panByRef = useRef(panBy);
-	useEffect(() => {
-		zoomByRef.current = zoomBy;
-	}, [zoomBy]);
-	useEffect(() => {
-		panByRef.current = panBy;
-	}, [panBy]);
-
-	const handleMouseMove = useCallback(
-		(e: MouseEvent) => {
-			if (!isDraggingRef.current || bothButtonsRef.current) return;
-
-			const deltaX = e.clientX - lastMouseRef.current.x;
-			const deltaY = e.clientY - lastMouseRef.current.y;
-			lastMouseRef.current = { x: e.clientX, y: e.clientY };
-
-			switch (activeModeRef.current) {
-				case VIEWER_CONTROL_TYPE.WW_WC:
-					// 水平ドラッグ → WW（コントラスト）変更
-					// 垂直ドラッグ → WC（明るさ）変更
-					adjustWwWc(deltaX, -deltaY);
-					break;
-				case VIEWER_CONTROL_TYPE.ZOOM:
-					// 縦ドラッグで拡大縮小（renkeibox doZoom参考: offset + d * 0.01）
-					zoomByRef.current(1 - deltaY * 0.005);
-					break;
-				case VIEWER_CONTROL_TYPE.PAN: {
-					// ドラッグでパン（OSD viewport座標系: 画像幅=1.0）
-					const container = document.getElementById(containerId);
-					if (container) {
-						const w = container.clientWidth || 1;
-						panByRef.current(-deltaX / w, -deltaY / w);
-					}
-					break;
-				}
-			}
-		},
-		[adjustWwWc, containerId],
-	);
-
-	const handleMouseUp = useCallback(() => {
-		isDraggingRef.current = false;
-		bothButtonsRef.current = false;
-		if (activeModeRef.current === VIEWER_CONTROL_TYPE.PAN) {
-			const container = document.getElementById(containerId);
-			if (container) updateViewerCursor(container, "grab");
-		}
-	}, [containerId]);
 
 	const onNextFrameRef = useRef(onNextFrame);
 	const onPrevFrameRef = useRef(onPrevFrame);
@@ -187,6 +207,10 @@ export const useMouseInteraction = ({
 		container.addEventListener("contextmenu", handleContextMenu);
 
 		return () => {
+			if (windowMouseUpHandlerRef.current) {
+				window.removeEventListener("mouseup", windowMouseUpHandlerRef.current);
+				windowMouseUpHandlerRef.current = null;
+			}
 			container.removeEventListener("mousedown", handleMouseDown);
 			container.removeEventListener("mousemove", handleMouseMove);
 			container.removeEventListener("mouseup", handleMouseUp);

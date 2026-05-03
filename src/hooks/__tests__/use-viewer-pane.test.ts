@@ -7,6 +7,7 @@ import { useViewerPane } from "../use-viewer-pane";
 
 const loadAndDisplayImageMock = vi.hoisted(() => vi.fn());
 const setupTileDrawingBridgeMock = vi.hoisted(() => vi.fn());
+const useMouseInteractionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../use-cornerstone", () => ({
 	useCornerstone: () => ({
@@ -163,7 +164,7 @@ vi.mock("../use-measurement", () => ({
 }));
 
 vi.mock("../use-mouse-interaction", () => ({
-	useMouseInteraction: vi.fn(),
+	useMouseInteraction: useMouseInteractionMock,
 }));
 
 vi.mock("@/utils/image-direction", () => ({
@@ -207,6 +208,22 @@ describe("useViewerPane", () => {
 	beforeEach(() => {
 		loadAndDisplayImageMock.mockClear();
 		setupTileDrawingBridgeMock.mockClear();
+		useMouseInteractionMock.mockClear();
+	});
+
+	it("BUG-1: passes current WW to mouse interaction scaling", async () => {
+		const file = makeFileInfo("roentgen:/test/ww.dcm");
+		renderHook(() => useViewerPane("pane-0", [file]));
+
+		await waitFor(() => {
+			expect(useMouseInteractionMock).toHaveBeenCalled();
+		});
+
+		expect(useMouseInteractionMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				currentWindowWidth: 400,
+			}),
+		);
 	});
 
 	it("H2: aborts stale image loads when the current file changes", async () => {
