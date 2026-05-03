@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, reopened]
 
+env:
+  RUNNER: blacksmith-4vcpu-ubuntu-2404
+
 permissions:
   pull-requests: write
   issues: write
@@ -15,7 +18,7 @@ concurrency:
 jobs:
   auto-assign:
     name: Auto Assign Author
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ env.RUNNER }}
     steps:
       - uses: actions/github-script@v9
         with:
