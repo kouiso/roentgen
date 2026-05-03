@@ -1,6 +1,6 @@
 // 単一ペインのビューア状態管理フック
 // DicomViewerから状態ロジックを抽出し、複数ペイン対応を実現
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCineMode } from "@/hooks/use-cine-mode";
 import { useCornerstone } from "@/hooks/use-cornerstone";
 import { useImageOverlay } from "@/hooks/use-image-overlay";
@@ -24,7 +24,6 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const [showOverlay, setShowOverlay] = useState(true);
 	const [showDirection, setShowDirection] = useState(true);
 	const [isOsdReady, setIsOsdReady] = useState(false);
-	const loadGenerationRef = useRef(0);
 
 	const {
 		cornerstoneReady,
@@ -182,13 +181,10 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 現在フレーム変更時に画像読み込み
 	useEffect(() => {
 		if (!currentFile || !isOsdReady || !cornerstoneReady) return;
-		const generation = ++loadGenerationRef.current;
 		const controller = new AbortController();
 		loadAndDisplayImage(currentFile, { signal: controller.signal });
 		return () => {
-			if (loadGenerationRef.current === generation) {
-				controller.abort();
-			}
+			controller.abort();
 		};
 	}, [currentFile, isOsdReady, cornerstoneReady, loadAndDisplayImage]);
 

@@ -550,6 +550,53 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		pool.terminate();
 	});
 
+	it("D2: worker pool rejects the active task on worker error and replaces the worker", async () => {
+		const dataSet = {
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		};
+		const expected = buildDicomFileInfo(
+			dataSet,
+			"roentgen:/test/recovered.dcm",
+			"/test/recovered.dcm",
+			"recovered.dcm",
+			makeDicomBuffer(),
+		);
+
+		const workers: TestWorker[] = [];
+		let createCount = 0;
+		const pool = createDicomParseWorkerPool(1, () => {
+			createCount++;
+			const worker =
+				createCount === 1
+					? makeCrashingWorker("worker crashed during decode")
+					: makeSuccessfulWorker(expected);
+			workers.push(worker);
+			return worker;
+		});
+
+		const firstParse = pool.parse({
+			path: "/test/crash.dcm",
+			data: makeDicomBuffer(),
+		});
+
+		await expect(waitForSettlement(firstParse)).rejects.toThrow(
+			"worker crashed during decode",
+		);
+
+		const secondParse = await pool.parse({
+			path: "/test/recovered.dcm",
+			data: makeDicomBuffer(),
+		});
+
+		expect(secondParse.fileInfo).toEqual(expected);
+		expect(createCount).toBe(2);
+		expect(workers[0]?.isTerminated()).toBe(true);
+
+		pool.terminate();
+	});
+
 	it("S6: oversized DICOM metadata emits an advisory warning", async () => {
 		const warnSpy = vi
 			.spyOn(console, "warn")
@@ -635,6 +682,7 @@ type WorkerErrorResponse = {
 type WorkerResponse = WorkerSuccessResponse | WorkerErrorResponse;
 
 type WorkerListener = (event: MessageEvent<WorkerResponse>) => void;
+type WorkerErrorListener = (event: ErrorEvent) => void;
 
 const makeSuccessfulWorker = (
 	fileInfo: ReturnType<typeof buildDicomFileInfo>,
@@ -657,32 +705,61 @@ const makeFailingWorker = (error: UnsupportedTransferSyntaxError) =>
 		},
 	}));
 
+const makeCrashingWorker = (message: string) =>
+	new TestWorker(() => new Error(message));
+
+const waitForSettlement = <T>(promise: Promise<T>): Promise<T> =>
+	Promise.race([
+		promise,
+		new Promise<T>((_, reject) => {
+			setTimeout(() => {
+				reject(new Error("worker task did not settle"));
+			}, 50);
+		}),
+	]);
+
 class TestWorker {
-	private listener: WorkerListener | null = null;
+	private messageListener: WorkerListener | null = null;
+	private errorListener: WorkerErrorListener | null = null;
 	private lastTransferList: Transferable[] = [];
+	private terminated = false;
 
 	constructor(
-		private readonly respond: (message: WorkerMessage) => WorkerResponse,
+		private readonly respond: (
+			message: WorkerMessage,
+		) => WorkerResponse | Error,
 	) {}
 
-	addEventListener(eventName: "message", listener: WorkerListener): void {
+	addEventListener(...args: ["message", WorkerListener]): void;
+	addEventListener(...args: ["error", WorkerErrorListener]): void;
+	addEventListener(
+		...args: ["message", WorkerListener] | ["error", WorkerErrorListener]
+	): void {
+		const [eventName, listener] = args;
 		if (eventName === "message") {
-			this.listener = listener;
+			this.messageListener = listener;
+		} else {
+			this.errorListener = listener;
 		}
 	}
 
 	removeEventListener(eventName: "message", listener: WorkerListener): void {
-		if (eventName === "message" && this.listener === listener) {
-			this.listener = null;
+		if (eventName === "message" && this.messageListener === listener) {
+			this.messageListener = null;
 		}
 	}
 
 	postMessage(message: WorkerMessage, transferList: Transferable[]): void {
 		this.lastTransferList = transferList;
 		queueMicrotask(() => {
-			this.listener?.(
-				new MessageEvent("message", { data: this.respond(message) }),
-			);
+			const response = this.respond(message);
+			if (response instanceof Error) {
+				this.errorListener?.(
+					new ErrorEvent("error", { message: response.message }),
+				);
+				return;
+			}
+			this.messageListener?.(new MessageEvent("message", { data: response }));
 		});
 	}
 
@@ -690,7 +767,13 @@ class TestWorker {
 		return this.lastTransferList;
 	}
 
+	isTerminated(): boolean {
+		return this.terminated;
+	}
+
 	terminate(): void {
-		this.listener = null;
+		this.terminated = true;
+		this.messageListener = null;
+		this.errorListener = null;
 	}
 }

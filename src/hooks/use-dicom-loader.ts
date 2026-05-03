@@ -70,8 +70,9 @@ type DicomParseWorkerResponse = DicomParseWorkerSuccess | DicomParseWorkerError;
 
 type DicomParseWorker = {
 	addEventListener: (
-		eventName: "message",
-		listener: (event: MessageEvent<DicomParseWorkerResponse>) => void,
+		...args:
+			| ["message", (event: MessageEvent<DicomParseWorkerResponse>) => void]
+			| ["error", (event: ErrorEvent) => void]
 	) => void;
 	removeEventListener: (
 		eventName: "message",
@@ -100,6 +101,7 @@ type PendingWorkerTask = {
 type WorkerSlot = {
 	worker: DicomParseWorker;
 	busy: boolean;
+	currentTaskId: number | null;
 };
 
 // DICOM MAGIC BYTES: "DICM" at offset 128
@@ -197,6 +199,10 @@ const restoreWorkerError = (error: DicomParseWorkerError["error"]): Error => {
 	return new Error(error.message);
 };
 
+const restoreWorkerCrashError = (event: ErrorEvent): Error => {
+	return new Error(event.message || "DICOM parse worker failed");
+};
+
 export const createDicomParseWorkerPool = (
 	workerCount = getWorkerCount(),
 	workerFactory: DicomParseWorkerFactory | null = workerCount > 0
@@ -216,6 +222,48 @@ export const createDicomParseWorkerPool = (
 	const pending = new Map<number, PendingWorkerTask>();
 	const slots: WorkerSlot[] = [];
 
+	const attachWorkerHandlers = (slot: WorkerSlot) => {
+		slot.worker.addEventListener(
+			"message",
+			(event: MessageEvent<DicomParseWorkerResponse>) => {
+				const message = event.data;
+				const task = pending.get(message.id);
+				if (!task) return;
+
+				pending.delete(message.id);
+				slot.currentTaskId = null;
+				slot.busy = false;
+
+				if (message.type === "success") {
+					task.resolve({
+						fileInfo: message.fileInfo,
+						rawData: message.rawData,
+					});
+				} else {
+					task.reject(restoreWorkerError(message.error));
+				}
+				runNext();
+			},
+		);
+		slot.worker.addEventListener("error", (event: ErrorEvent) => {
+			const currentTaskId = slot.currentTaskId;
+			if (currentTaskId !== null) {
+				const task = pending.get(currentTaskId);
+				pending.delete(currentTaskId);
+				task?.reject(restoreWorkerCrashError(event));
+			}
+
+			slot.currentTaskId = null;
+			slot.busy = false;
+			slot.worker.terminate();
+
+			if (terminated) return;
+			slot.worker = workerFactory();
+			attachWorkerHandlers(slot);
+			runNext();
+		});
+	};
+
 	const runNext = () => {
 		if (terminated) return;
 		const slot = slots.find((candidate) => !candidate.busy);
@@ -224,6 +272,7 @@ export const createDicomParseWorkerPool = (
 
 		slot.busy = true;
 		const id = nextId++;
+		slot.currentTaskId = id;
 		pending.set(id, task);
 		const fileName = getFileName(task.input.path);
 		slot.worker.postMessage(
@@ -243,25 +292,8 @@ export const createDicomParseWorkerPool = (
 
 	for (let i = 0; i < workerCount; i++) {
 		const worker = workerFactory();
-		const slot: WorkerSlot = { worker, busy: false };
-		worker.addEventListener("message", (event) => {
-			const message = event.data;
-			const task = pending.get(message.id);
-			if (!task) return;
-
-			pending.delete(message.id);
-			slot.busy = false;
-
-			if (message.type === "success") {
-				task.resolve({
-					fileInfo: message.fileInfo,
-					rawData: message.rawData,
-				});
-			} else {
-				task.reject(restoreWorkerError(message.error));
-			}
-			runNext();
-		});
+		const slot: WorkerSlot = { worker, busy: false, currentTaskId: null };
+		attachWorkerHandlers(slot);
 		slots.push(slot);
 	}
 

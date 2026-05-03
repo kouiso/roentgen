@@ -108,8 +108,7 @@ let _cornerstoneWadoModule: CornerstoneWadoImageLoader | null = null;
 const _sharedImageDataMap = new Map<string, ArrayBuffer>();
 const _sharedWadoImageIdMap = new Map<string, string>();
 
-const CORNERSTONE_CODEC_PUBLIC_PATH =
-	"/cornerstone-wado/cornerstoneWADOImageLoader.min.js";
+const CORNERSTONE_CODEC_PUBLIC_PATH = `${import.meta.env.BASE_URL}cornerstone-wado/`;
 
 // 初期化は1回のみ実行する
 let _initPromise: Promise<void> | null = null;
@@ -147,9 +146,32 @@ if (import.meta.hot) {
 	import.meta.hot.dispose(disposeCornerstoneHmrState);
 }
 
+const parseRoentgenImageId = (
+	imageId: string,
+): { filePath: string; frameIndex: number } => {
+	const roentgenPath = imageId.startsWith("roentgen:")
+		? imageId.slice("roentgen:".length)
+		: imageId;
+	const fragmentMatch = /#frame=(\d+)$/.exec(roentgenPath);
+	if (fragmentMatch?.index !== undefined) {
+		return {
+			filePath: roentgenPath.slice(0, fragmentMatch.index),
+			frameIndex: Number.parseInt(fragmentMatch[1] ?? "0", 10),
+		};
+	}
+	const queryMatch = /[?&]frame=(\d+)$/.exec(roentgenPath);
+	if (queryMatch?.index !== undefined) {
+		return {
+			filePath: roentgenPath.slice(0, queryMatch.index),
+			frameIndex: Number.parseInt(queryMatch[1] ?? "0", 10),
+		};
+	}
+	return { filePath: roentgenPath, frameIndex: 0 };
+};
+
 const getSharedImageDataKey = (imageId: string): string => {
 	return imageId.startsWith("roentgen:")
-		? imageId.slice("roentgen:".length)
+		? parseRoentgenImageId(imageId).filePath
 		: imageId;
 };
 
@@ -180,9 +202,7 @@ export const releaseImage = (imageId: string): void => {
 		if (Number.isFinite(fileIndex)) {
 			_cornerstoneWadoModule?.wadouri?.fileManager?.remove?.(fileIndex);
 		}
-		_cornerstoneWadoModule?.wadouri?.dataSetCacheManager?.unload?.(
-			wadoImageId.replace("dicomfile:", ""),
-		);
+		_cornerstoneWadoModule?.wadouri?.dataSetCacheManager?.unload?.(wadoImageId);
 		_cornerstoneModule?.imageLoader?.purge?.(wadoImageId);
 		const loadObject =
 			_cornerstoneModule?.imageCache?.getImageLoadObject?.(wadoImageId);
@@ -259,7 +279,7 @@ export const initializeCornerstone = (): Promise<void> => {
 
 			_cornerstoneModule.registerImageLoader("roentgen", (imageId: string) => {
 				const promise = (async () => {
-					const filePath = imageId.replace("roentgen:", "");
+					const { filePath, frameIndex } = parseRoentgenImageId(imageId);
 					const arrayBuffer = _sharedImageDataMap.get(filePath);
 
 					if (!arrayBuffer) {
@@ -283,27 +303,38 @@ export const initializeCornerstone = (): Promise<void> => {
 						throw new Error("PixelData (7FE0,0010) が見つかりません");
 					}
 
+					const bytesPerSample = Math.max(1, bitsAllocated / 8);
+					const calculatedFrameByteSize =
+						rows * columns * bytesPerSample * Math.max(1, samplesPerPixel);
+					const frameByteSize =
+						calculatedFrameByteSize > 0
+							? calculatedFrameByteSize
+							: pixelDataElement.length;
+					const frameOffset =
+						pixelDataElement.dataOffset + frameIndex * frameByteSize;
+					const pixelDataEnd =
+						pixelDataElement.dataOffset + pixelDataElement.length;
+					if (frameOffset + frameByteSize > pixelDataEnd) {
+						throw new Error(`フレーム範囲外です: frame=${frameIndex}`);
+					}
+
 					let pixelData: Int16Array | Uint16Array | Uint8Array;
 					if (bitsAllocated === 16) {
 						if (pixelRepresentation === 1) {
 							pixelData = new Int16Array(
 								arrayBuffer,
-								pixelDataElement.dataOffset,
-								pixelDataElement.length / 2,
+								frameOffset,
+								frameByteSize / 2,
 							);
 						} else {
 							pixelData = new Uint16Array(
 								arrayBuffer,
-								pixelDataElement.dataOffset,
-								pixelDataElement.length / 2,
+								frameOffset,
+								frameByteSize / 2,
 							);
 						}
 					} else {
-						pixelData = new Uint8Array(
-							arrayBuffer,
-							pixelDataElement.dataOffset,
-							pixelDataElement.length,
-						);
+						pixelData = new Uint8Array(arrayBuffer, frameOffset, frameByteSize);
 					}
 
 					let minVal = Number.MAX_SAFE_INTEGER;
@@ -393,6 +424,13 @@ const getLoadImageId = (fileInfo: DicomFileInfo): string => {
 	if (isEncapsulatedTransferSyntax(fileInfo.tags.TransferSyntaxUID)) {
 		return ensureWadoImageId(fileInfo);
 	}
+	if (
+		fileInfo.imageId.startsWith("roentgen:") &&
+		fileInfo.frameIndex > 0 &&
+		parseRoentgenImageId(fileInfo.imageId).frameIndex === 0
+	) {
+		return `${fileInfo.imageId}#frame=${fileInfo.frameIndex}`;
+	}
 	return fileInfo.imageId;
 };
 
@@ -463,7 +501,7 @@ export const useCornerstone = () => {
 	}, []);
 
 	const clearAllImageData = useCallback(() => {
-		for (const filePath of _sharedImageDataMap.keys()) {
+		for (const filePath of [..._sharedImageDataMap.keys()]) {
 			releaseImage(filePath);
 		}
 		_sharedImageDataMap.clear();
@@ -623,7 +661,7 @@ export const useCornerstone = () => {
 		const cs = _cornerstoneModule;
 		if (!cs) return;
 		try {
-			await cs.loadImage(fileInfo.imageId);
+			await cs.loadImage(getLoadImageId(fileInfo));
 		} catch {
 			// プリロード失敗は無視（表示時に再取得される）
 		}

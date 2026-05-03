@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useEffect, useMemo, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DicomFileInfo } from "@/types/dicom";
 import { useViewerPane } from "../use-viewer-pane";
 
@@ -204,6 +204,11 @@ const makeFileInfo = (imageId: string): DicomFileInfo => ({
 });
 
 describe("useViewerPane", () => {
+	beforeEach(() => {
+		loadAndDisplayImageMock.mockClear();
+		setupTileDrawingBridgeMock.mockClear();
+	});
+
 	it("H2: aborts stale image loads when the current file changes", async () => {
 		loadAndDisplayImageMock.mockResolvedValue(undefined);
 		const firstFile = makeFileInfo("roentgen:/test/old.dcm");
@@ -234,5 +239,25 @@ describe("useViewerPane", () => {
 		expect(secondOptions?.signal).toBeInstanceOf(AbortSignal);
 		expect(secondOptions.signal.aborted).toBe(false);
 		expect(loadAndDisplayImageMock.mock.calls[1]?.[0]).toBe(secondFile);
+	});
+
+	it("R7: aborts the active load when the pane unmounts", async () => {
+		loadAndDisplayImageMock.mockResolvedValue(undefined);
+		const file = makeFileInfo("roentgen:/test/unmount.dcm");
+
+		const { unmount } = renderHook(() => useViewerPane("pane-0", [file]));
+
+		await waitFor(() => {
+			expect(loadAndDisplayImageMock).toHaveBeenCalledTimes(1);
+		});
+		const options = loadAndDisplayImageMock.mock.calls[0]?.[1];
+		expect(options?.signal).toBeInstanceOf(AbortSignal);
+		expect(options.signal.aborted).toBe(false);
+
+		act(() => {
+			unmount();
+		});
+
+		expect(options.signal.aborted).toBe(true);
 	});
 });
