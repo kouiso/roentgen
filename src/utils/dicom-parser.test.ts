@@ -16,6 +16,7 @@ import {
 	parseVoiLut,
 	UnsupportedTransferSyntaxError,
 } from "./dicom-parser";
+import { calculateDistanceMm } from "./measurement-math";
 
 type MockElement = {
 	dataOffset: number;
@@ -231,6 +232,23 @@ describe("parsePixelSpacing", () => {
 	it("handles anisotropic spacing", () => {
 		const ds = makeDataSet({
 			strings: { x00280030: "0.3\\0.6" },
+		});
+		expect(parsePixelSpacing(ds)).toEqual([0.3, 0.6]);
+	});
+
+	it("falls back to ImagerPixelSpacing when PixelSpacing is missing", () => {
+		const ds = makeDataSet({
+			strings: { x00181164: "0.4\\0.8" },
+		});
+		expect(parsePixelSpacing(ds)).toEqual([0.4, 0.8]);
+		expect(
+			calculateDistanceMm({ x: 0, y: 0 }, { x: 10, y: 0 }, [0.4, 0.8]),
+		).toBe(8);
+	});
+
+	it("prefers PixelSpacing over ImagerPixelSpacing", () => {
+		const ds = makeDataSet({
+			strings: { x00280030: "0.3\\0.6", x00181164: "0.4\\0.8" },
 		});
 		expect(parsePixelSpacing(ds)).toEqual([0.3, 0.6]);
 	});

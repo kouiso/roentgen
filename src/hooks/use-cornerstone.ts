@@ -153,6 +153,15 @@ const getSharedImageDataKey = (imageId: string): string => {
 		: imageId;
 };
 
+const parsePixelSpacingValue = (
+	value: string | undefined,
+): [number, number] | null => {
+	if (!value) return null;
+	const parts = value.split("\\").map(Number);
+	if (parts.length !== 2 || parts.some(Number.isNaN)) return null;
+	return [parts[0] ?? 1, parts[1] ?? 1];
+};
+
 export const getSharedImageDataMapSize = (): number => {
 	return _sharedImageDataMap.size;
 };
@@ -335,13 +344,13 @@ export const initializeCornerstone = (): Promise<void> => {
 					};
 
 					const extended = image as CornerstoneImage & Record<string, unknown>;
+					const pixelSpacing =
+						parsePixelSpacingValue(dataSet.string("x00280030")) ??
+						parsePixelSpacingValue(dataSet.string("x00181164")) ??
+						([1, 1] satisfies [number, number]);
 					extended.color = isColor;
-					extended.columnPixelSpacing = Number.parseFloat(
-						(dataSet.string("x00280030") ?? "").split("\\")[1] ?? "1",
-					);
-					extended.rowPixelSpacing = Number.parseFloat(
-						(dataSet.string("x00280030") ?? "").split("\\")[0] ?? "1",
-					);
+					extended.columnPixelSpacing = pixelSpacing[1];
+					extended.rowPixelSpacing = pixelSpacing[0];
 					extended.sizeInBytes = pixelData.byteLength;
 					extended.rgba = false;
 					extended.photometricInterpretation = photometricInterpretation;

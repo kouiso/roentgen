@@ -36,6 +36,9 @@ const wadoMock = vi.hoisted(() => ({
 		},
 	},
 }));
+const dicomParserMock = vi.hoisted(() => ({
+	parseDicom: vi.fn(),
+}));
 
 vi.mock("cornerstone-core", () => ({
 	default: cornerstoneMock,
@@ -46,10 +49,8 @@ vi.mock("cornerstone-wado-image-loader", () => ({
 }));
 
 vi.mock("dicom-parser", () => ({
-	default: {
-		parseDicom: vi.fn(),
-	},
-	parseDicom: vi.fn(),
+	default: dicomParserMock,
+	parseDicom: dicomParserMock.parseDicom,
 }));
 
 const makeFileInfo = (
@@ -211,5 +212,52 @@ describe("useCornerstone", () => {
 		expect(
 			cornerstoneMock.imageCache.removeImageLoadObject,
 		).toHaveBeenCalledWith("roentgen:/test/cached.dcm");
+	});
+
+	it("uses ImagerPixelSpacing when local DICOM PixelSpacing is missing", async () => {
+		const data = new ArrayBuffer(8);
+		new Uint16Array(data).set([10, 20, 30, 40]);
+		dicomParserMock.parseDicom.mockReturnValue({
+			uint16: (tag: string) =>
+				({
+					x00280010: 2,
+					x00280011: 2,
+					x00280100: 16,
+					x00280101: 12,
+					x00280103: 0,
+					x00280002: 1,
+				})[tag],
+			string: (tag: string) =>
+				({
+					x00280004: "MONOCHROME2",
+					x00181164: "0.4\\0.8",
+				})[tag],
+			elements: {
+				x7fe00010: {
+					dataOffset: 0,
+					length: 8,
+				},
+			},
+		});
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData("/test/imager-spacing.dcm", data);
+		});
+
+		const loader = cornerstoneMock.registerImageLoader.mock.calls.find(
+			([scheme]) => scheme === "roentgen",
+		)?.[1];
+		if (!loader) throw new Error("roentgen image loader should be registered");
+
+		const image = await loader("roentgen:/test/imager-spacing.dcm").promise;
+
+		expect(image.rowPixelSpacing).toBe(0.4);
+		expect(image.columnPixelSpacing).toBe(0.8);
 	});
 });

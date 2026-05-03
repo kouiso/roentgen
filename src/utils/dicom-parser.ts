@@ -143,16 +143,21 @@ export const parseImagePosition = (dataSet: DicomDataSet): number[] | null => {
 	return parts;
 };
 
-// Pixel Spacing (0028,0030) のパース
-export const parsePixelSpacing = (
-	dataSet: DicomDataSet,
+const parseSpacingValue = (
+	value: string | undefined,
 ): [number, number] | null => {
-	const value = dataSet.string("x00280030");
 	if (!value) return null;
 	const parts = value.split("\\").map(Number);
 	if (parts.length !== 2 || parts.some(Number.isNaN)) return null;
 	return [parts[0] ?? 0, parts[1] ?? 0];
 };
+
+// Pixel Spacing (0028,0030) を優先し、無い場合は Imager Pixel Spacing (0018,1164) を使う
+export const parsePixelSpacing = (
+	dataSet: DicomDataSet,
+): [number, number] | null =>
+	parseSpacingValue(dataSet.string("x00280030")) ??
+	parseSpacingValue(dataSet.string("x00181164"));
 
 // Modality LUT Sequence (0028,3000) のパース
 export const parseModalityLut = (

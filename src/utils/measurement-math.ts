@@ -14,49 +14,63 @@ type OSDViewport = {
 	getFlip?: () => boolean;
 };
 
-const rotateAroundCenter = (
-	point: MeasurementPoint,
-	center: MeasurementPoint,
-	degrees: number,
-): MeasurementPoint => {
-	const radians = (degrees * Math.PI) / 180;
+const getViewportTransformMatrix = (
+	rotation: number,
+	flip: boolean,
+): { a: number; b: number; c: number; d: number } => {
+	const radians = (rotation * Math.PI) / 180;
 	const cos = Math.cos(radians);
 	const sin = Math.sin(radians);
+
+	if (!flip) {
+		return { a: cos, b: sin, c: -sin, d: cos };
+	}
+
+	return { a: -cos, b: sin, c: sin, d: cos };
+};
+
+const applyMatrixAroundCenter = (
+	point: MeasurementPoint,
+	center: MeasurementPoint,
+	matrix: { a: number; b: number; c: number; d: number },
+): MeasurementPoint => {
 	const dx = point.x - center.x;
 	const dy = point.y - center.y;
 
 	return {
-		x: center.x + dx * cos - dy * sin,
-		y: center.y + dx * sin + dy * cos,
+		x: center.x + matrix.a * dx + matrix.c * dy,
+		y: center.y + matrix.b * dx + matrix.d * dy,
 	};
 };
 
-const flipXAroundCenter = (
-	point: MeasurementPoint,
-	center: MeasurementPoint,
-): MeasurementPoint => ({
-	x: center.x * 2 - point.x,
-	y: point.y,
-});
-
-const applyViewportTransform = (
+export const applyViewportTransform = (
 	point: MeasurementPoint,
 	center: MeasurementPoint,
 	rotation: number,
 	flip: boolean,
 ): MeasurementPoint => {
-	const flipped = flip ? flipXAroundCenter(point, center) : point;
-	return rotateAroundCenter(flipped, center, rotation);
+	return applyMatrixAroundCenter(
+		point,
+		center,
+		getViewportTransformMatrix(rotation, flip),
+	);
 };
 
-const invertViewportTransform = (
+export const invertViewportTransform = (
 	point: MeasurementPoint,
 	center: MeasurementPoint,
 	rotation: number,
 	flip: boolean,
 ): MeasurementPoint => {
-	const rotated = rotateAroundCenter(point, center, -rotation);
-	return flip ? flipXAroundCenter(rotated, center) : rotated;
+	const matrix = getViewportTransformMatrix(rotation, flip);
+	const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+
+	return applyMatrixAroundCenter(point, center, {
+		a: matrix.d / determinant,
+		b: -matrix.b / determinant,
+		c: -matrix.c / determinant,
+		d: matrix.a / determinant,
+	});
 };
 
 // 2点間の距離（mm単位）
@@ -89,6 +103,7 @@ export const calculateAngleDeg = (
 	const dot = v1x * v2x + v1y * v2y;
 	const cross = v1x * v2y - v1y * v2x;
 
+	// 3点角度ツールは臨床計測の慣例に合わせ、反射角ではなく内角を返す。
 	const angleRad = Math.atan2(Math.abs(cross), dot);
 	return (angleRad * 180) / Math.PI;
 };
@@ -115,8 +130,7 @@ export const containerToImageCoord = (
 
 	// ビューポート座標
 	const vpWidth = homeBounds.width / zoom;
-	const vpHeight =
-		(homeBounds.width * containerRect.height) / containerRect.width / zoom;
+	const vpHeight = homeBounds.height / zoom;
 
 	const vpX =
 		center.x - vpWidth / 2 + (containerX / containerRect.width) * vpWidth;
@@ -206,8 +220,7 @@ export function imageToContainerCoord(
 
 	// ビューポート座標 → コンテナ座標
 	const vpWidth = homeBounds.width / zoom;
-	const vpHeight =
-		(homeBounds.width * containerRect.height) / containerRect.width / zoom;
+	const vpHeight = homeBounds.height / zoom;
 
 	const containerX =
 		((transformed.x - (center.x - vpWidth / 2)) / vpWidth) *

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { MeasurementPoint } from "@/types/measurement";
 import {
+	applyViewportTransform,
 	calculateAngleDeg,
 	calculateDistanceMm,
 	containerToImageCoord,
 	imageToContainerCoord,
+	invertViewportTransform,
 } from "./measurement-math";
 
 describe("calculateDistanceMm", () => {
@@ -110,6 +112,50 @@ describe("calculateAngleDeg", () => {
 		// same angle as (1,0)→(0,0)→(0,1) = 90°
 		expect(calculateAngleDeg(p1, p2, p3)).toBeCloseTo(90, 10);
 	});
+
+	it("returns the clinical interior angle instead of a reflex angle", () => {
+		const p1: MeasurementPoint = { x: 1, y: 0 };
+		const p2: MeasurementPoint = { x: 0, y: 0 };
+		const p3: MeasurementPoint = { x: 0, y: -1 };
+		expect(calculateAngleDeg(p1, p2, p3)).toBeCloseTo(90, 10);
+	});
+});
+
+describe("viewport transforms", () => {
+	it.each([
+		{ rotation: 0, flip: false },
+		{ rotation: 90, flip: false },
+		{ rotation: 180, flip: false },
+		{ rotation: 270, flip: false },
+		{ rotation: 0, flip: true },
+		{ rotation: 90, flip: true },
+		{ rotation: 180, flip: true },
+		{ rotation: 270, flip: true },
+	])("round-trips rotation $rotation and flip $flip", ({ rotation, flip }) => {
+		const center: MeasurementPoint = { x: 0.5, y: 1 };
+		const point: MeasurementPoint = { x: 0.73, y: 1.42 };
+
+		const transformed = applyViewportTransform(point, center, rotation, flip);
+		const roundTripped = invertViewportTransform(
+			transformed,
+			center,
+			rotation,
+			flip,
+		);
+
+		expect(roundTripped.x).toBeCloseTo(point.x, 10);
+		expect(roundTripped.y).toBeCloseTo(point.y, 10);
+	});
+
+	it("applies rotation before horizontal flip", () => {
+		const center: MeasurementPoint = { x: 0, y: 0 };
+		const point: MeasurementPoint = { x: 1, y: 0 };
+
+		const transformed = applyViewportTransform(point, center, 90, true);
+
+		expect(transformed.x).toBeCloseTo(0, 10);
+		expect(transformed.y).toBeCloseTo(1, 10);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -212,7 +258,19 @@ describe("containerToImageCoord", () => {
 		expect(result).not.toBeNull();
 		if (!result) return;
 		expect(result.x).toBeCloseTo(1024, 6);
-		expect(result.y).toBeCloseTo(640, 6);
+		expect(result.y).toBeCloseTo(768, 6);
+	});
+
+	it("maps the painted height of portrait images from home bounds", () => {
+		const rect = makeContainerRect(0, 0, 800, 600);
+		const viewport = makeViewport(1, 0.5, 1, 1, 2);
+
+		const result = containerToImageCoord(400, 590, rect, 1024, 2048, viewport);
+
+		expect(result).not.toBeNull();
+		if (!result) return;
+		expect(result.x).toBeCloseTo(512, 6);
+		expect(result.y).toBeCloseTo(2013.866667, 6);
 	});
 });
 
@@ -276,7 +334,25 @@ describe("imageToContainerCoord", () => {
 		expect(result).not.toBeNull();
 		if (!result) throw new Error("container coordinate should be present");
 		expect(result.x).toBeCloseTo(400, 6);
-		expect(result.y).toBeCloseTo(400, 6);
+		expect(result.y).toBeCloseTo(300, 6);
+	});
+
+	it("projects portrait image points using the painted image height", () => {
+		const rect = makeContainerRect(0, 0, 800, 600);
+		const viewport = makeViewport(1, 0.5, 1, 1, 2);
+
+		const result = imageToContainerCoord(
+			{ x: 512, y: 2047 },
+			1024,
+			2048,
+			rect,
+			viewport,
+		);
+
+		expect(result).not.toBeNull();
+		if (!result) throw new Error("container coordinate should be present");
+		expect(result.x).toBeCloseTo(400, 6);
+		expect(result.y).toBeCloseTo(599.707031, 6);
 	});
 
 	it("round-trips with containerToImageCoord", () => {
@@ -321,9 +397,9 @@ describe("imageToContainerCoord", () => {
 		{ rotation: 180, flip: false, expected: { x: 200, y: 200 } },
 		{ rotation: 270, flip: false, expected: { x: 400, y: 0 } },
 		{ rotation: 0, flip: true, expected: { x: 200, y: 200 } },
-		{ rotation: 90, flip: true, expected: { x: 400, y: 0 } },
+		{ rotation: 90, flip: true, expected: { x: 400, y: 400 } },
 		{ rotation: 180, flip: true, expected: { x: 600, y: 200 } },
-		{ rotation: 270, flip: true, expected: { x: 400, y: 400 } },
+		{ rotation: 270, flip: true, expected: { x: 400, y: 0 } },
 	])("accounts for rotation $rotation and flip $flip", ({
 		rotation,
 		flip,
