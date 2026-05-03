@@ -7,6 +7,9 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
+env:
+  RUNNER: blacksmith-4vcpu-ubuntu-2404
+
 permissions:
   contents: read
 
@@ -17,7 +20,7 @@ concurrency:
 jobs:
   node:
     name: Node (${{ matrix.check-type }})
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ env.RUNNER }}
     if: github.event.pull_request.draft == false
     strategy:
       fail-fast: false
@@ -54,7 +57,7 @@ jobs:
 
   electron-e2e:
     name: Electron E2E
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ env.RUNNER }}
     if: github.event.pull_request.draft == false
     timeout-minutes: 20
     steps:
