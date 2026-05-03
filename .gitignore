@@ -12,6 +12,9 @@ test-results/
 # Local verification screenshots
 evidence-*.png
 roentgen-*.png
+verify-*.png
+wave*-empty-state.png
+annotation-*.png
 docs/verification/**/render-*.png
 
 # DICOM画像ファイル（プライバシー保護）
