@@ -110,7 +110,8 @@ export const useOpenSeaDragon = ({
 		tileCanvasRef.current = tileCanvas;
 
 		// DICOM画像用カスタムTileSource — 全レベルで単一タイル
-		// getContext2DでCanvasを直接返すことでImageLoaderを完全にバイパス
+		// OSD 6.xではgetContext2Dが非推奨のため、downloadTileStartで
+		// CanvasRenderingContext2Dを直接返しImageLoaderを完全にバイパスする
 		const tileSource = {
 			width: imageWidth,
 			height: imageHeight,
@@ -119,7 +120,12 @@ export const useOpenSeaDragon = ({
 			minLevel: 0,
 			maxLevel,
 			getTileUrl: () => "",
-			getContext2D: () => tileCtx,
+			downloadTileStart: (job: {
+				finish: (data: unknown, req: null, type: string) => void;
+			}) => {
+				job.finish(tileCtx, null, "context2d");
+			},
+			downloadTileAbort: () => {},
 		};
 
 		// tileSources を渡さずにviewerを作成する。
@@ -128,6 +134,7 @@ export const useOpenSeaDragon = ({
 		// monkey-patch適用後にaddTiledImageで追加する。
 		const viewer = OSD({
 			id: containerId,
+			drawer: "canvas",
 			prefixUrl: "",
 			showNavigationControl: false,
 			animationTime: 0,
