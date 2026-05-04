@@ -5,9 +5,22 @@ import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useViewerLayout } from "@/hooks/use-viewer-layout";
 import { useViewerPane } from "@/hooks/use-viewer-pane";
+import type { Annotation } from "@/types/annotation";
 import type { DicomFileInfo } from "@/types/dicom";
 import { LAYOUT_PANE_COUNT } from "@/types/layout";
+import type { Measurement } from "@/types/measurement";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
+import {
+	type AnnotationStorageState,
+	createAnnotationStoragePayload,
+	createEmptyAnnotationStorageState,
+	deserializeAnnotationStorage,
+	getDicomFileSopInstanceUid,
+} from "@/utils/annotation-storage";
+import {
+	buildPrintImageMetadata,
+	createPrintImageHtml,
+} from "@/utils/print-image";
 import { getAllSeries, groupByStudySeries } from "@/utils/study-grouper";
 import { ToolPanel } from "./tool-panel";
 import { ViewerLayout } from "./viewer-layout";
@@ -22,6 +35,62 @@ type DicomViewerProps = {
 	) => void;
 };
 
+const SAVE_DEBOUNCE_MS = 1000;
+
+const getPrimaryStudyInstanceUid = (files: DicomFileInfo[]): string | null => {
+	for (const file of files) {
+		if (file.studyInstanceUID) return file.studyInstanceUID;
+	}
+	return null;
+};
+
+const getSopInstanceUidSet = (files: DicomFileInfo[]): Set<string> => {
+	const sopInstanceUids = new Set<string>();
+	for (const file of files) {
+		const sopInstanceUid = getDicomFileSopInstanceUid(file);
+		if (sopInstanceUid) sopInstanceUids.add(sopInstanceUid);
+	}
+	return sopInstanceUids;
+};
+
+const filterAnnotationsForFiles = (
+	annotations: Annotation[],
+	files: DicomFileInfo[],
+): Annotation[] => {
+	const sopInstanceUids = getSopInstanceUidSet(files);
+	if (sopInstanceUids.size === 0) return [];
+	return annotations.filter(
+		(annotation) =>
+			!annotation.sopInstanceUid ||
+			sopInstanceUids.has(annotation.sopInstanceUid),
+	);
+};
+
+const filterMeasurementsForFiles = (
+	measurements: Measurement[],
+	files: DicomFileInfo[],
+): Measurement[] => {
+	const sopInstanceUids = getSopInstanceUidSet(files);
+	if (sopInstanceUids.size === 0) return [];
+	return measurements.filter(
+		(measurement) =>
+			!measurement.sopInstanceUid ||
+			sopInstanceUids.has(measurement.sopInstanceUid),
+	);
+};
+
+const openBrowserPrintWindow = (html: string) => {
+	const printWindow = window.open("", "_blank", "width=960,height=720");
+	if (!printWindow) return;
+	printWindow.document.open();
+	printWindow.document.write(html);
+	printWindow.document.close();
+	window.setTimeout(() => {
+		printWindow.focus();
+		printWindow.print();
+	}, 100);
+};
+
 export const DicomViewer = ({
 	files,
 	onClearAll,
@@ -31,8 +100,17 @@ export const DicomViewer = ({
 	const { layout, setLayout } = useViewerLayout();
 	const [activePaneIndex, setActivePaneIndex] = useState(0);
 	const [isFullscreen, setIsFullscreen] = useState(false);
+	const [loadedStorage, setLoadedStorage] =
+		useState<AnnotationStorageState | null>(null);
+	const [storageReadyStudyUid, setStorageReadyStudyUid] = useState<
+		string | null
+	>(null);
 
 	const paneCount = LAYOUT_PANE_COUNT[layout];
+	const studyInstanceUid = useMemo(
+		() => getPrimaryStudyInstanceUid(files),
+		[files],
+	);
 
 	// Study/Series グルーピング → ペイン用ファイルリスト
 	const studies = useMemo(() => groupByStudySeries(files), [files]);
@@ -63,6 +141,144 @@ export const DicomViewer = ({
 		[pane0, pane1, pane2, pane3],
 	);
 	const activePane = allPanes[activePaneIndex] ?? pane0;
+
+	// Study単位の注釈・計測を読み込み
+	useEffect(() => {
+		setStorageReadyStudyUid(null);
+		if (!studyInstanceUid) {
+			setLoadedStorage(null);
+			return;
+		}
+
+		let cancelled = false;
+		const api = window.electronAPI;
+		if (!api?.loadAnnotations) {
+			setLoadedStorage(createEmptyAnnotationStorageState(studyInstanceUid));
+			return;
+		}
+
+		api
+			.loadAnnotations(studyInstanceUid)
+			.then((data) => {
+				if (cancelled) return;
+				setLoadedStorage(deserializeAnnotationStorage(studyInstanceUid, data));
+			})
+			.catch((err: unknown) => {
+				if (cancelled) return;
+				console.warn("[annotations] 読込失敗", err);
+				setLoadedStorage(createEmptyAnnotationStorageState(studyInstanceUid));
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [studyInstanceUid]);
+
+	// 読み込んだStudyデータを各ペインの担当ファイルへ復元
+	useEffect(() => {
+		if (
+			!studyInstanceUid ||
+			loadedStorage?.studyInstanceUid !== studyInstanceUid
+		)
+			return;
+
+		pane0.annotation.replaceAnnotations(
+			filterAnnotationsForFiles(loadedStorage.annotations, paneFiles[0]),
+		);
+		pane0.measurement.replaceMeasurements(
+			filterMeasurementsForFiles(loadedStorage.measurements, paneFiles[0]),
+		);
+		pane1.annotation.replaceAnnotations(
+			filterAnnotationsForFiles(loadedStorage.annotations, paneFiles[1]),
+		);
+		pane1.measurement.replaceMeasurements(
+			filterMeasurementsForFiles(loadedStorage.measurements, paneFiles[1]),
+		);
+		pane2.annotation.replaceAnnotations(
+			filterAnnotationsForFiles(loadedStorage.annotations, paneFiles[2]),
+		);
+		pane2.measurement.replaceMeasurements(
+			filterMeasurementsForFiles(loadedStorage.measurements, paneFiles[2]),
+		);
+		pane3.annotation.replaceAnnotations(
+			filterAnnotationsForFiles(loadedStorage.annotations, paneFiles[3]),
+		);
+		pane3.measurement.replaceMeasurements(
+			filterMeasurementsForFiles(loadedStorage.measurements, paneFiles[3]),
+		);
+
+		const timeoutId = window.setTimeout(() => {
+			setStorageReadyStudyUid(studyInstanceUid);
+		}, 0);
+		return () => window.clearTimeout(timeoutId);
+	}, [
+		studyInstanceUid,
+		loadedStorage,
+		paneFiles,
+		pane0.annotation.replaceAnnotations,
+		pane0.measurement.replaceMeasurements,
+		pane1.annotation.replaceAnnotations,
+		pane1.measurement.replaceMeasurements,
+		pane2.annotation.replaceAnnotations,
+		pane2.measurement.replaceMeasurements,
+		pane3.annotation.replaceAnnotations,
+		pane3.measurement.replaceMeasurements,
+	]);
+
+	const allStoredAnnotations = useMemo(
+		() => [
+			...pane0.allAnnotations,
+			...pane1.allAnnotations,
+			...pane2.allAnnotations,
+			...pane3.allAnnotations,
+		],
+		[
+			pane0.allAnnotations,
+			pane1.allAnnotations,
+			pane2.allAnnotations,
+			pane3.allAnnotations,
+		],
+	);
+
+	const allStoredMeasurements = useMemo(
+		() => [
+			...pane0.allMeasurements,
+			...pane1.allMeasurements,
+			...pane2.allMeasurements,
+			...pane3.allMeasurements,
+		],
+		[
+			pane0.allMeasurements,
+			pane1.allMeasurements,
+			pane2.allMeasurements,
+			pane3.allMeasurements,
+		],
+	);
+
+	// 注釈・計測変更時にStudy単位で遅延保存
+	useEffect(() => {
+		if (!studyInstanceUid || storageReadyStudyUid !== studyInstanceUid) return;
+		const api = window.electronAPI;
+		if (!api?.saveAnnotations) return;
+
+		const timeoutId = window.setTimeout(() => {
+			const payload = createAnnotationStoragePayload({
+				studyInstanceUid,
+				annotations: allStoredAnnotations,
+				measurements: allStoredMeasurements,
+			});
+			api.saveAnnotations(studyInstanceUid, payload).catch((err: unknown) => {
+				console.warn("[annotations] 保存失敗", err);
+			});
+		}, SAVE_DEBOUNCE_MS);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [
+		studyInstanceUid,
+		storageReadyStudyUid,
+		allStoredAnnotations,
+		allStoredMeasurements,
+	]);
 
 	// レイアウト変更時にアクティブペインをリセット（範囲外になった場合）
 	useEffect(() => {
@@ -113,6 +329,21 @@ export const DicomViewer = ({
 		}
 	}, [activePane.tileCanvasRef]);
 
+	// 印刷（アクティブペインのcanvasとDICOMメタデータから印刷ページを生成）
+	const handlePrint = useCallback(() => {
+		const canvas = activePane.tileCanvasRef?.current;
+		if (!canvas || !activePane.currentFile) return;
+		const dataUrl = canvas.toDataURL("image/png");
+		const metadata = buildPrintImageMetadata(activePane.currentFile);
+		if (window.electronAPI?.printImage) {
+			window.electronAPI.printImage(dataUrl, metadata).catch(() => {
+				openBrowserPrintWindow(createPrintImageHtml(dataUrl, metadata));
+			});
+			return;
+		}
+		openBrowserPrintWindow(createPrintImageHtml(dataUrl, metadata));
+	}, [activePane.currentFile, activePane.tileCanvasRef]);
+
 	// WW/WCプリセット適用（アクティブペイン）
 	const handleSetWwWcPreset = useCallback(
 		(index: number) => {
@@ -153,6 +384,7 @@ export const DicomViewer = ({
 			toggleCinePlay: activePane.toggleCinePlay,
 			setWwWcPreset: handleSetWwWcPreset,
 			toggleFullscreen,
+			printImage: handlePrint,
 			setModeMeasureDistance: () =>
 				activePane.setActiveMode(VIEWER_CONTROL_TYPE.MEASURE_DISTANCE),
 			setModeMeasureAngle: () =>
@@ -169,6 +401,7 @@ export const DicomViewer = ({
 			activePane.toggleCinePlay,
 			handleSetWwWcPreset,
 			toggleFullscreen,
+			handlePrint,
 			activePane.measurement.clearAll,
 		],
 	);
@@ -194,6 +427,7 @@ export const DicomViewer = ({
 				onClearSelected={handleClearSelected}
 				onClearAll={handleClearAll}
 				onScreenshot={handleScreenshot}
+				onPrint={handlePrint}
 				isFullscreen={isFullscreen}
 				onToggleFullscreen={toggleFullscreen}
 				layout={layout}

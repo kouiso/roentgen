@@ -250,6 +250,8 @@ export const extractDicomTags = (
 
 	// 主要タグの一覧（renkeibox ImageOverlay.ts の70+タグ対応）
 	const tagMap: Record<string, string> = {
+		// インスタンス識別子
+		x00080018: "SOPInstanceUID",
 		// Study / Series 識別子
 		x0020000d: "StudyInstanceUID",
 		x0020000e: "SeriesInstanceUID",

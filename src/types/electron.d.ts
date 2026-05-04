@@ -10,11 +10,26 @@ type GDriveFileInfo = {
 	modifiedTime: string;
 };
 
+type PrintImageMetadata = {
+	patientName: string;
+	studyDate: string;
+	modality: string;
+	description: string;
+};
+
 interface ElectronAPI {
 	selectDicomFiles: () => Promise<string[]>;
+	selectDicomDirectory: () => Promise<string[]>;
+	readDirectoryRecursive: (directoryPath: string) => Promise<string[]>;
 	readFile: (filePath: string) => Promise<ArrayBuffer>;
 	loadTestDicom?: () => Promise<{ path: string; data: ArrayBuffer }[] | null>;
 	saveScreenshot: (dataUrl: string) => Promise<boolean>;
+	printImage: (
+		imageDataUrl: string,
+		metadata: PrintImageMetadata,
+	) => Promise<boolean>;
+	saveAnnotations: (studyUid: string, data: unknown) => Promise<boolean>;
+	loadAnnotations: (studyUid: string) => Promise<unknown | null>;
 
 	windowState: {
 		getWwwc: () => Promise<{ ww: number; wc: number } | undefined>;

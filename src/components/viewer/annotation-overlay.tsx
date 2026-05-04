@@ -89,6 +89,7 @@ const TextAnnotationView = ({
 	const p = convert(annotation.position);
 	if (!p) return null;
 
+	const color = annotation.color ?? ANNOTATION_COLOR;
 	const width = annotation.text.length * 8 + 10;
 
 	return (
@@ -104,7 +105,7 @@ const TextAnnotationView = ({
 			<text
 				x={p.x + 5}
 				y={p.y - 3}
-				fill={ANNOTATION_COLOR}
+				fill={color}
 				fontSize={13}
 				fontFamily="sans-serif"
 			>
@@ -127,6 +128,7 @@ const ArrowAnnotationView = ({
 	const start = convert(annotation.start);
 	const end = convert(annotation.end);
 	if (!start || !end) return null;
+	const color = annotation.color ?? ANNOTATION_COLOR;
 
 	return (
 		<g className="group">
@@ -135,12 +137,12 @@ const ArrowAnnotationView = ({
 				y1={start.y}
 				x2={end.x}
 				y2={end.y}
-				stroke={ANNOTATION_COLOR}
+				stroke={color}
 				strokeWidth={2}
 				strokeLinecap="round"
 				markerEnd="url(#annotation-arrowhead)"
 			/>
-			<circle cx={start.x} cy={start.y} r={3} fill={ANNOTATION_COLOR} />
+			<circle cx={start.x} cy={start.y} r={3} fill={color} />
 			<DeleteButton x={end.x + 12} y={end.y - 12} onRemove={onRemove} />
 		</g>
 	);
@@ -158,6 +160,7 @@ const RectAnnotationView = ({
 	const topLeft = convert(annotation.topLeft);
 	const bottomRight = convert(annotation.bottomRight);
 	if (!topLeft || !bottomRight) return null;
+	const color = annotation.color ?? ANNOTATION_COLOR;
 
 	const x = Math.min(topLeft.x, bottomRight.x);
 	const y = Math.min(topLeft.y, bottomRight.y);
@@ -172,7 +175,7 @@ const RectAnnotationView = ({
 				width={width}
 				height={height}
 				fill="transparent"
-				stroke={ANNOTATION_COLOR}
+				stroke={color}
 				strokeWidth={1.5}
 				strokeDasharray="6,4"
 			/>
@@ -203,6 +206,7 @@ const EllipseAnnotationView = ({
 
 	const radiusX = Math.abs(radiusXPoint.x - center.x);
 	const radiusY = Math.abs(radiusYPoint.y - center.y);
+	const color = annotation.color ?? ANNOTATION_COLOR;
 
 	return (
 		<g className="group">
@@ -212,7 +216,7 @@ const EllipseAnnotationView = ({
 				rx={radiusX}
 				ry={radiusY}
 				fill="transparent"
-				stroke={ANNOTATION_COLOR}
+				stroke={color}
 				strokeWidth={1.5}
 				strokeDasharray="6,4"
 			/>

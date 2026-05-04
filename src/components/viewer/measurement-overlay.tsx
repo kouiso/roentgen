@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Measurement, MeasurementPoint } from "@/types/measurement";
+import {
+	DEFAULT_ANGLE_COLOR,
+	DEFAULT_DISTANCE_COLOR,
+} from "@/utils/annotation-storage";
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
 type MeasurementOverlayProps = {
@@ -50,6 +54,7 @@ const DistanceLine = ({
 
 	const midX = (p1.x + p2.x) / 2;
 	const midY = (p1.y + p2.y) / 2;
+	const color = m.color ?? DEFAULT_DISTANCE_COLOR;
 	const label =
 		m.distanceMm >= 10
 			? `${m.distanceMm.toFixed(1)} mm`
@@ -63,13 +68,13 @@ const DistanceLine = ({
 				y1={p1.y}
 				x2={p2.x}
 				y2={p2.y}
-				stroke="#00ff88"
+				stroke={color}
 				strokeWidth={1.5}
 				strokeLinecap="round"
 			/>
 			{/* 端点マーカー */}
-			<circle cx={p1.x} cy={p1.y} r={3} fill="#00ff88" />
-			<circle cx={p2.x} cy={p2.y} r={3} fill="#00ff88" />
+			<circle cx={p1.x} cy={p1.y} r={3} fill={color} />
+			<circle cx={p2.x} cy={p2.y} r={3} fill={color} />
 			{/* ラベル背景 */}
 			<rect
 				x={midX - 2}
@@ -82,7 +87,7 @@ const DistanceLine = ({
 			<text
 				x={midX}
 				y={midY - 2}
-				fill="#00ff88"
+				fill={color}
 				fontSize={11}
 				fontFamily="monospace"
 			>
@@ -108,6 +113,7 @@ const AngleLine = ({
 	if (!p1 || !p2 || !p3) return null;
 
 	const label = `${m.angleDeg.toFixed(1)}°`;
+	const color = m.color ?? DEFAULT_ANGLE_COLOR;
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: SVG計測線のクリック削除用（role不要）
@@ -117,7 +123,7 @@ const AngleLine = ({
 				y1={p1.y}
 				x2={p2.x}
 				y2={p2.y}
-				stroke="#ffaa00"
+				stroke={color}
 				strokeWidth={1.5}
 				strokeLinecap="round"
 			/>
@@ -126,14 +132,14 @@ const AngleLine = ({
 				y1={p2.y}
 				x2={p3.x}
 				y2={p3.y}
-				stroke="#ffaa00"
+				stroke={color}
 				strokeWidth={1.5}
 				strokeLinecap="round"
 			/>
 			{/* 端点・頂点マーカー */}
-			<circle cx={p1.x} cy={p1.y} r={3} fill="#ffaa00" />
-			<circle cx={p2.x} cy={p2.y} r={4} fill="#ffaa00" />
-			<circle cx={p3.x} cy={p3.y} r={3} fill="#ffaa00" />
+			<circle cx={p1.x} cy={p1.y} r={3} fill={color} />
+			<circle cx={p2.x} cy={p2.y} r={4} fill={color} />
+			<circle cx={p3.x} cy={p3.y} r={3} fill={color} />
 			{/* 角度ラベル */}
 			<rect
 				x={p2.x + 8}
@@ -146,7 +152,7 @@ const AngleLine = ({
 			<text
 				x={p2.x + 10}
 				y={p2.y - 2}
-				fill="#ffaa00"
+				fill={color}
 				fontSize={11}
 				fontFamily="monospace"
 			>

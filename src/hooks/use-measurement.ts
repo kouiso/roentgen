@@ -7,6 +7,10 @@ import type {
 	MeasurementPoint,
 } from "@/types/measurement";
 import {
+	DEFAULT_ANGLE_COLOR,
+	DEFAULT_DISTANCE_COLOR,
+} from "@/utils/annotation-storage";
+import {
 	calculateAngleDeg,
 	calculateDistanceMm,
 } from "@/utils/measurement-math";
@@ -21,7 +25,18 @@ const createMeasurementId = (): string => {
 	return cryptoApi.randomUUID();
 };
 
-export const useMeasurement = (pixelSpacing: [number, number] | null) => {
+const createMeasurementMetadata = (
+	type: "distance" | "angle",
+	sopInstanceUid: string | null,
+) => ({
+	color: type === "distance" ? DEFAULT_DISTANCE_COLOR : DEFAULT_ANGLE_COLOR,
+	...(sopInstanceUid ? { sopInstanceUid } : {}),
+});
+
+export const useMeasurement = (
+	pixelSpacing: [number, number] | null,
+	currentSopInstanceUid: string | null = null,
+) => {
 	const [measurements, setMeasurements] = useState<Measurement[]>([]);
 	const [activePoints, setActivePoints] = useState<MeasurementPoint[]>([]);
 	const [activeTool, setActiveTool] = useState<ActiveTool>(null);
@@ -44,6 +59,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 						const measurement: DistanceMeasurement = {
 							id,
 							type: "distance",
+							...createMeasurementMetadata("distance", currentSopInstanceUid),
 							points: [p1, p2],
 							distanceMm,
 						};
@@ -56,6 +72,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 						const measurement: AngleMeasurement = {
 							id,
 							type: "angle",
+							...createMeasurementMetadata("angle", currentSopInstanceUid),
 							points: [p1, p2, p3],
 							angleDeg,
 						};
@@ -68,7 +85,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 				return next;
 			});
 		},
-		[activeTool, pixelSpacing],
+		[activeTool, pixelSpacing, currentSopInstanceUid],
 	);
 
 	const removeMeasurement = useCallback((id: string) => {
@@ -77,6 +94,12 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 
 	const clearAll = useCallback(() => {
 		setMeasurements([]);
+		setActivePoints([]);
+		setActiveTool(null);
+	}, []);
+
+	const replaceMeasurements = useCallback((items: Measurement[]) => {
+		setMeasurements(items);
 		setActivePoints([]);
 		setActiveTool(null);
 	}, []);
@@ -103,6 +126,7 @@ export const useMeasurement = (pixelSpacing: [number, number] | null) => {
 		addPoint,
 		removeMeasurement,
 		clearAll,
+		replaceMeasurements,
 		startDistanceTool,
 		startAngleTool,
 		cancelTool,

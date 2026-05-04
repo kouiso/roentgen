@@ -9,6 +9,7 @@ import type {
 	RectAnnotation,
 	TextAnnotation,
 } from "@/types/annotation";
+import { DEFAULT_ANNOTATION_COLOR } from "@/utils/annotation-storage";
 
 const createAnnotationId = (): string => {
 	const cryptoApi = globalThis.crypto;
@@ -32,7 +33,16 @@ const getRectCorners = (
 	},
 });
 
-export const useAnnotation = () => {
+const createAnnotationMetadata = (
+	sopInstanceUid: string | null,
+	label = "",
+) => ({
+	color: DEFAULT_ANNOTATION_COLOR,
+	label,
+	...(sopInstanceUid ? { sopInstanceUid } : {}),
+});
+
+export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 	const [annotations, setAnnotations] = useState<Annotation[]>([]);
 	const [activePoints, setActivePoints] = useState<AnnotationPoint[]>([]);
 	const [activeAnnotationTool, setActiveAnnotationTool] =
@@ -63,6 +73,7 @@ export const useAnnotation = () => {
 					const annotation: ArrowAnnotation = {
 						id,
 						type: "arrow",
+						...createAnnotationMetadata(currentSopInstanceUid),
 						start: p1,
 						end: p2,
 					};
@@ -72,6 +83,7 @@ export const useAnnotation = () => {
 					const annotation: RectAnnotation = {
 						id,
 						type: "rect",
+						...createAnnotationMetadata(currentSopInstanceUid),
 						topLeft,
 						bottomRight,
 					};
@@ -80,6 +92,7 @@ export const useAnnotation = () => {
 					const annotation: EllipseAnnotation = {
 						id,
 						type: "ellipse",
+						...createAnnotationMetadata(currentSopInstanceUid),
 						center: {
 							x: (p1.x + p2.x) / 2,
 							y: (p1.y + p2.y) / 2,
@@ -93,7 +106,7 @@ export const useAnnotation = () => {
 				return [];
 			});
 		},
-		[activeAnnotationTool, pendingTextPosition],
+		[activeAnnotationTool, pendingTextPosition, currentSopInstanceUid],
 	);
 
 	const submitTextAnnotation = useCallback(
@@ -108,13 +121,14 @@ export const useAnnotation = () => {
 			const annotation: TextAnnotation = {
 				id,
 				type: "text",
+				...createAnnotationMetadata(currentSopInstanceUid, trimmed),
 				position: pendingTextPosition,
 				text: trimmed,
 			};
 			setAnnotations((items) => [...items, annotation]);
 			setPendingTextPosition(null);
 		},
-		[pendingTextPosition],
+		[pendingTextPosition, currentSopInstanceUid],
 	);
 
 	const cancelPendingText = useCallback(() => {
@@ -127,6 +141,13 @@ export const useAnnotation = () => {
 
 	const clearAllAnnotations = useCallback(() => {
 		setAnnotations([]);
+		setActivePoints([]);
+		setActiveAnnotationTool(null);
+		setPendingTextPosition(null);
+	}, []);
+
+	const replaceAnnotations = useCallback((items: Annotation[]) => {
+		setAnnotations(items);
 		setActivePoints([]);
 		setActiveAnnotationTool(null);
 		setPendingTextPosition(null);
@@ -172,6 +193,7 @@ export const useAnnotation = () => {
 		cancelPendingText,
 		removeAnnotation,
 		clearAllAnnotations,
+		replaceAnnotations,
 		startTextTool,
 		startArrowTool,
 		startRectTool,

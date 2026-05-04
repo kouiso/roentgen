@@ -1,14 +1,19 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import {
+	lstat,
 	mkdir,
 	readdir,
 	readFile,
 	realpath,
 	writeFile,
 } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 import log from "electron-log/main";
+import {
+	createPrintImageHtml,
+	type PrintImageMetadata,
+} from "../src/utils/print-image";
 import {
 	initSentryIfConsented,
 	isCrashReportingEnabled,
@@ -67,12 +72,162 @@ export const resolveAllowedReadPath = async (
 	throw new Error(`許可されていないファイルパス: ${filePath}`);
 };
 
+export const isDicomFilePath = (filePath: string): boolean => {
+	const extension = extname(filePath).toLowerCase();
+	return extension === ".dcm" || extension === ".dicom";
+};
+
+export const findDicomFilePathsRecursive = async (
+	directoryPath: string,
+	allowedPathEntries: Iterable<string> = allowedPaths,
+): Promise<string[]> => {
+	const rootPath = await resolveAllowedReadPath(
+		directoryPath,
+		allowedPathEntries,
+	);
+	const foundPaths: string[] = [];
+
+	const walk = async (currentDirectory: string): Promise<void> => {
+		const resolvedDirectory = await resolveAllowedReadPath(
+			currentDirectory,
+			allowedPathEntries,
+		);
+		const entries = await readdir(resolvedDirectory, { withFileTypes: true });
+		entries.sort((a, b) => a.name.localeCompare(b.name));
+
+		for (const entry of entries) {
+			const entryPath = join(resolvedDirectory, entry.name);
+			if (entry.isDirectory()) {
+				await walk(entryPath);
+				continue;
+			}
+			if (!entry.isFile() || !isDicomFilePath(entry.name)) continue;
+
+			const resolvedFilePath = await resolveAllowedReadPath(
+				entryPath,
+				allowedPathEntries,
+			);
+			foundPaths.push(resolvedFilePath);
+		}
+	};
+
+	await walk(rootPath);
+	return foundPaths;
+};
+
 const getSeedDirPath = () => {
 	if (app.isPackaged) {
 		return join(app.getPath("userData"), "dicom-files");
 	}
 	return join(__dirname, "..", "dicom-files");
 };
+
+const DICOM_UID_PATTERN = /^[0-9]+(?:\.[0-9]+)*$/;
+
+const getAnnotationStorageDirPath = () =>
+	join(app.getPath("userData"), "annotations");
+
+const getAnnotationStorageFilePath = (studyUid: string) =>
+	join(getAnnotationStorageDirPath(), `${studyUid}.json`);
+
+const assertValidStudyUid = (studyUid: string): void => {
+	if (!DICOM_UID_PATTERN.test(studyUid)) {
+		throw new Error("StudyInstanceUIDが不正です");
+	}
+};
+
+const isMissingFileError = (err: unknown): boolean =>
+	typeof err === "object" &&
+	err !== null &&
+	"code" in err &&
+	err.code === "ENOENT";
+
+const PNG_DATA_URL_PREFIX = "data:image/png;base64,";
+
+const isPngDataUrl = (dataUrl: string): boolean =>
+	dataUrl.startsWith(PNG_DATA_URL_PREFIX);
+
+const waitForPrintableDocument = (win: BrowserWindow): Promise<void> =>
+	win.webContents
+		.executeJavaScript(`
+			new Promise((resolve) => {
+				if (document.readyState === "complete") {
+					resolve(undefined);
+					return;
+				}
+				window.addEventListener("load", () => resolve(undefined), { once: true });
+			})
+		`)
+		.then(() => undefined);
+
+const printHtmlInWindow = (
+	html: string,
+	parentWindow: BrowserWindow,
+): Promise<boolean> =>
+	new Promise((resolvePrint) => {
+		const printWindow = new BrowserWindow({
+			width: 960,
+			height: 720,
+			show: false,
+			parent: parentWindow,
+			title: "印刷",
+			backgroundColor: "#ffffff",
+			webPreferences: {
+				contextIsolation: true,
+				nodeIntegration: false,
+				sandbox: true,
+			},
+		});
+		let settled = false;
+		const finish = (success: boolean) => {
+			if (settled) return;
+			settled = true;
+			if (!printWindow.isDestroyed()) {
+				printWindow.close();
+			}
+			resolvePrint(success);
+		};
+
+		printWindow.once("closed", () => finish(false));
+		printWindow.webContents.once(
+			"did-fail-load",
+			(_event, errorCode, errorDescription) => {
+				log.warn(
+					`[print] 印刷ページ読込失敗: ${errorCode} ${errorDescription}`,
+				);
+				finish(false);
+			},
+		);
+		printWindow.webContents.once("did-finish-load", () => {
+			waitForPrintableDocument(printWindow)
+				.then(() => {
+					if (printWindow.isDestroyed()) {
+						finish(false);
+						return;
+					}
+					printWindow.webContents.print(
+						{ silent: false, printBackground: true },
+						(success, failureReason) => {
+							if (!success && failureReason && failureReason !== "cancelled") {
+								log.warn(`[print] 印刷失敗: ${failureReason}`);
+							}
+							finish(success);
+						},
+					);
+				})
+				.catch((err: unknown) => {
+					log.warn("[print] 印刷ページ準備失敗:", err);
+					finish(false);
+				});
+		});
+
+		printWindow
+			.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+			.catch((err: unknown) => {
+				log.warn("[print] 印刷ページ読込失敗:", err);
+				finish(false);
+			});
+	});
 
 // --- ウィンドウ状態の永続化 ---
 
@@ -324,6 +479,41 @@ ipcMain.handle("select-dicom-files", async () => {
 	return result.filePaths;
 });
 
+ipcMain.handle("select-dicom-directory", async () => {
+	if (!mainWindow) return [];
+	const result = await dialog.showOpenDialog(mainWindow, {
+		title: "DICOMフォルダを選択",
+		properties: ["openDirectory", "multiSelections"],
+	});
+	if (result.canceled) return [];
+
+	const filePaths: string[] = [];
+	for (const directoryPath of result.filePaths) {
+		registerAllowedPath(directoryPath);
+		filePaths.push(...(await findDicomFilePathsRecursive(directoryPath)));
+	}
+	log.info(
+		`Selected ${result.filePaths.length} directories, found ${filePaths.length} DICOM files`,
+	);
+	return filePaths;
+});
+
+ipcMain.handle(
+	"read-directory-recursive",
+	async (_event, inputPath: string) => {
+		registerAllowedPath(inputPath);
+		const resolvedPath = await resolveAllowedReadPath(inputPath);
+		const stats = await lstat(resolvedPath);
+		if (stats.isDirectory()) {
+			return findDicomFilePathsRecursive(resolvedPath);
+		}
+		if (stats.isFile()) {
+			return [resolvedPath];
+		}
+		return [];
+	},
+);
+
 ipcMain.handle("read-file", async (_event, filePath: string) => {
 	const resolved = await resolveAllowedReadPath(filePath);
 	const buffer = await readFile(resolved);
@@ -341,11 +531,59 @@ ipcMain.handle("save-screenshot", async (_event, dataUrl: string) => {
 		filters: [{ name: "PNG", extensions: ["png"] }],
 	});
 	if (result.canceled || !result.filePath) return false;
-	if (!dataUrl.startsWith("data:image/png;base64,")) return false;
-	const base64 = dataUrl.slice("data:image/png;base64,".length);
+	if (!isPngDataUrl(dataUrl)) return false;
+	const base64 = dataUrl.slice(PNG_DATA_URL_PREFIX.length);
 	await writeFile(result.filePath, Buffer.from(base64, "base64"));
 	return true;
 });
+
+ipcMain.handle(
+	"print-image",
+	async (
+		_event,
+		imageDataUrl: string,
+		metadata: PrintImageMetadata,
+	): Promise<boolean> => {
+		if (!mainWindow) return false;
+		if (!isPngDataUrl(imageDataUrl)) return false;
+		const html = createPrintImageHtml(imageDataUrl, metadata);
+		return printHtmlInWindow(html, mainWindow);
+	},
+);
+
+ipcMain.handle(
+	"save-annotations",
+	async (_event, studyUid: string, data: unknown): Promise<boolean> => {
+		assertValidStudyUid(studyUid);
+		await mkdir(getAnnotationStorageDirPath(), { recursive: true });
+		await writeFile(
+			getAnnotationStorageFilePath(studyUid),
+			JSON.stringify(data, null, 2),
+			"utf-8",
+		);
+		return true;
+	},
+);
+
+ipcMain.handle(
+	"load-annotations",
+	async (_event, studyUid: string): Promise<unknown | null> => {
+		assertValidStudyUid(studyUid);
+		try {
+			const raw = await readFile(
+				getAnnotationStorageFilePath(studyUid),
+				"utf-8",
+			);
+			const parsed: unknown = JSON.parse(raw);
+			return parsed;
+		} catch (err) {
+			if (!isMissingFileError(err)) {
+				log.warn(`[annotations] 読込失敗: ${studyUid}`, err);
+			}
+			return null;
+		}
+	},
+);
 
 // Crash reporter — OPT-IN consent toggle
 ipcMain.handle("crash-reporter:get-status", () => ({

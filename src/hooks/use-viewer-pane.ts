@@ -13,6 +13,10 @@ import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerControlType } from "@/types/viewer";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
+import {
+	getDicomFileSopInstanceUid,
+	matchesSopInstanceUid,
+} from "@/utils/annotation-storage";
 import { calculateImageDirection, type Species } from "@/utils/image-direction";
 import { containerToImageCoord } from "@/utils/measurement-math";
 
@@ -47,6 +51,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const currentFile = files[sliderState.currentFrame] ?? null;
 	const imageWidth = currentFile?.columns ?? 0;
 	const imageHeight = currentFile?.rows ?? 0;
+	const currentSopInstanceUid = getDicomFileSopInstanceUid(currentFile);
 
 	const containerId = `osd-${paneId}`;
 
@@ -86,8 +91,25 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		currentFrame: sliderState.currentFrame,
 	});
 
-	const measurement = useMeasurement(currentFile?.pixelSpacing ?? null);
-	const annotation = useAnnotation();
+	const measurement = useMeasurement(
+		currentFile?.pixelSpacing ?? null,
+		currentSopInstanceUid,
+	);
+	const annotation = useAnnotation(currentSopInstanceUid);
+	const visibleMeasurements = useMemo(
+		() =>
+			measurement.measurements.filter((item) =>
+				matchesSopInstanceUid(item.sopInstanceUid, currentSopInstanceUid),
+			),
+		[measurement.measurements, currentSopInstanceUid],
+	);
+	const visibleAnnotations = useMemo(
+		() =>
+			annotation.annotations.filter((item) =>
+				matchesSopInstanceUid(item.sopInstanceUid, currentSopInstanceUid),
+			),
+		[annotation.annotations, currentSopInstanceUid],
+	);
 
 	const setViewerMode = useCallback(
 		(mode: ViewerControlType) => {
@@ -392,10 +414,12 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		showDirection,
 		species,
 		// 計測
-		measurements: measurement.measurements,
+		measurements: visibleMeasurements,
+		allMeasurements: measurement.measurements,
 		activePoints: measurement.activePoints,
 		removeMeasurement: measurement.removeMeasurement,
-		annotations: annotation.annotations,
+		annotations: visibleAnnotations,
+		allAnnotations: annotation.annotations,
 		activeAnnotationPoints: annotation.activePoints,
 		activeAnnotationTool: annotation.activeAnnotationTool,
 		pendingTextPosition: annotation.pendingTextPosition,

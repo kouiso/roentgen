@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+type PrintImageMetadata = {
+	patientName: string;
+	studyDate: string;
+	modality: string;
+	description: string;
+};
+
 // Sentry preload — sets up IPC transport for renderer → main event forwarding
 import("@sentry/electron/preload")
 	.then(({ hookupIpc }) => hookupIpc())
@@ -10,12 +17,25 @@ import("@sentry/electron/preload")
 contextBridge.exposeInMainWorld("electronAPI", {
 	selectDicomFiles: (): Promise<string[]> =>
 		ipcRenderer.invoke("select-dicom-files"),
+	selectDicomDirectory: (): Promise<string[]> =>
+		ipcRenderer.invoke("select-dicom-directory"),
+	readDirectoryRecursive: (directoryPath: string): Promise<string[]> =>
+		ipcRenderer.invoke("read-directory-recursive", directoryPath),
 	readFile: (filePath: string): Promise<ArrayBuffer> =>
 		ipcRenderer.invoke("read-file", filePath),
 	loadTestDicom: (): Promise<{ path: string; data: ArrayBuffer }[] | null> =>
 		ipcRenderer.invoke("load-test-dicom"),
 	saveScreenshot: (dataUrl: string): Promise<boolean> =>
 		ipcRenderer.invoke("save-screenshot", dataUrl),
+	printImage: (
+		imageDataUrl: string,
+		metadata: PrintImageMetadata,
+	): Promise<boolean> =>
+		ipcRenderer.invoke("print-image", imageDataUrl, metadata),
+	saveAnnotations: (studyUid: string, data: unknown): Promise<boolean> =>
+		ipcRenderer.invoke("save-annotations", studyUid, data),
+	loadAnnotations: (studyUid: string): Promise<unknown | null> =>
+		ipcRenderer.invoke("load-annotations", studyUid),
 
 	// Crash reporter — OPT-IN consent
 	crashReporter: {
