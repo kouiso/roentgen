@@ -20,6 +20,6 @@ jobs:
     name: Label PR
     runs-on: ${{ env.RUNNER }}
     steps:
-      - uses: actions/labeler@v6
+      - uses: actions/labeler@v5
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}

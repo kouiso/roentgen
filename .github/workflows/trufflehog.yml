@@ -22,7 +22,7 @@ jobs:
     name: Secret Scan
     runs-on: ${{ env.RUNNER }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
