@@ -69,6 +69,25 @@
       "biome check --write"
     ]
   },
+  "build": {
+    "appId": "com.kouiso.roentgen",
+    "productName": "Roentgen",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.medical"
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  },
   "packageManager": "pnpm@9.15.0",
   "author": "kouiso",
   "license": "UNLICENSED",
