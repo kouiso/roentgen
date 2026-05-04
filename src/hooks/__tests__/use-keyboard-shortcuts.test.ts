@@ -16,14 +16,17 @@ function makeActions() {
 		toggleCinePlay: vi.fn(),
 		setWwWcPreset: vi.fn(),
 		toggleFullscreen: vi.fn(),
+		printImage: vi.fn(),
 		setModeMeasureDistance: vi.fn(),
 		setModeMeasureAngle: vi.fn(),
 		clearMeasurements: vi.fn(),
 	};
 }
 
-function fireKey(key: string) {
-	window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+function fireKey(key: string, init: KeyboardEventInit = {}) {
+	window.dispatchEvent(
+		new KeyboardEvent("keydown", { key, bubbles: true, ...init }),
+	);
 }
 
 describe("useKeyboardShortcuts", () => {
@@ -145,6 +148,22 @@ describe("useKeyboardShortcuts", () => {
 		renderHook(() => useKeyboardShortcuts(actions, true));
 		fireKey("F11");
 		expect(actions.toggleFullscreen).toHaveBeenCalledOnce();
+	});
+
+	it("calls printImage on Ctrl+P", () => {
+		const actions = makeActions();
+		renderHook(() => useKeyboardShortcuts(actions, true));
+		fireKey("p", { ctrlKey: true });
+		expect(actions.printImage).toHaveBeenCalledOnce();
+		expect(actions.setModePan).not.toHaveBeenCalled();
+	});
+
+	it("calls printImage on Cmd+P", () => {
+		const actions = makeActions();
+		renderHook(() => useKeyboardShortcuts(actions, true));
+		fireKey("p", { metaKey: true });
+		expect(actions.printImage).toHaveBeenCalledOnce();
+		expect(actions.setModePan).not.toHaveBeenCalled();
 	});
 
 	it("calls setWwWcPreset with index for number keys 1-7", () => {

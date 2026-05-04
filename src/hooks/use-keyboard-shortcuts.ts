@@ -13,6 +13,7 @@ type KeyboardShortcutActions = {
 	toggleCinePlay: () => void;
 	setWwWcPreset: (index: number) => void;
 	toggleFullscreen: () => void;
+	printImage: () => void;
 	setModeMeasureDistance: () => void;
 	setModeMeasureAngle: () => void;
 	clearMeasurements: () => void;
@@ -43,6 +44,12 @@ export const useKeyboardShortcuts = (
 			}
 
 			const a = actionsRef.current;
+
+			if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "P")) {
+				e.preventDefault();
+				a.printImage();
+				return;
+			}
 
 			switch (e.key) {
 				case "ArrowUp":

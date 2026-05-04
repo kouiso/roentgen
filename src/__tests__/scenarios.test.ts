@@ -411,6 +411,7 @@ const baseActions = () => ({
 	toggleCinePlay: vi.fn(),
 	setWwWcPreset: vi.fn(),
 	toggleFullscreen: vi.fn(),
+	printImage: vi.fn(),
 	setModeMeasureDistance: vi.fn(),
 	setModeMeasureAngle: vi.fn(),
 	clearMeasurements: vi.fn(),

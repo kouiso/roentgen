@@ -22,6 +22,7 @@ import {
 	Pause,
 	Play,
 	Plus,
+	Printer,
 	RefreshCw,
 	RotateCcw,
 	RotateCcwSquare,
@@ -86,6 +87,7 @@ export type ToolPanelProps = {
 	onClearSelected: () => void;
 	onClearAll: () => void;
 	onScreenshot: () => void;
+	onPrint: () => void;
 	isFullscreen: boolean;
 	onToggleFullscreen: () => void;
 	layout: LayoutType;
@@ -238,6 +240,7 @@ export const ToolPanel = ({
 	onClearSelected,
 	onClearAll,
 	onScreenshot,
+	onPrint,
 	isFullscreen,
 	onToggleFullscreen,
 	layout,
@@ -490,6 +493,12 @@ export const ToolPanel = ({
 						icon={<Camera size={ICON} />}
 						label="スクリーンショット"
 						onClick={onScreenshot}
+					/>
+					<ActionButton
+						icon={<Printer size={ICON} />}
+						label="印刷"
+						shortcut="Ctrl/Cmd+P"
+						onClick={onPrint}
 					/>
 					<ToggleButton
 						icon={<Maximize2 size={ICON} />}
