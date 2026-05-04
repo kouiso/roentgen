@@ -87,3 +87,50 @@ describe("electron main read-file path guard", () => {
 		);
 	});
 });
+
+describe("electron main DICOM directory scan", () => {
+	it("recursively returns DICOM files with supported extensions", async () => {
+		const { findDicomFilePathsRecursive } = await import("../electron/main");
+		const root = await mkdtemp(join(tmpdir(), "roentgen-dicom-scan-"));
+		const nestedDir = join(root, "2026-03-28", "series-a");
+		await mkdir(nestedDir, { recursive: true });
+
+		const dcmFile = join(root, "image-001.dcm");
+		const upperDcmFile = join(nestedDir, "image-002.DCM");
+		const dicomFile = join(nestedDir, "image-003.dicom");
+		const upperDicomFile = join(nestedDir, "image-004.DICOM");
+		const textFile = join(nestedDir, "notes.txt");
+		await writeFile(dcmFile, "dicom");
+		await writeFile(upperDcmFile, "dicom");
+		await writeFile(dicomFile, "dicom");
+		await writeFile(upperDicomFile, "dicom");
+		await writeFile(textFile, "not dicom");
+
+		const results = await findDicomFilePathsRecursive(root, [root]);
+
+		await expect(
+			Promise.all(results.map((path) => realpath(path))),
+		).resolves.toEqual([
+			await realpath(join(root, "2026-03-28", "series-a", "image-002.DCM")),
+			await realpath(join(root, "2026-03-28", "series-a", "image-003.dicom")),
+			await realpath(join(root, "2026-03-28", "series-a", "image-004.DICOM")),
+			await realpath(join(root, "image-001.dcm")),
+		]);
+	});
+
+	it("does not follow symlinked DICOM files outside the allowed root", async () => {
+		const { findDicomFilePathsRecursive } = await import("../electron/main");
+		const root = await mkdtemp(join(tmpdir(), "roentgen-dicom-symlink-"));
+		const outsideDir = join(root, "..", "roentgen-dicom-outside");
+		await mkdir(outsideDir, { recursive: true });
+
+		const outsideFile = join(outsideDir, "secret.dcm");
+		const linkedFile = join(root, "linked-secret.dcm");
+		await writeFile(outsideFile, "secret");
+		await symlink(outsideFile, linkedFile);
+
+		await expect(findDicomFilePathsRecursive(root, [root])).resolves.toEqual(
+			[],
+		);
+	});
+});
