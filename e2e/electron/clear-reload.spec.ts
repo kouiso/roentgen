@@ -13,6 +13,7 @@ import {
 	type RendererDevServer,
 	repoRoot,
 	startRendererDevServer,
+	testDicomFixtureDirPath,
 } from "./helpers";
 
 const screenshotDir = resolve(repoRoot, "test-results");
@@ -47,9 +48,8 @@ const waitForAutoloadedFixture = async (page: Page) => {
 };
 
 const reloadFixtures = async (page: Page) => {
-	// Option A: this spec uses the app's real dev autoload path.
 	// Reloading the renderer resets App's autoload ref, then Electron IPC
-	// loadTestDicom reads the real dicom-files fixtures again.
+	// loadTestDicom reads the tracked test fixture directory again.
 	await page.reload({ waitUntil: "domcontentloaded" });
 	await waitForAutoloadedFixture(page);
 };
@@ -85,6 +85,7 @@ test.describe("real Electron Clear reload regression", () => {
 					...process.env,
 					ELECTRON_RUN_AS_NODE: "",
 					NODE_ENV: "development",
+					ROENTGEN_TEST_DICOM_DIR: testDicomFixtureDirPath,
 					VITE_DEV_SERVER_URL: rendererServer.url,
 				},
 			});

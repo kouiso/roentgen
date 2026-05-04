@@ -7,6 +7,7 @@ import renderer from "vite-plugin-electron-renderer";
 
 export const repoRoot = resolve(__dirname, "../..");
 export const electronMainPath = resolve(repoRoot, "dist-electron/main.js");
+export const testDicomFixtureDirPath = resolve(repoRoot, "public");
 
 export const buildElectronApp = () => {
 	execFileSync("pnpm", ["build"], {
