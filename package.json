@@ -86,6 +86,11 @@
     },
     "win": {
       "target": ["nsis"]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "kouiso",
+      "repo": "roentgen"
     }
   },
   "packageManager": "pnpm@9.15.0",
