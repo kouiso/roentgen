@@ -6,9 +6,6 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
 
-env:
-  RUNNER: blacksmith-4vcpu-ubuntu-2404
-
 permissions:
   contents: read
 
@@ -19,7 +16,7 @@ concurrency:
 jobs:
   license-check:
     name: License Check
-    runs-on: ${{ env.RUNNER }}
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -41,15 +38,21 @@ jobs:
       - name: Check licenses
         run: |
           DISALLOW="GPL-2.0;GPL-3.0;LGPL-2.0;LGPL-3.0;AGPL-3.0;SSPL-1.0;CDDL-1.0;EPL-1.0"
-          FAIL_ON=$(echo "$DISALLOW" | tr ';' ' ' | xargs -n1 echo "--failOn" | tr '\n' ' ')
+          IFS=";" read -ra DISALLOWED_LICENSES <<< "$DISALLOW"
+          FAIL_ON=()
+          for license in "${DISALLOWED_LICENSES[@]}"; do
+            FAIL_ON+=(--failOn "$license")
+          done
 
           echo "## License Check Results" >> "$GITHUB_STEP_SUMMARY"
 
-          license-checker --production --summary $FAIL_ON | tee license-summary.txt
+          license-checker --production --summary "${FAIL_ON[@]}" | tee license-summary.txt
 
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat license-summary.txt >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '```'
+            cat license-summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload license report
         if: always()

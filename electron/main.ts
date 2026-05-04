@@ -122,6 +122,12 @@ const getSeedDirPath = () => {
 	return join(__dirname, "..", "dicom-files");
 };
 
+const getDevTestDicomDirPath = () => {
+	const fixtureDirPath = process.env.ROENTGEN_TEST_DICOM_DIR;
+	if (fixtureDirPath) return resolve(fixtureDirPath);
+	return getSeedDirPath();
+};
+
 const DICOM_UID_PATTERN = /^[0-9]+(?:\.[0-9]+)*$/;
 
 const getAnnotationStorageDirPath = () =>
@@ -604,7 +610,7 @@ ipcMain.handle("window-state:set-wwwc", (_event, ww: number, wc: number) => {
 
 if (process.env.VITE_DEV_SERVER_URL) {
 	ipcMain.handle("load-test-dicom", async () => {
-		const dirPath = getSeedDirPath();
+		const dirPath = getDevTestDicomDirPath();
 		try {
 			const entries = await readdir(dirPath);
 			const dcmFiles = entries.filter((f) => f.toLowerCase().endsWith(".dcm"));

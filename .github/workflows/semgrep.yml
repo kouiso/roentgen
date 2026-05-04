@@ -8,9 +8,6 @@ on:
       - "**/*.tsx"
       - "**/*.js"
 
-env:
-  RUNNER: blacksmith-4vcpu-ubuntu-2404
-
 permissions:
   contents: read
   actions: read
@@ -22,7 +19,7 @@ concurrency:
 jobs:
   semgrep:
     name: Code Scan
-    runs-on: ${{ env.RUNNER }}
+    runs-on: ubuntu-24.04
     container:
       image: semgrep/semgrep
     if: github.actor != 'dependabot[bot]'
