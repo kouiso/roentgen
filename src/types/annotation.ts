@@ -1,7 +1,12 @@
 // 注釈ツール型定義
 export type AnnotationPoint = { x: number; y: number };
 
-export type AnnotationToolType = "text" | "arrow" | "rect" | "ellipse";
+export type AnnotationToolType =
+	| "text"
+	| "arrow"
+	| "rect"
+	| "ellipse"
+	| "freehand";
 
 type AnnotationMetadata = {
 	sopInstanceUid?: string;
@@ -38,8 +43,16 @@ export type EllipseAnnotation = AnnotationMetadata & {
 	radiusY: number;
 };
 
+export type FreehandAnnotation = AnnotationMetadata & {
+	id: string;
+	type: "freehand";
+	points: AnnotationPoint[];
+	strokeWidth?: number;
+};
+
 export type Annotation =
 	| TextAnnotation
 	| ArrowAnnotation
 	| RectAnnotation
-	| EllipseAnnotation;
+	| EllipseAnnotation
+	| FreehandAnnotation;

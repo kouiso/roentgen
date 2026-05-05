@@ -1,6 +1,6 @@
 // 単一ペインのビューア状態管理フック
 // DicomViewerから状態ロジックを抽出し、複数ペイン対応を実現
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAnnotation } from "@/hooks/use-annotation";
 import { useCineMode } from "@/hooks/use-cine-mode";
 import { useCornerstone } from "@/hooks/use-cornerstone";
@@ -30,6 +30,8 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const [showDirection, setShowDirection] = useState(true);
 	const [species, setSpecies] = useState<Species>("equine");
 	const [isOsdReady, setIsOsdReady] = useState(false);
+	const isFreehandDraggingRef = useRef(false);
+	const freehandPointerIdRef = useRef<number | null>(null);
 
 	const {
 		cornerstoneReady,
@@ -144,8 +146,11 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			const isMeasurementMode =
 				activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE ||
 				activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE;
+			const isClickAnnotationMode =
+				!!annotation.activeAnnotationTool &&
+				annotation.activeAnnotationTool !== "freehand";
 			if (
-				!annotation.activeAnnotationTool &&
+				!isClickAnnotationMode &&
 				!annotation.pendingTextPosition &&
 				!isMeasurementMode
 			) {
@@ -164,7 +169,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				viewport,
 			);
 			if (imageCoord) {
-				if (annotation.activeAnnotationTool || annotation.pendingTextPosition) {
+				if (isClickAnnotationMode || annotation.pendingTextPosition) {
 					annotation.addPoint(imageCoord);
 				} else {
 					measurement.addPoint(imageCoord);
@@ -182,6 +187,24 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			imageHeight,
 			measurement.addPoint,
 		],
+	);
+
+	const getImagePointFromPointerEvent = useCallback(
+		(e: PointerEvent) => {
+			const container = document.getElementById(containerId);
+			if (!container) return null;
+			const rect = container.getBoundingClientRect();
+			const viewport = getViewport();
+			return containerToImageCoord(
+				e.clientX,
+				e.clientY,
+				rect,
+				imageWidth,
+				imageHeight,
+				viewport,
+			);
+		},
+		[containerId, getViewport, imageWidth, imageHeight],
 	);
 
 	// 計測・注釈クリックイベント登録
@@ -209,6 +232,99 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		addImagePointFromClick,
 	]);
 
+	// フリーハンド注釈はクリックではなくドラッグ中の pointer 座標を連続記録する。
+	useEffect(() => {
+		if (!isOsdReady || annotation.activeAnnotationTool !== "freehand") return;
+		const container = document.getElementById(containerId);
+		if (!container) return;
+
+		const stopPointerEvent = (e: PointerEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+		};
+
+		const handlePointerDown = (e: PointerEvent) => {
+			if (e.button !== 0 || e.isPrimary === false) return;
+			const imageCoord = getImagePointFromPointerEvent(e);
+			if (!imageCoord) return;
+
+			stopPointerEvent(e);
+			isFreehandDraggingRef.current = true;
+			freehandPointerIdRef.current = e.pointerId;
+			container.setPointerCapture?.(e.pointerId);
+			annotation.beginFreehand(imageCoord);
+		};
+
+		const handlePointerMove = (e: PointerEvent) => {
+			if (
+				!isFreehandDraggingRef.current ||
+				freehandPointerIdRef.current !== e.pointerId
+			) {
+				return;
+			}
+			const imageCoord = getImagePointFromPointerEvent(e);
+			if (!imageCoord) return;
+
+			stopPointerEvent(e);
+			annotation.appendFreehandPoint(imageCoord);
+		};
+
+		const finishStroke = (e: PointerEvent) => {
+			if (
+				!isFreehandDraggingRef.current ||
+				freehandPointerIdRef.current !== e.pointerId
+			) {
+				return;
+			}
+
+			stopPointerEvent(e);
+			isFreehandDraggingRef.current = false;
+			freehandPointerIdRef.current = null;
+			container.releasePointerCapture?.(e.pointerId);
+			const imageCoord = getImagePointFromPointerEvent(e);
+			if (imageCoord) {
+				annotation.appendFreehandPoint(imageCoord);
+			}
+			annotation.finishFreehand();
+		};
+
+		container.addEventListener("pointerdown", handlePointerDown, {
+			capture: true,
+		});
+		container.addEventListener("pointermove", handlePointerMove, {
+			capture: true,
+		});
+		container.addEventListener("pointerup", finishStroke, { capture: true });
+		container.addEventListener("pointercancel", finishStroke, {
+			capture: true,
+		});
+
+		return () => {
+			isFreehandDraggingRef.current = false;
+			freehandPointerIdRef.current = null;
+			container.removeEventListener("pointerdown", handlePointerDown, {
+				capture: true,
+			});
+			container.removeEventListener("pointermove", handlePointerMove, {
+				capture: true,
+			});
+			container.removeEventListener("pointerup", finishStroke, {
+				capture: true,
+			});
+			container.removeEventListener("pointercancel", finishStroke, {
+				capture: true,
+			});
+		};
+	}, [
+		isOsdReady,
+		annotation.activeAnnotationTool,
+		annotation.beginFreehand,
+		annotation.appendFreehandPoint,
+		annotation.finishFreehand,
+		containerId,
+		getImagePointFromPointerEvent,
+	]);
+
 	const startTextTool = useCallback(() => {
 		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
 		measurement.cancelTool();
@@ -232,6 +348,12 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		measurement.cancelTool();
 		annotation.startEllipseTool();
 	}, [annotation.startEllipseTool, measurement.cancelTool]);
+
+	const startFreehandTool = useCallback(() => {
+		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		measurement.cancelTool();
+		annotation.startFreehandTool();
+	}, [annotation.startFreehandTool, measurement.cancelTool]);
 
 	// マウスインタラクション
 	useMouseInteraction({
@@ -350,6 +472,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onStartArrowTool: startArrowTool,
 			onStartRectTool: startRectTool,
 			onStartEllipseTool: startEllipseTool,
+			onStartFreehandTool: startFreehandTool,
 			onClearAnnotations: annotation.clearAllAnnotations,
 			hasAnnotations: annotation.annotations.length > 0,
 			isInverted: worldInfo.invert,
@@ -381,6 +504,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			startArrowTool,
 			startRectTool,
 			startEllipseTool,
+			startFreehandTool,
 			annotation.clearAllAnnotations,
 			annotation.annotations,
 		],

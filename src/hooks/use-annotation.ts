@@ -6,10 +6,14 @@ import type {
 	AnnotationToolType,
 	ArrowAnnotation,
 	EllipseAnnotation,
+	FreehandAnnotation,
 	RectAnnotation,
 	TextAnnotation,
 } from "@/types/annotation";
 import { DEFAULT_ANNOTATION_COLOR } from "@/utils/annotation-storage";
+
+const FREEHAND_MIN_POINTS = 2;
+const FREEHAND_MIN_POINT_DISTANCE = 1;
 
 const createAnnotationId = (): string => {
 	const cryptoApi = globalThis.crypto;
@@ -42,6 +46,15 @@ const createAnnotationMetadata = (
 	...(sopInstanceUid ? { sopInstanceUid } : {}),
 });
 
+const getDistanceSquared = (
+	p1: AnnotationPoint,
+	p2: AnnotationPoint,
+): number => {
+	const dx = p1.x - p2.x;
+	const dy = p1.y - p2.y;
+	return dx * dx + dy * dy;
+};
+
 export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 	const [annotations, setAnnotations] = useState<Annotation[]>([]);
 	const [activePoints, setActivePoints] = useState<AnnotationPoint[]>([]);
@@ -59,6 +72,7 @@ export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 				setActivePoints([]);
 				return;
 			}
+			if (activeAnnotationTool === "freehand") return;
 
 			const id = createAnnotationId();
 
@@ -177,6 +191,55 @@ export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 		setPendingTextPosition(null);
 	}, []);
 
+	const startFreehandTool = useCallback(() => {
+		setActiveAnnotationTool("freehand");
+		setActivePoints([]);
+		setPendingTextPosition(null);
+	}, []);
+
+	const beginFreehand = useCallback(
+		(point: AnnotationPoint) => {
+			if (activeAnnotationTool !== "freehand" || pendingTextPosition) return;
+			setActivePoints([point]);
+		},
+		[activeAnnotationTool, pendingTextPosition],
+	);
+
+	const appendFreehandPoint = useCallback(
+		(point: AnnotationPoint) => {
+			if (activeAnnotationTool !== "freehand" || pendingTextPosition) return;
+			setActivePoints((prev) => {
+				const lastPoint = prev[prev.length - 1];
+				if (
+					lastPoint &&
+					getDistanceSquared(lastPoint, point) <
+						FREEHAND_MIN_POINT_DISTANCE * FREEHAND_MIN_POINT_DISTANCE
+				) {
+					return prev;
+				}
+				return [...prev, point];
+			});
+		},
+		[activeAnnotationTool, pendingTextPosition],
+	);
+
+	const finishFreehand = useCallback(() => {
+		if (activeAnnotationTool !== "freehand") return;
+		setActivePoints((prev) => {
+			if (prev.length >= FREEHAND_MIN_POINTS) {
+				const annotation: FreehandAnnotation = {
+					id: createAnnotationId(),
+					type: "freehand",
+					...createAnnotationMetadata(currentSopInstanceUid),
+					points: prev.map((point) => ({ ...point })),
+					strokeWidth: 2,
+				};
+				setAnnotations((items) => [...items, annotation]);
+			}
+			return [];
+		});
+	}, [activeAnnotationTool, currentSopInstanceUid]);
+
 	const cancelTool = useCallback(() => {
 		setActiveAnnotationTool(null);
 		setActivePoints([]);
@@ -198,6 +261,10 @@ export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 		startArrowTool,
 		startRectTool,
 		startEllipseTool,
+		startFreehandTool,
+		beginFreehand,
+		appendFreehandPoint,
+		finishFreehand,
 		cancelTool,
 	};
 };
