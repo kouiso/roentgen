@@ -42,11 +42,18 @@ export type SerializableEllipseAnnotation = SerializableAnnotationBase & {
 	radiusY: number;
 };
 
+export type SerializableFreehandAnnotation = SerializableAnnotationBase & {
+	type: "freehand";
+	points: SerializablePoint[];
+	strokeWidth?: number;
+};
+
 export type SerializableAnnotation =
 	| SerializableTextAnnotation
 	| SerializableArrowAnnotation
 	| SerializableRectAnnotation
-	| SerializableEllipseAnnotation;
+	| SerializableEllipseAnnotation
+	| SerializableFreehandAnnotation;
 
 type SerializableMeasurementBase = {
 	id: string;
@@ -167,6 +174,19 @@ const serializeAnnotation = (
 				center: copyAnnotationPoint(annotation.center),
 				radiusX: annotation.radiusX,
 				radiusY: annotation.radiusY,
+			};
+		case "freehand":
+			if (annotation.points.length < 2) return null;
+			return {
+				id: annotation.id,
+				type: "freehand",
+				sopInstanceUid,
+				color,
+				label,
+				points: annotation.points.map(copyAnnotationPoint),
+				...(annotation.strokeWidth
+					? { strokeWidth: annotation.strokeWidth }
+					: {}),
 			};
 	}
 };
@@ -297,6 +317,13 @@ const parseThreePoints = (
 	return [p0, p1, p2];
 };
 
+const parsePointArray = (value: unknown): SerializablePoint[] | null => {
+	if (!Array.isArray(value)) return null;
+	const points = value.map(parsePoint);
+	if (points.some((point) => point === null)) return null;
+	return points as SerializablePoint[];
+};
+
 const parseAnnotationBase = (
 	value: Record<string, unknown>,
 ): {
@@ -374,6 +401,18 @@ const parseStoredAnnotation = (value: unknown): Annotation | null => {
 				center,
 				radiusX: value.radiusX,
 				radiusY: value.radiusY,
+			};
+		}
+		case "freehand": {
+			const points = parsePointArray(value.points);
+			if (!points || points.length < 2) return null;
+			return {
+				...base,
+				type: "freehand",
+				points,
+				...(isFiniteNumber(value.strokeWidth)
+					? { strokeWidth: value.strokeWidth }
+					: {}),
 			};
 		}
 	}

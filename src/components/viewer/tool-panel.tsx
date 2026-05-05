@@ -20,6 +20,7 @@ import {
 	Minus,
 	Move,
 	Pause,
+	PencilLine,
 	Play,
 	Plus,
 	Printer,
@@ -80,6 +81,7 @@ export type ToolPanelProps = {
 	onStartArrowTool: () => void;
 	onStartRectTool: () => void;
 	onStartEllipseTool: () => void;
+	onStartFreehandTool: () => void;
 	onClearAnnotations: () => void;
 	hasAnnotations: boolean;
 	isInverted: boolean;
@@ -122,6 +124,7 @@ const ModeButton = ({
 	<button
 		type="button"
 		onClick={onClick}
+		aria-pressed={active}
 		className={`relative flex h-8 w-full items-center gap-2 rounded-md pl-3 pr-2 text-[12px] transition-[background-color,color,transform,box-shadow] duration-150 ease-out before:absolute before:left-0.5 before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-gradient-to-b before:from-sky-400 before:to-sky-400/30 before:transition-opacity ${
 			active
 				? "bg-sky-400/[0.08] text-sky-300 before:opacity-100"
@@ -234,6 +237,7 @@ export const ToolPanel = ({
 	onStartArrowTool,
 	onStartRectTool,
 	onStartEllipseTool,
+	onStartFreehandTool,
 	onClearAnnotations,
 	hasAnnotations,
 	isInverted,
@@ -330,6 +334,12 @@ export const ToolPanel = ({
 						label="楕円ROI"
 						active={activeAnnotationTool === "ellipse"}
 						onClick={onStartEllipseTool}
+					/>
+					<ModeButton
+						icon={<PencilLine size={ICON} />}
+						label="フリーハンド"
+						active={activeAnnotationTool === "freehand"}
+						onClick={onStartFreehandTool}
 					/>
 					{hasAnnotations && (
 						<ActionButton
