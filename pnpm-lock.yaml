@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@xmldom/xmldom': '>=0.8.13'
+  plist: ^4.0.0
   uuid: '>=14.0.0'
 
 importers:
@@ -2787,9 +2787,9 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  plist@3.1.0:
-    resolution: {integrity: sha512-uysumyrvkUX0rX/dEVqt8gC3sTBzd4zoWfLeS29nb53imdaXVvLINYXTI2GNqzaMuvacNx4uJQ8+b3zXR0pkgQ==}
-    engines: {node: '>=10.4.0'}
+  plist@4.0.0:
+    resolution: {integrity: sha512-4dOqNo0Y2NpfSf9q4+zr4bh7pzNWeckIam34Z0KYJhg8qtNNfh59VbD+Yna5SjwcxawVvLKx5w5FtuCijpEF4Q==}
+    engines: {node: '>=18'}
 
   postcss-value-parser@4.2.0:
     resolution: {integrity: sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==}
@@ -3741,7 +3741,7 @@ snapshots:
       fs-extra: 10.1.0
       isbinaryfile: 4.0.10
       minimist: 1.2.8
-      plist: 3.1.0
+      plist: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
@@ -3771,7 +3771,7 @@ snapshots:
       dir-compare: 4.2.0
       fs-extra: 11.3.4
       minimatch: 9.0.9
-      plist: 3.1.0
+      plist: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
@@ -4828,7 +4828,7 @@ snapshots:
       json5: 2.2.3
       lazy-val: 1.0.5
       minimatch: 10.2.5
-      plist: 3.1.0
+      plist: 4.0.0
       proper-lockfile: 4.1.2
       resedit: 1.7.2
       semver: 7.7.4
@@ -5210,7 +5210,7 @@ snapshots:
       ajv: 6.14.0
       crc: 3.8.0
       iconv-corefoundation: 1.1.7
-      plist: 3.1.0
+      plist: 4.0.0
       smart-buffer: 4.2.0
       verror: 1.10.1
     optional: true
@@ -6361,10 +6361,9 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  plist@3.1.0:
+  plist@4.0.0:
     dependencies:
       '@xmldom/xmldom': 0.9.10
-      base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
   postcss-value-parser@4.2.0: {}

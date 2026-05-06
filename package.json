@@ -95,7 +95,7 @@
   },
   "pnpm": {
     "overrides": {
-      "@xmldom/xmldom": ">=0.8.13",
+      "plist": "^4.0.0",
       "uuid": ">=14.0.0"
     }
   },
