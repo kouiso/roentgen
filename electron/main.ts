@@ -20,6 +20,11 @@ import {
 	setCrashReportingEnabled,
 } from "./sentry";
 
+if (process.env.ROENTGEN_TEST_USER_DATA_DIR) {
+	// E2Eは実ユーザー設定（クラッシュレポート同意など）から隔離して実行する。
+	app.setPath("userData", resolve(process.env.ROENTGEN_TEST_USER_DATA_DIR));
+}
+
 // ログ初期化 — PII除外のためDICOM患者タグはログしない
 log.initialize();
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB

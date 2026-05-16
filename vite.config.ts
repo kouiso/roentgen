@@ -1,6 +1,6 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { cp, mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { copyFile, mkdir, readdir } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -19,6 +19,22 @@ const getContentType = (filePath: string): string => {
 	if (filePath.endsWith(".js")) return "text/javascript";
 	if (filePath.endsWith(".map")) return "application/json";
 	return "application/octet-stream";
+};
+
+const copyDirectoryFiles = async (sourceDir: string, targetDir: string) => {
+	await mkdir(targetDir, { recursive: true });
+	const entries = await readdir(sourceDir, { withFileTypes: true });
+	for (const entry of entries) {
+		const sourcePath = join(sourceDir, entry.name);
+		const targetPath = join(targetDir, entry.name);
+		if (entry.isDirectory()) {
+			await copyDirectoryFiles(sourcePath, targetPath);
+			continue;
+		}
+		if (entry.isFile()) {
+			await copyFile(sourcePath, targetPath);
+		}
+	}
 };
 
 const cornerstoneCodecAssets = (): Plugin => {
@@ -50,11 +66,8 @@ const cornerstoneCodecAssets = (): Plugin => {
 		},
 		async writeBundle() {
 			const targetDir = resolve(outDir, "cornerstone-wado");
-			await mkdir(targetDir, { recursive: true });
-			await cp(cornerstoneCodecSourceDir, targetDir, {
-				recursive: true,
-				force: true,
-			});
+			// 同じrepoで複数のbuildが並行しても、unlinkを使わず上書きしてraceを避ける。
+			await copyDirectoryFiles(cornerstoneCodecSourceDir, targetDir);
 		},
 	};
 };

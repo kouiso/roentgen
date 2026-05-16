@@ -15,11 +15,11 @@
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "sync:drive": "tsx scripts/sync-dicom-from-drive.ts",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win",
-    "dist:linux": "electron-builder --linux",
+    "pack": "pnpm build && electron-builder --dir",
+    "dist": "pnpm build && electron-builder",
+    "dist:mac": "pnpm build && electron-builder --mac",
+    "dist:win": "pnpm build && electron-builder --win",
+    "dist:linux": "pnpm build && electron-builder --linux",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -95,7 +95,7 @@
   },
   "pnpm": {
     "overrides": {
-      "@xmldom/xmldom": ">=0.8.13",
+      "@xmldom/xmldom": "0.8.13",
       "uuid": ">=14.0.0"
     }
   },

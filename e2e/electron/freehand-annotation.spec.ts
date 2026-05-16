@@ -76,6 +76,10 @@ test.describe("real Electron freehand annotation", () => {
 					ELECTRON_RUN_AS_NODE: "",
 					NODE_ENV: "development",
 					ROENTGEN_TEST_DICOM_DIR: testDicomFixtureDirPath,
+					ROENTGEN_TEST_USER_DATA_DIR: resolve(
+						screenshotDir,
+						"electron-user-data-freehand",
+					),
 					VITE_DEV_SERVER_URL: rendererServer.url,
 				},
 			});
