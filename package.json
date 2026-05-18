@@ -1,106 +1,111 @@
 {
-  "name": "roentgen",
-  "version": "0.1.0",
-  "description": "ルバーノのレントゲンビューア — DICOM画像デスクトップアプリ",
-  "main": "dist-electron/main.js",
-  "scripts": {
-    "dev": "unset ELECTRON_RUN_AS_NODE && vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "lint": "biome check .",
-    "fix": "biome check --write .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "prepare": "husky",
-    "sync:drive": "tsx scripts/sync-dicom-from-drive.ts",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win",
-    "dist:linux": "electron-builder --linux",
-    "test:e2e": "playwright test"
-  },
-  "dependencies": {
-    "@fontsource/ibm-plex-mono": "^5.2.7",
-    "@googleapis/drive": "^20.1.0",
-    "@googleapis/oauth2": "^5.0.1",
-    "@sentry/electron": "^7.13.0",
-    "@tailwindcss/vite": "^4.2.4",
-    "cornerstone-core": "^2.6.1",
-    "cornerstone-math": "^0.1.10",
-    "cornerstone-wado-image-loader": "^4.13.2",
-    "dicom-parser": "^1.8.8",
-    "electron-log": "^5.4.3",
-    "google-auth-library": "^10.6.2",
-    "hammerjs": "^2.0.8",
-    "lucide-react": "^0.468.0",
-    "openseadragon": "^6.0.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.13",
-    "@playwright/test": "^1.59.1",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/react": "^16.3.2",
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
-    "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-v8": "^4.1.5",
-    "autoprefixer": "^10.5.0",
-    "electron": "^41.3.0",
-    "electron-builder": "^26.8.1",
-    "husky": "^9.1.7",
-    "jsdom": "^29.1.1",
-    "lint-staged": "^16.4.0",
-    "postcss": "^8.5.13",
-    "tailwindcss": "^4.2.4",
-    "tsx": "^4.21.0",
-    "typescript": "^5.6.3",
-    "vite": "^8.0.10",
-    "vite-plugin-electron": "^0.29.1",
-    "vite-plugin-electron-renderer": "^0.14.7",
-    "vitest": "^4.1.5"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "biome check --write"
-    ]
-  },
-  "build": {
-    "appId": "com.kouiso.roentgen",
-    "productName": "Roentgen",
-    "directories": {
-      "buildResources": "build",
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*"
-    ],
-    "mac": {
-      "target": ["dmg"],
-      "category": "public.app-category.medical"
-    },
-    "win": {
-      "target": ["nsis"]
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "kouiso",
-      "repo": "roentgen"
-    }
-  },
-  "pnpm": {
-    "overrides": {
-      "@xmldom/xmldom": ">=0.8.13",
-      "uuid": ">=14.0.0"
-    }
-  },
-  "packageManager": "pnpm@9.15.0",
-  "author": "kouiso",
-  "license": "UNLICENSED",
-  "private": true
+	"name": "roentgen",
+	"version": "0.1.0",
+	"description": "ルバーノのレントゲンビューア — DICOM画像デスクトップアプリ",
+	"main": "dist-electron/main.js",
+	"scripts": {
+		"dev": "unset ELECTRON_RUN_AS_NODE && vite",
+		"build": "tsc && vite build",
+		"preview": "vite preview",
+		"lint": "biome check .",
+		"fix": "biome check --write .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"typecheck": "tsc --noEmit",
+		"prepare": "husky",
+		"sync:drive": "tsx scripts/sync-dicom-from-drive.ts",
+		"pack": "electron-builder --dir",
+		"dist": "electron-builder",
+		"dist:mac": "electron-builder --mac",
+		"dist:win": "electron-builder --win",
+		"dist:linux": "electron-builder --linux",
+		"test:e2e": "playwright test"
+	},
+	"dependencies": {
+		"@fontsource/ibm-plex-mono": "^5.2.7",
+		"@googleapis/drive": "^20.1.0",
+		"@googleapis/oauth2": "^5.0.1",
+		"@sentry/electron": "^7.13.0",
+		"@tailwindcss/vite": "^4.2.4",
+		"cornerstone-core": "^2.6.1",
+		"cornerstone-math": "^0.1.10",
+		"cornerstone-wado-image-loader": "^4.13.2",
+		"dicom-parser": "^1.8.8",
+		"electron-log": "^5.4.3",
+		"google-auth-library": "^10.6.2",
+		"hammerjs": "^2.0.8",
+		"lucide-react": "^0.468.0",
+		"openseadragon": "^6.0.2",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.13",
+		"@playwright/test": "^1.59.1",
+		"@testing-library/dom": "^10.4.1",
+		"@testing-library/react": "^16.3.2",
+		"@types/react": "^18.3.18",
+		"@types/react-dom": "^18.3.5",
+		"@vitejs/plugin-react": "^4.3.4",
+		"@vitest/coverage-v8": "^4.1.5",
+		"autoprefixer": "^10.5.0",
+		"electron": "^41.3.0",
+		"electron-builder": "^26.8.1",
+		"husky": "^9.1.7",
+		"jsdom": "^29.1.1",
+		"lint-staged": "^16.4.0",
+		"postcss": "^8.5.13",
+		"tailwindcss": "^4.2.4",
+		"tsx": "^4.21.0",
+		"typescript": "^5.6.3",
+		"vite": "^8.0.10",
+		"vite-plugin-electron": "^0.29.1",
+		"vite-plugin-electron-renderer": "^0.14.7",
+		"vitest": "^4.1.5"
+	},
+	"lint-staged": {
+		"*.{ts,tsx}": [
+			"biome check --write"
+		]
+	},
+	"build": {
+		"appId": "com.kouiso.roentgen",
+		"productName": "Roentgen",
+		"directories": {
+			"buildResources": "build",
+			"output": "release"
+		},
+		"files": [
+			"dist/**/*",
+			"dist-electron/**/*"
+		],
+		"mac": {
+			"target": [
+				"dmg"
+			],
+			"category": "public.app-category.medical"
+		},
+		"win": {
+			"target": [
+				"nsis"
+			]
+		},
+		"publish": {
+			"provider": "github",
+			"owner": "kouiso",
+			"repo": "roentgen"
+		}
+	},
+	"pnpm": {
+		"overrides": {
+			"@xmldom/xmldom": ">=0.8.13",
+			"uuid": ">=14.0.0",
+			"ip-address": ">=10.1.1"
+		}
+	},
+	"packageManager": "pnpm@9.15.0",
+	"author": "kouiso",
+	"license": "MIT",
+	"private": true
 }
