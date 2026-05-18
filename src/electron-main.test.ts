@@ -14,6 +14,9 @@ vi.mock("electron", () => ({
 	BrowserWindow: {
 		getAllWindows: () => [],
 	},
+	crashReporter: {
+		start: vi.fn(),
+	},
 	dialog: {
 		showOpenDialog: vi.fn(),
 		showSaveDialog: vi.fn(),
@@ -28,6 +31,10 @@ vi.mock("electron", () => ({
 			},
 		},
 	},
+}));
+
+vi.mock("@sentry/electron/main", () => ({
+	init: vi.fn(),
 }));
 
 vi.mock("electron-log/main", () => ({

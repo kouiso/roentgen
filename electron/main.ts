@@ -9,7 +9,15 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
+import * as Sentry from "@sentry/electron/main";
+import {
+	app,
+	BrowserWindow,
+	crashReporter,
+	dialog,
+	ipcMain,
+	session,
+} from "electron";
 import log from "electron-log/main";
 import {
 	createPrintImageHtml,
@@ -25,6 +33,10 @@ import {
 log.initialize();
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB
 log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}";
+
+if (process.env.SENTRY_DSN) {
+	Sentry.init({ dsn: process.env.SENTRY_DSN });
+}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -458,6 +470,12 @@ const registerGdriveHandlers = async () => {
 app.whenReady().then(async () => {
 	// Sentry — OPT-IN: only initializes if user previously consented
 	await initSentryIfConsented();
+	crashReporter.start({
+		submitURL: "",
+		uploadToServer: isCrashReportingEnabled(),
+		companyName: "",
+		productName: "Roentgen",
+	});
 
 	await createWindow();
 	log.info("Window created");
