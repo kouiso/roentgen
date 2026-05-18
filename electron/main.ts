@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
-import * as Sentry from "@sentry/electron/main";
+import type * as SentryMain from "@sentry/electron/main";
 import {
 	app,
 	BrowserWindow,
@@ -34,9 +34,12 @@ log.initialize();
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB
 log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}";
 
-if (process.env.SENTRY_DSN) {
-	Sentry.init({ dsn: process.env.SENTRY_DSN });
-}
+const initMainProcessSentry = async (): Promise<void> => {
+	const dsn = process.env.SENTRY_DSN;
+	if (!dsn) return;
+	const Sentry: typeof SentryMain = await import("@sentry/electron/main");
+	Sentry.init({ dsn });
+};
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -481,6 +484,7 @@ const registerGdriveHandlers = async () => {
 };
 
 app.whenReady().then(async () => {
+	await initMainProcessSentry();
 	// Sentry — OPT-IN: only initializes if user previously consented
 	await initSentryIfConsented();
 	startCrashReporter();
