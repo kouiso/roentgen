@@ -198,4 +198,44 @@ describe("annotation-storage", () => {
 			measurements: [],
 		});
 	});
+
+	it("v1保存データはマイグレーション経路を通って読み込める", () => {
+		const payload = {
+			version: 1,
+			studyInstanceUid: "1.2.3",
+			savedAt: "2026-01-02T03:04:05.000Z",
+			annotations: [],
+			measurements: [
+				{
+					id: "distance-1",
+					type: "distance",
+					sopInstanceUid: "1.2.3.4",
+					color: DEFAULT_DISTANCE_COLOR,
+					points: [
+						{ x: 0, y: 0 },
+						{ x: 3, y: 4 },
+					],
+					distanceMm: 5,
+				},
+			],
+		};
+
+		const restored = deserializeAnnotationStorage("1.2.3", payload);
+
+		expect(restored.measurements).toEqual([
+			{
+				id: "distance-1",
+				type: "distance",
+				sopInstanceUid: "1.2.3.4",
+				color: DEFAULT_DISTANCE_COLOR,
+				points: [
+					{ x: 0, y: 0 },
+					{ x: 3, y: 4 },
+				],
+				distanceMm: 5,
+				distanceUnit: "mm",
+				calibrated: true,
+			},
+		]);
+	});
 });
