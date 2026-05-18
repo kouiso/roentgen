@@ -261,6 +261,19 @@ const printHtmlInWindow = (
 			});
 	});
 
+const startCrashReporter = (): void => {
+	try {
+		crashReporter.start({
+			submitURL: "",
+			uploadToServer: isCrashReportingEnabled(),
+			companyName: "",
+			productName: "Roentgen",
+		});
+	} catch (err) {
+		log.warn("[crashReporter] 起動失敗:", err);
+	}
+};
+
 // --- ウィンドウ状態の永続化 ---
 
 type WindowState = {
@@ -470,12 +483,7 @@ const registerGdriveHandlers = async () => {
 app.whenReady().then(async () => {
 	// Sentry — OPT-IN: only initializes if user previously consented
 	await initSentryIfConsented();
-	crashReporter.start({
-		submitURL: "",
-		uploadToServer: isCrashReportingEnabled(),
-		companyName: "",
-		productName: "Roentgen",
-	});
+	startCrashReporter();
 
 	await createWindow();
 	log.info("Window created");
