@@ -55,6 +55,7 @@ export const ViewerPane = ({
 							containerId={pane.containerId}
 							viewport={pane.getViewport()}
 							onRemoveMeasurement={pane.removeMeasurement}
+							onRestoreMeasurement={pane.restoreMeasurement}
 							visible={true}
 						/>
 						<AnnotationOverlay
@@ -66,6 +67,7 @@ export const ViewerPane = ({
 							containerId={pane.containerId}
 							viewport={pane.getViewport()}
 							onRemoveAnnotation={pane.removeAnnotation}
+							onRestoreAnnotation={pane.restoreAnnotation}
 							onSubmitTextAnnotation={pane.submitTextAnnotation}
 							onCancelPendingText={pane.cancelPendingText}
 							visible={true}

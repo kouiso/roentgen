@@ -185,4 +185,51 @@ describe("AnnotationOverlay", () => {
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(onCancelPendingText).toHaveBeenCalledOnce();
 	});
+
+	it("does not remove an annotation when delete confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		const onRemoveAnnotation = vi.fn();
+		const annotations: Annotation[] = [
+			{
+				id: "a-text",
+				type: "text",
+				position: { x: 10, y: 20 },
+				text: "骨折疑い",
+			},
+		];
+		renderOverlay({
+			annotations,
+			viewport: makeViewport(),
+			onRemoveAnnotation,
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈削除" }));
+
+		expect(window.confirm).toHaveBeenCalledWith("この注釈を削除しますか？");
+		expect(onRemoveAnnotation).not.toHaveBeenCalled();
+	});
+
+	it("restores the last deleted annotation with Ctrl+Z", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onRemoveAnnotation = vi.fn();
+		const onRestoreAnnotation = vi.fn();
+		const annotation: Annotation = {
+			id: "a-text",
+			type: "text",
+			position: { x: 10, y: 20 },
+			text: "骨折疑い",
+		};
+		renderOverlay({
+			annotations: [annotation],
+			viewport: makeViewport(),
+			onRemoveAnnotation,
+			onRestoreAnnotation,
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈削除" }));
+		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+
+		expect(onRemoveAnnotation).toHaveBeenCalledWith("a-text");
+		expect(onRestoreAnnotation).toHaveBeenCalledWith(annotation);
+	});
 });

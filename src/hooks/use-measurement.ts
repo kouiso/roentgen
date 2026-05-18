@@ -91,6 +91,13 @@ export const useMeasurement = (
 		setMeasurements((prev) => prev.filter((m) => m.id !== id));
 	}, []);
 
+	const restoreMeasurement = useCallback((measurement: Measurement) => {
+		setMeasurements((prev) => {
+			if (prev.some((item) => item.id === measurement.id)) return prev;
+			return [...prev, measurement];
+		});
+	}, []);
+
 	const clearAll = useCallback(() => {
 		setMeasurements([]);
 		setActivePoints([]);
@@ -124,6 +131,7 @@ export const useMeasurement = (
 		activeTool,
 		addPoint,
 		removeMeasurement,
+		restoreMeasurement,
 		clearAll,
 		replaceMeasurements,
 		startDistanceTool,

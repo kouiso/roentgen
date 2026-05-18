@@ -1,6 +1,6 @@
 // 計測SVGオーバーレイ — 距離・角度の描画
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Measurement, MeasurementPoint } from "@/types/measurement";
 import {
 	DEFAULT_ANGLE_COLOR,
@@ -18,6 +18,7 @@ type MeasurementOverlayProps = {
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any;
 	onRemoveMeasurement: (id: string) => void;
+	onRestoreMeasurement?: (measurement: Measurement) => void;
 	visible: boolean;
 };
 
@@ -218,9 +219,11 @@ export const MeasurementOverlay = ({
 	containerId,
 	viewport,
 	onRemoveMeasurement,
+	onRestoreMeasurement,
 	visible,
 }: MeasurementOverlayProps) => {
 	const convert = useCoordConverter(containerId, imageWidth, viewport);
+	const lastDeletedMeasurementRef = useRef<Measurement | null>(null);
 	// ビューポート変更時に再描画するためのカウンター
 	const [, setRedrawCount] = useState(0);
 
@@ -252,6 +255,34 @@ export const MeasurementOverlay = ({
 		};
 	}, [visible, measurements.length, activePoints.length, viewport]);
 
+	useEffect(() => {
+		if (!onRestoreMeasurement) return;
+
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+			if (!(event.ctrlKey || event.metaKey)) return;
+			if (event.key !== "z" && event.key !== "Z") return;
+			const lastDeletedMeasurement = lastDeletedMeasurementRef.current;
+			if (!lastDeletedMeasurement) return;
+
+			event.preventDefault();
+			onRestoreMeasurement(lastDeletedMeasurement);
+			lastDeletedMeasurementRef.current = null;
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [onRestoreMeasurement]);
+
+	const handleRemoveMeasurement = useCallback(
+		(measurement: Measurement) => {
+			if (!window.confirm("この計測を削除しますか？")) return;
+			lastDeletedMeasurementRef.current = measurement;
+			onRemoveMeasurement(measurement.id);
+		},
+		[onRemoveMeasurement],
+	);
+
 	if (!visible || (measurements.length === 0 && activePoints.length === 0)) {
 		return null;
 	}
@@ -270,14 +301,14 @@ export const MeasurementOverlay = ({
 							key={m.id}
 							m={m}
 							convert={convert}
-							onRemove={() => onRemoveMeasurement(m.id)}
+							onRemove={() => handleRemoveMeasurement(m)}
 						/>
 					) : (
 						<AngleLine
 							key={m.id}
 							m={m}
 							convert={convert}
-							onRemove={() => onRemoveMeasurement(m.id)}
+							onRemove={() => handleRemoveMeasurement(m)}
 						/>
 					),
 				)}

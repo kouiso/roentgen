@@ -139,6 +139,13 @@ export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 		setAnnotations((prev) => prev.filter((a) => a.id !== id));
 	}, []);
 
+	const restoreAnnotation = useCallback((annotation: Annotation) => {
+		setAnnotations((prev) => {
+			if (prev.some((item) => item.id === annotation.id)) return prev;
+			return [...prev, annotation];
+		});
+	}, []);
+
 	const clearAllAnnotations = useCallback(() => {
 		setAnnotations([]);
 		setActivePoints([]);
@@ -192,6 +199,7 @@ export const useAnnotation = (currentSopInstanceUid: string | null = null) => {
 		submitTextAnnotation,
 		cancelPendingText,
 		removeAnnotation,
+		restoreAnnotation,
 		clearAllAnnotations,
 		replaceAnnotations,
 		startTextTool,

@@ -16,6 +16,7 @@ type AnnotationOverlayProps = {
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any;
 	onRemoveAnnotation: (id: string) => void;
+	onRestoreAnnotation?: (annotation: Annotation) => void;
 	onSubmitTextAnnotation: (text: string) => void;
 	onCancelPendingText: () => void;
 	visible: boolean;
@@ -323,6 +324,7 @@ export const AnnotationOverlay = ({
 	containerId,
 	viewport,
 	onRemoveAnnotation,
+	onRestoreAnnotation,
 	onSubmitTextAnnotation,
 	onCancelPendingText,
 	visible,
@@ -333,6 +335,7 @@ export const AnnotationOverlay = ({
 		imageHeight,
 		viewport,
 	);
+	const lastDeletedAnnotationRef = useRef<Annotation | null>(null);
 	// ビューポート変更時に再描画するためのカウンター
 	const [, setRedrawCount] = useState(0);
 
@@ -376,6 +379,34 @@ export const AnnotationOverlay = ({
 		viewport,
 	]);
 
+	useEffect(() => {
+		if (!onRestoreAnnotation) return;
+
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+			if (!(event.ctrlKey || event.metaKey)) return;
+			if (event.key !== "z" && event.key !== "Z") return;
+			const lastDeletedAnnotation = lastDeletedAnnotationRef.current;
+			if (!lastDeletedAnnotation) return;
+
+			event.preventDefault();
+			onRestoreAnnotation(lastDeletedAnnotation);
+			lastDeletedAnnotationRef.current = null;
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [onRestoreAnnotation]);
+
+	const handleRemoveAnnotation = useCallback(
+		(annotation: Annotation) => {
+			if (!window.confirm("この注釈を削除しますか？")) return;
+			lastDeletedAnnotationRef.current = annotation;
+			onRemoveAnnotation(annotation.id);
+		},
+		[onRemoveAnnotation],
+	);
+
 	if (
 		!visible ||
 		(annotations.length === 0 &&
@@ -414,7 +445,7 @@ export const AnnotationOverlay = ({
 									key={annotation.id}
 									annotation={annotation}
 									convert={convert}
-									onRemove={() => onRemoveAnnotation(annotation.id)}
+									onRemove={() => handleRemoveAnnotation(annotation)}
 								/>
 							);
 						case "arrow":
@@ -423,7 +454,7 @@ export const AnnotationOverlay = ({
 									key={annotation.id}
 									annotation={annotation}
 									convert={convert}
-									onRemove={() => onRemoveAnnotation(annotation.id)}
+									onRemove={() => handleRemoveAnnotation(annotation)}
 								/>
 							);
 						case "rect":
@@ -432,7 +463,7 @@ export const AnnotationOverlay = ({
 									key={annotation.id}
 									annotation={annotation}
 									convert={convert}
-									onRemove={() => onRemoveAnnotation(annotation.id)}
+									onRemove={() => handleRemoveAnnotation(annotation)}
 								/>
 							);
 						case "ellipse":
@@ -441,7 +472,7 @@ export const AnnotationOverlay = ({
 									key={annotation.id}
 									annotation={annotation}
 									convert={convert}
-									onRemove={() => onRemoveAnnotation(annotation.id)}
+									onRemove={() => handleRemoveAnnotation(annotation)}
 								/>
 							);
 					}
