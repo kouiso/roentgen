@@ -14,7 +14,7 @@ AI-self-testable verification procedure. A future AI follows this top-to-bottom 
 | Node | `node -v` → ≥ v20 (engines is empty; use repo-tested 20.x) |
 | pnpm | `pnpm -v` → ≥ 9 |
 | OS | macOS / Linux with xvfb / Windows. CI uses Blacksmith Linux runner with xvfb |
-| Drive credentials | `~/Library/Application Support/Roentgen/credentials.json` (macOS) — Google OAuth client JSON. ABSENCE is a tested code path; do NOT add it for Section 3 unless that section says so |
+| Drive credentials | `~/Library/Application Support/Roentgen/gdrive-credentials.json` (macOS) — Google OAuth client JSON. ABSENCE is a tested code path; do NOT add it for Section 3 unless that section says so |
 | Fixture DICOM | `e2e/fixtures/test.dcm` (tracked) — small synthetic DICOM. Loadable test corpus path also covered by `load-test-dicom` IPC |
 | Evidence dir | `mkdir -p .qa-evidence/$(date +%Y-%m-%d)` (gitignored; do not commit) |
 
@@ -104,13 +104,13 @@ For each path: command, expected DOM/log, FAIL condition, evidence capture.
 
 ### Path E — Drive setup + sync (negative + positive paths)
 
-> Negative path: run BEFORE placing credentials.json.
+> Negative path: run BEFORE placing gdrive-credentials.json.
 
 | # | Step | Expected | FAIL |
 |---|---|---|---|
-| E1 | Without credentials.json: click "Drive" chip. | Header chip shows "Drive 未設定" (`src/App.tsx` around `:127-134`). Tooltip explains: place credentials JSON at userData path. | Crash or silent no-op |
+| E1 | Without gdrive-credentials.json: click "Drive" chip. | Header chip shows "Drive 未設定" (`src/App.tsx` around `:127-134`). Tooltip explains: place credentials JSON at userData path. | Crash or silent no-op |
 | E2 | Inspect `auth.status === "uninitialized"` via DevTools. | true | false |
-| E3 | **Place credentials.json**, restart. Auth chip should now allow click → opens OAuth web flow via `electron/google-drive.ts`. | Browser opens to accounts.google.com. | No browser opens |
+| E3 | **Place gdrive-credentials.json**, restart. Auth chip should now allow click → opens OAuth web flow via `electron/google-drive.ts`. | Browser opens to accounts.google.com. | No browser opens |
 | E4 | After OAuth callback, header shows email. Trigger sync. | "Drive 同期中..." chip then download count. | Hangs > 30s without UI feedback |
 | E5 | Logout via 12px LogOut icon (`src/App.tsx:160`). | Auth chip reverts to "Drive 未設定". | Stays logged in |
 | E6 | Capture for both states: `.qa-evidence/<date>/E-drive-no-creds.png`, `.qa-evidence/<date>/E-drive-authed.png` | — | — |
@@ -146,12 +146,12 @@ PASS criterion: **both counts ≥ 2** (main viewer + print window).
 ```bash
 node -e '
 const m=require("fs").readFileSync("electron/main.ts","utf8");
-console.log("dialogReturnedRoots tracked:", m.includes("dialogReturnedRoots"));
+console.log("dialogReturnedPaths tracked:", m.includes("dialogReturnedPaths"));
 console.log("ipc handler count:", (m.match(/ipcMain\.handle/g)||[]).length);
 '
 ```
 
-PASS criterion: `dialogReturnedRoots tracked: true` AND handler count ≥ 18.
+PASS criterion: `dialogReturnedPaths tracked: true` AND handler count ≥ 18.
 
 ### Schema migration path (PR#17 T9)
 
