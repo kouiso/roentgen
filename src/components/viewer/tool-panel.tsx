@@ -247,6 +247,11 @@ export const ToolPanel = ({
 	onSetLayout,
 	viewerReady = true,
 }: ToolPanelProps) => {
+	const handleClearAll = () => {
+		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
+		onClearAll();
+	};
+
 	return (
 		<aside className="flex w-[200px] shrink-0 flex-col overflow-y-auto py-2 panel-surface">
 			{/* ビューア未準備時はレイアウト以外を無効化 */}
@@ -515,7 +520,7 @@ export const ToolPanel = ({
 					<ActionButton
 						icon={<XCircle size={ICON} />}
 						label="全クリア"
-						onClick={onClearAll}
+						onClick={handleClearAll}
 					/>
 				</div>
 			</div>
