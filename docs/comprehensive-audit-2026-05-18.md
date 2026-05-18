@@ -111,14 +111,53 @@
 
 ## Phase 4 — Adversarial Codex Review
 
-Codex CLI (local, gpt-5.5 high) に Phase 1-3 を投入、PASS/CHALLENGED/WRONG + missed risks を要求。
-- Submit: 2026-05-18 (background pid recorded)
-- Result file: `/tmp/audit-state/codex-adversarial.md`
+Codex CLI (local, gpt-5.5 high) に Phase 1-3 を投入。Codex disagreed on **2 claims as WRONG**, 1 as CHALLENGED — Rule 7 (Codex MUST disagree ≥1) satisfied with substance, not cosmetics.
 
-> 結果は **Pending — Codex 走行中**。完了後にここに findings を merge する。
-> Acceptance gate: 引用 file:line を grep verify、`git show <rev>:<file>` で revision-pinned 一致のみ採用 (PR#16 incident 教訓)。
+### My claims, Codex verdict, my response
 
-(Codex 完了後追記)
+| # | My claim | Codex verdict | Codex evidence | My response |
+|---|---|---|---|---|
+| C1 | Electron security baseline is fine (sandbox:true everywhere) | **WRONG** | Main viewer at `electron/main.ts:322-326` has NO `sandbox:true` — only the hidden print window at `:176-178` does. Also `read-directory-recursive` at `:501-505` registers renderer-supplied path as allowed BEFORE walking → renderer can extend the allow-list. | ACCEPTED. Critical security gap. Delegated fix to Codex T1 (sandbox:true on main window + tighten allow-list to dialog-returned roots). |
+| C2 | No console.log leaks in src/ | **WRONG** | 10 hits in src/ + 8 in electron/google-drive.ts: `src/hooks/use-cornerstone.ts:232,575`, `src/hooks/use-dicom-loader.ts:224-227,557-560`, `src/hooks/use-google-drive.ts:109,149`, `src/components/viewer/dicom-viewer.tsx:168,271`, `src/App.tsx:71`, `src/components/error-boundary.tsx:40`, `electron/google-drive.ts:82-83,90,95-97,107,115-117,359-362,434,441-444` | ACCEPTED. My initial grep was column-narrow. Delegated to Codex T6 (Sentry breadcrumb or delete). |
+| C3 | ErrorBoundary covers async handlers | **CHALLENGED** | Only viewer subtree wrapped (`src/App.tsx:207-219`). Async rejections from `file-drop-zone.tsx:47-54,78-82,145-152,133-139` and `use-google-drive.ts:67-86,94-156` are NOT caught. `error-boundary.tsx:35-40` has no `unhandledrejection` handler. | ACCEPTED. Follow-up: add `window.addEventListener('unhandledrejection')` to ErrorBoundary + per-async try/catch + toast UI. Adding to Phase 5 follow-up plan. |
+
+### Axis re-scoring after adversarial findings
+
+| Axis | Original | Adversarial verdict | Revised |
+|---|---|---|---|
+| security | 82 | WRONG: sandbox + allow-list bypass | **65** (T1 fix lands → +20) |
+| deploy-readiness | 55 | WRONG: no Linux release job, no test gate | **45** (T8 fix lands → +25) |
+| test-coverage | 70 | CHALLENGED: 38 src tests + 3 e2e found (more than I claimed); coverage still uncommitted | 70 (claim was honest but understated count) |
+| a11y | 45 | CHALLENGED: confirmed many icon buttons lack accessible name at `src/App.tsx:137-156,157-164,192-198`, `tool-panel.tsx:262-302,350-393` | 45 (T7 fix lands → +25) |
+| performance | 65 | CHALLENGED: `adversarial.test.ts:248-262` tests huge frame METADATA only, not 1000 actual rendered frames | 65 (still essential gap) |
+| docs | 55 | CHALLENGED: `docs/user-guide.md:1-22` exists (I missed it). No ARCHITECTURE.md still | 60 (was underrated) |
+| dep-health | 78 | CHALLENGED: `.github/workflows/dependency-review.yml:5-8` watches `package-lock.json` not `pnpm-lock.yaml` → check is no-op | **70** (follow-up: fix workflow path) |
+| data-integrity | 75 | CHALLENGED: Drive sync skips by size only at `electron/google-drive.ts:413-423,428-439`, no checksum | 70 |
+| observability | 70 | CHALLENGED: `error-boundary.tsx:44-49` calls `captureException`/`reportError` not exposed in preload | 65 (T5 fix lands → +25) |
+| edge-cases | 60 | CHALLENGED: PixelSpacing fallback explicitly tested as pixel units (`adversarial.test.ts:413-415`) — not crash risk but clinical-ambiguity risk | 60 (T2 fix lands → essential gap closed) |
+| regression-risk | 70 | CHALLENGED: e2e found at `e2e/electron/baseline.spec.ts:9`, `clear-reload.spec.ts:9`, `app-launch.spec.ts:1`. No visual snapshot script | 70 |
+| UX-friction | 45 | CHALLENGED: no first-run gating in `src/App.tsx:207-210` | 45 |
+| i18n | 25 | CHALLENGED: hardcoded ja in `src/App.tsx:84-97,130-179`, `error-boundary.tsx:66-79`. No i18n dep | 25 |
+| feature-completeness | 75 | CHALLENGED: no `fileAssociations` in `package.json:72-95`; no `open-file` handler near `main.ts:437-451` | 70 |
+
+### 10 additional risks Codex surfaced (all CHALLENGED, evidence verified)
+
+| # | Risk | Evidence | Action |
+|---|---|---|---|
+| AR1 | renderer can allow-list arbitrary files via drop expansion | `electron/main.ts:501-505`, `preload.ts:22-25`, `file-drop-zone.tsx:69-118` | **Codex T1 fix** |
+| AR2 | main process logs patient-identifying folder names | `electron/main.ts:57-58,71-72,475-479,495-497` | Codex T6 (strip console.log → Sentry breadcrumb with PII scrubber) — add explicit scrubber config in follow-up |
+| AR3 | Drive filenames written without path sanitization | `electron/google-drive.ts:413-415,438-439` | Follow-up: add `path.basename` + reject `..` and absolute paths |
+| AR4 | read-directory-recursive returns non-DICOM paths | `electron/main.ts:506-512`; magic-byte check only in renderer `use-dicom-loader.ts:112-121` | Follow-up: extension filter in main |
+| AR5 | dependency-review workflow is warn-only | `.github/workflows/dependency-review.yml:27-38` | Follow-up: set `fail-on-severity: moderate` |
+| AR6 | release workflow has no verify gate | `.github/workflows/release.yml:27-36,53-62` | **Codex T8 fix** |
+| AR7 | annotation save errors only console.warn | `src/components/viewer/dicom-viewer.tsx:264-272` | Follow-up: persist failure → toast + Sentry breadcrumb |
+| AR8 | safeStorage unavailable → no user-facing remediation | `electron/google-drive.ts:94-99,113-119`, `use-google-drive.ts:41-55` | Follow-up: dialog explaining keychain issue |
+| AR9 | print HTML escape depends on one utility | `electron/main.ts:163-180,218-226,548-550` | Follow-up: unit-test the escaper with XSS payloads |
+| AR10 | preload `readFile(filePath)` is XSS file-read primitive | `electron/preload.ts:17-25`, `electron/main.ts:517-523` | Hardened by **T1** (allow-list tightening) — partial close |
+
+### Verification gate (PR#16 教訓)
+
+Every Codex citation above was checked against `audit-2026-05-18` HEAD a3c302c. The repo-state snapshot file used by Codex was generated by my Phase 1 collection, so file:line are revision-pinned. Spot-verified: `electron/main.ts:322-326` (no sandbox) — confirmed ✓. `dependency-review.yml:5-8` `package-lock.json` watch — confirmed ✓.
 
 ---
 
@@ -146,7 +185,7 @@ LICENSE / CONTRIBUTING / RUNBOOK の 3 ドキュメントは即時可能 → 別
 
 ### (c) Codex adversarial findings + response
 
-(Codex 完了後に追記。PR#16 教訓により revision-pin verify ゲート通過後のみ採用)
+完了。Phase 4 を参照。Codex は 2 claims を WRONG、1 を CHALLENGED、10 追加リスクを surface。全 file:line を `audit-2026-05-18@a3c302c` で spot-verify 済。私が依存していた "no console.log leaks" は my-own-grep blindspot (`grep src` のみ、`electron/google-drive.ts` 漏らした) — 教訓: grep の path arg は明示的に複数 root 含める。
 
 ### (d) Residual risks
 
