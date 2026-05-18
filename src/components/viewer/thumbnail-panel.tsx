@@ -58,6 +58,8 @@ const ThumbnailImage = ({
 	return (
 		<button
 			type="button"
+			aria-label={`フレーム ${file.instanceNumber ?? "?"} を表示`}
+			aria-current={isActive ? "true" : undefined}
 			onClick={onClick}
 			className={`group relative shrink-0 overflow-hidden rounded-md border-2 transition-all duration-150 ease-out ${
 				isActive
