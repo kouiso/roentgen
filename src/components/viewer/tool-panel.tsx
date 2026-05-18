@@ -123,8 +123,9 @@ const ModeButton = ({
 }) => (
 	<button
 		type="button"
-		onClick={onClick}
+		aria-label={label}
 		aria-pressed={active}
+		onClick={onClick}
 		className={`relative flex h-8 w-full items-center gap-2 rounded-md pl-3 pr-2 text-[12px] transition-[background-color,color,transform,box-shadow] duration-150 ease-out before:absolute before:left-0.5 before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-gradient-to-b before:from-sky-400 before:to-sky-400/30 before:transition-opacity ${
 			active
 				? "bg-sky-400/[0.08] text-sky-300 before:opacity-100"
@@ -154,6 +155,8 @@ const ToggleButton = ({
 }) => (
 	<button
 		type="button"
+		aria-label={label}
+		aria-pressed={active}
 		onClick={onClick}
 		className={`flex h-8 w-full items-center gap-2 rounded-md px-3 text-[12px] transition-[background-color,color] duration-150 ease-out ${
 			active
@@ -189,6 +192,7 @@ const ActionButton = ({
 }) => (
 	<button
 		type="button"
+		aria-label={label}
 		onClick={onClick}
 		disabled={disabled}
 		className={`flex h-8 w-full items-center gap-2 rounded-md px-3 text-[12px] transition-[background-color,color] duration-150 ease-out ${
@@ -251,6 +255,11 @@ export const ToolPanel = ({
 	onSetLayout,
 	viewerReady = true,
 }: ToolPanelProps) => {
+	const handleClearAll = () => {
+		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
+		onClearAll();
+	};
+
 	return (
 		<aside className="flex w-[200px] shrink-0 flex-col overflow-y-auto py-2 panel-surface">
 			{/* ビューア未準備時はレイアウト以外を無効化 */}
@@ -525,7 +534,7 @@ export const ToolPanel = ({
 					<ActionButton
 						icon={<XCircle size={ICON} />}
 						label="全クリア"
-						onClick={onClearAll}
+						onClick={handleClearAll}
 					/>
 				</div>
 			</div>
@@ -548,6 +557,8 @@ export const ToolPanel = ({
 					<button
 						key={type}
 						type="button"
+						aria-label={tip}
+						aria-pressed={layout === type}
 						onClick={() => onSetLayout(type)}
 						title={tip}
 						className={`flex h-8 items-center justify-center rounded-md transition-[background-color,color] duration-150 ease-out ${

@@ -1,12 +1,14 @@
 // 計測SVGオーバーレイ — 距離・角度の描画
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Measurement, MeasurementPoint } from "@/types/measurement";
 import {
 	DEFAULT_ANGLE_COLOR,
 	DEFAULT_DISTANCE_COLOR,
 } from "@/utils/annotation-storage";
 import { imageToContainerCoord } from "@/utils/measurement-math";
+
+const UNCALIBRATED_MEASUREMENT_COLOR = "#ef4444";
 
 type MeasurementOverlayProps = {
 	measurements: Measurement[];
@@ -16,6 +18,7 @@ type MeasurementOverlayProps = {
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any;
 	onRemoveMeasurement: (id: string) => void;
+	onRestoreMeasurement?: (measurement: Measurement) => void;
 	visible: boolean;
 };
 
@@ -54,11 +57,16 @@ const DistanceLine = ({
 
 	const midX = (p1.x + p2.x) / 2;
 	const midY = (p1.y + p2.y) / 2;
-	const color = m.color ?? DEFAULT_DISTANCE_COLOR;
-	const label =
+	const uncalibrated = m.calibrated === false;
+	const color = uncalibrated
+		? UNCALIBRATED_MEASUREMENT_COLOR
+		: (m.color ?? DEFAULT_DISTANCE_COLOR);
+	const unit = m.distanceUnit ?? "mm";
+	const valueLabel =
 		m.distanceMm >= 10
-			? `${m.distanceMm.toFixed(1)} mm`
-			: `${m.distanceMm.toFixed(2)} mm`;
+			? `${m.distanceMm.toFixed(1)} ${unit}`
+			: `${m.distanceMm.toFixed(2)} ${unit}`;
+	const label = uncalibrated ? `${valueLabel} (未校正)` : valueLabel;
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: SVG計測線のクリック削除用（role不要）
@@ -211,9 +219,11 @@ export const MeasurementOverlay = ({
 	containerId,
 	viewport,
 	onRemoveMeasurement,
+	onRestoreMeasurement,
 	visible,
 }: MeasurementOverlayProps) => {
 	const convert = useCoordConverter(containerId, imageWidth, viewport);
+	const lastDeletedMeasurementRef = useRef<Measurement | null>(null);
 	// ビューポート変更時に再描画するためのカウンター
 	const [, setRedrawCount] = useState(0);
 
@@ -245,6 +255,34 @@ export const MeasurementOverlay = ({
 		};
 	}, [visible, measurements.length, activePoints.length, viewport]);
 
+	useEffect(() => {
+		if (!onRestoreMeasurement) return;
+
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+			if (!(event.ctrlKey || event.metaKey)) return;
+			if (event.key !== "z" && event.key !== "Z") return;
+			const lastDeletedMeasurement = lastDeletedMeasurementRef.current;
+			if (!lastDeletedMeasurement) return;
+
+			event.preventDefault();
+			onRestoreMeasurement(lastDeletedMeasurement);
+			lastDeletedMeasurementRef.current = null;
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [onRestoreMeasurement]);
+
+	const handleRemoveMeasurement = useCallback(
+		(measurement: Measurement) => {
+			if (!window.confirm("この計測を削除しますか？")) return;
+			lastDeletedMeasurementRef.current = measurement;
+			onRemoveMeasurement(measurement.id);
+		},
+		[onRemoveMeasurement],
+	);
+
 	if (!visible || (measurements.length === 0 && activePoints.length === 0)) {
 		return null;
 	}
@@ -263,14 +301,14 @@ export const MeasurementOverlay = ({
 							key={m.id}
 							m={m}
 							convert={convert}
-							onRemove={() => onRemoveMeasurement(m.id)}
+							onRemove={() => handleRemoveMeasurement(m)}
 						/>
 					) : (
 						<AngleLine
 							key={m.id}
 							m={m}
 							convert={convert}
-							onRemove={() => onRemoveMeasurement(m.id)}
+							onRemove={() => handleRemoveMeasurement(m)}
 						/>
 					),
 				)}

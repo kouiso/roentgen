@@ -10,10 +10,7 @@ import {
 	DEFAULT_ANGLE_COLOR,
 	DEFAULT_DISTANCE_COLOR,
 } from "@/utils/annotation-storage";
-import {
-	calculateAngleDeg,
-	calculateDistanceMm,
-} from "@/utils/measurement-math";
+import { calculateAngleDeg, calculateDistance } from "@/utils/measurement-math";
 
 type ActiveTool = "distance" | "angle" | null;
 
@@ -55,13 +52,15 @@ export const useMeasurement = (
 					if (activeTool === "distance" && next.length >= 2) {
 						const p1 = next[0] as MeasurementPoint;
 						const p2 = next[1] as MeasurementPoint;
-						const distanceMm = calculateDistanceMm(p1, p2, pixelSpacing);
+						const distance = calculateDistance(p1, p2, pixelSpacing);
 						const measurement: DistanceMeasurement = {
 							id,
 							type: "distance",
 							...createMeasurementMetadata("distance", currentSopInstanceUid),
 							points: [p1, p2],
-							distanceMm,
+							distanceMm: distance.value,
+							distanceUnit: distance.unit,
+							calibrated: distance.calibrated,
 						};
 						setMeasurements((ms) => [...ms, measurement]);
 					} else if (activeTool === "angle" && next.length >= 3) {
@@ -90,6 +89,13 @@ export const useMeasurement = (
 
 	const removeMeasurement = useCallback((id: string) => {
 		setMeasurements((prev) => prev.filter((m) => m.id !== id));
+	}, []);
+
+	const restoreMeasurement = useCallback((measurement: Measurement) => {
+		setMeasurements((prev) => {
+			if (prev.some((item) => item.id === measurement.id)) return prev;
+			return [...prev, measurement];
+		});
 	}, []);
 
 	const clearAll = useCallback(() => {
@@ -125,6 +131,7 @@ export const useMeasurement = (
 		activeTool,
 		addPoint,
 		removeMeasurement,
+		restoreMeasurement,
 		clearAll,
 		replaceMeasurements,
 		startDistanceTool,

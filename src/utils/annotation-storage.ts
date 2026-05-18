@@ -65,6 +65,8 @@ export type SerializableDistanceMeasurement = SerializableMeasurementBase & {
 	type: "distance";
 	points: [SerializablePoint, SerializablePoint];
 	distanceMm: number;
+	distanceUnit?: "mm" | "px";
+	calibrated?: boolean;
 };
 
 export type SerializableAngleMeasurement = SerializableMeasurementBase & {
@@ -89,6 +91,30 @@ export type AnnotationStorageState = {
 	studyInstanceUid: string;
 	annotations: Annotation[];
 	measurements: Measurement[];
+};
+
+export const migrateAnnotationStorage = (
+	data: Record<string, unknown>,
+	fromVersion: number,
+): Record<string, unknown> | null => {
+	if (fromVersion > ANNOTATION_STORAGE_VERSION) return null;
+	if (fromVersion === ANNOTATION_STORAGE_VERSION) return data;
+
+	let migrated: Record<string, unknown> = data;
+	for (
+		let version = fromVersion;
+		version < ANNOTATION_STORAGE_VERSION;
+		version++
+	) {
+		switch (version) {
+			case 1:
+				migrated = { ...migrated, version: 1 };
+				break;
+			default:
+				return null;
+		}
+	}
+	return migrated;
 };
 
 type CreateAnnotationStoragePayloadInput = {
@@ -218,6 +244,8 @@ const serializeMeasurement = (
 					copyMeasurementPoint(measurement.points[1]),
 				],
 				distanceMm: measurement.distanceMm,
+				distanceUnit: measurement.distanceUnit ?? "mm",
+				calibrated: measurement.calibrated ?? true,
 			};
 		case "angle":
 			return {
@@ -454,6 +482,12 @@ const parseStoredMeasurement = (value: unknown): Measurement | null => {
 				type: "distance",
 				points,
 				distanceMm: value.distanceMm,
+				distanceUnit:
+					value.distanceUnit === "px" || value.distanceUnit === "mm"
+						? value.distanceUnit
+						: "mm",
+				calibrated:
+					typeof value.calibrated === "boolean" ? value.calibrated : true,
 			};
 		}
 		case "angle": {
@@ -476,23 +510,29 @@ export const deserializeAnnotationStorage = (
 ): AnnotationStorageState => {
 	if (!isRecord(value))
 		return createEmptyAnnotationStorageState(studyInstanceUid);
+	const storedVersion = value.version;
+	if (!isFiniteNumber(storedVersion)) {
+		return createEmptyAnnotationStorageState(studyInstanceUid);
+	}
+	const migrated = migrateAnnotationStorage(value, storedVersion);
+	if (!migrated) return createEmptyAnnotationStorageState(studyInstanceUid);
 	if (
-		value.version !== ANNOTATION_STORAGE_VERSION ||
-		value.studyInstanceUid !== studyInstanceUid ||
-		!Array.isArray(value.annotations) ||
-		!Array.isArray(value.measurements)
+		migrated.version !== ANNOTATION_STORAGE_VERSION ||
+		migrated.studyInstanceUid !== studyInstanceUid ||
+		!Array.isArray(migrated.annotations) ||
+		!Array.isArray(migrated.measurements)
 	) {
 		return createEmptyAnnotationStorageState(studyInstanceUid);
 	}
 
 	const annotations: Annotation[] = [];
-	for (const annotationValue of value.annotations) {
+	for (const annotationValue of migrated.annotations) {
 		const annotation = parseStoredAnnotation(annotationValue);
 		if (annotation) annotations.push(annotation);
 	}
 
 	const measurements: Measurement[] = [];
-	for (const measurementValue of value.measurements) {
+	for (const measurementValue of migrated.measurements) {
 		const measurement = parseStoredMeasurement(measurementValue);
 		if (measurement) measurements.push(measurement);
 	}

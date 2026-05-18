@@ -22,6 +22,7 @@ export const StackSlider = ({
 		<div className="flex shrink-0 items-center gap-1.5 border-t border-white/5 px-3 py-1 panel-surface">
 			<button
 				type="button"
+				aria-label="前のフレーム"
 				onClick={onPrev}
 				disabled={currentFrame <= 0}
 				className="rounded p-0.5 text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-100 disabled:text-zinc-700"
@@ -33,11 +34,14 @@ export const StackSlider = ({
 				min={0}
 				max={maxFrame}
 				value={currentFrame}
+				aria-label="フレーム"
+				aria-valuetext={`${currentFrame + 1} / ${maxFrame + 1}`}
 				onChange={(e) => onFrameChange(Number(e.target.value))}
 				className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-sky-400"
 			/>
 			<button
 				type="button"
+				aria-label="次のフレーム"
 				onClick={onNext}
 				disabled={currentFrame >= maxFrame}
 				className="rounded p-0.5 text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-100 disabled:text-zinc-700"

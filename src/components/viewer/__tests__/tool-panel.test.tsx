@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LAYOUT_TYPE } from "@/types/layout";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
 import { ToolPanel, type ToolPanelProps } from "../tool-panel";
@@ -8,7 +8,7 @@ import { ToolPanel, type ToolPanelProps } from "../tool-panel";
 const makeProps = (
 	overrides: Partial<ToolPanelProps> = {},
 ): ToolPanelProps => ({
-	activeMode: VIEWER_CONTROL_TYPE.WW_WC,
+	activeMode: VIEWER_CONTROL_TYPE.PAN,
 	onModeChange: vi.fn(),
 	onFitSize: vi.fn(),
 	onOneToOne: vi.fn(),
@@ -54,6 +54,33 @@ const makeProps = (
 });
 
 describe("ToolPanel", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("does not clear all DICOM when confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		const onClearAll = vi.fn();
+		render(<ToolPanel {...makeProps({ onClearAll })} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"全 DICOM をクリアします。よろしいですか？",
+		);
+		expect(onClearAll).not.toHaveBeenCalled();
+	});
+
+	it("clears all DICOM after confirmation", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onClearAll = vi.fn();
+		render(<ToolPanel {...makeProps({ onClearAll })} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
+
+		expect(onClearAll).toHaveBeenCalledOnce();
+	});
+
 	it("starts the freehand annotation tool from the annotation controls", () => {
 		const onStartFreehandTool = vi.fn();
 		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);

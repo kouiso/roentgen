@@ -7,8 +7,17 @@ import {
 	realpath,
 	writeFile,
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
+import type * as SentryMain from "@sentry/electron/main";
+import {
+	app,
+	BrowserWindow,
+	crashReporter,
+	dialog,
+	ipcMain,
+	session,
+} from "electron";
 import log from "electron-log/main";
 import {
 	createPrintImageHtml,
@@ -25,9 +34,17 @@ log.initialize();
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB
 log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}";
 
+const initMainProcessSentry = async (): Promise<void> => {
+	const dsn = process.env.SENTRY_DSN;
+	if (!dsn) return;
+	const Sentry: typeof SentryMain = await import("@sentry/electron/main");
+	Sentry.init({ dsn });
+};
+
 let mainWindow: BrowserWindow | null = null;
 
 const allowedPaths = new Set<string>();
+const dialogReturnedPaths = new Set<string>();
 const resolvedAllowedPathCache = new Map<string, string>();
 
 const registerAllowedPath = (filePath: string) => {
@@ -35,6 +52,19 @@ const registerAllowedPath = (filePath: string) => {
 	allowedPaths.add(resolved);
 	resolvedAllowedPathCache.delete(resolved);
 };
+
+const registerDialogReturnedPath = (filePath: string) => {
+	const resolved = resolve(filePath);
+	dialogReturnedPaths.add(resolved);
+	registerAllowedPath(resolved);
+};
+
+const getRecursiveReadAllowedRoots = (): Set<string> =>
+	new Set([
+		resolve(app.getPath("userData")),
+		resolve(tmpdir()),
+		...dialogReturnedPaths,
+	]);
 
 const getResolvedAllowedPath = async (allowedPath: string): Promise<string> => {
 	const resolved = resolve(allowedPath);
@@ -114,6 +144,11 @@ export const findDicomFilePathsRecursive = async (
 	await walk(rootPath);
 	return foundPaths;
 };
+
+export const resolveAllowedRecursiveReadPath = (
+	filePath: string,
+	allowedPathEntries: Iterable<string> = getRecursiveReadAllowedRoots(),
+): Promise<string> => resolveAllowedReadPath(filePath, allowedPathEntries);
 
 const getSeedDirPath = () => {
 	if (app.isPackaged) {
@@ -235,6 +270,19 @@ const printHtmlInWindow = (
 			});
 	});
 
+const startCrashReporter = (): void => {
+	try {
+		crashReporter.start({
+			submitURL: "",
+			uploadToServer: isCrashReportingEnabled(),
+			companyName: "",
+			productName: "Roentgen",
+		});
+	} catch (err) {
+		log.warn("[crashReporter] 起動失敗:", err);
+	}
+};
+
 // --- ウィンドウ状態の永続化 ---
 
 type WindowState = {
@@ -329,6 +377,7 @@ const createWindow = async () => {
 			preload: join(__dirname, "preload.js"),
 			nodeIntegration: false,
 			contextIsolation: true,
+			sandbox: true,
 		},
 	});
 
@@ -441,8 +490,10 @@ const registerGdriveHandlers = async () => {
 };
 
 app.whenReady().then(async () => {
+	await initMainProcessSentry();
 	// Sentry — OPT-IN: only initializes if user previously consented
 	await initSentryIfConsented();
+	startCrashReporter();
 
 	await createWindow();
 	log.info("Window created");
@@ -480,7 +531,7 @@ ipcMain.handle("select-dicom-files", async () => {
 	if (result.canceled) return [];
 	log.info(`Selected ${result.filePaths.length} files`);
 	for (const filePath of result.filePaths) {
-		registerAllowedPath(filePath);
+		registerDialogReturnedPath(filePath);
 	}
 	return result.filePaths;
 });
@@ -495,7 +546,7 @@ ipcMain.handle("select-dicom-directory", async () => {
 
 	const filePaths: string[] = [];
 	for (const directoryPath of result.filePaths) {
-		registerAllowedPath(directoryPath);
+		registerDialogReturnedPath(directoryPath);
 		filePaths.push(...(await findDicomFilePathsRecursive(directoryPath)));
 	}
 	log.info(
@@ -507,11 +558,17 @@ ipcMain.handle("select-dicom-directory", async () => {
 ipcMain.handle(
 	"read-directory-recursive",
 	async (_event, inputPath: string) => {
-		registerAllowedPath(inputPath);
-		const resolvedPath = await resolveAllowedReadPath(inputPath);
+		const recursiveReadAllowedRoots = getRecursiveReadAllowedRoots();
+		const resolvedPath = await resolveAllowedRecursiveReadPath(
+			inputPath,
+			recursiveReadAllowedRoots,
+		);
 		const stats = await lstat(resolvedPath);
 		if (stats.isDirectory()) {
-			return findDicomFilePathsRecursive(resolvedPath);
+			return findDicomFilePathsRecursive(
+				resolvedPath,
+				recursiveReadAllowedRoots,
+			);
 		}
 		if (stats.isFile()) {
 			return [resolvedPath];
