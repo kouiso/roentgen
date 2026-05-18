@@ -58,6 +58,8 @@ export type SerializableDistanceMeasurement = SerializableMeasurementBase & {
 	type: "distance";
 	points: [SerializablePoint, SerializablePoint];
 	distanceMm: number;
+	distanceUnit?: "mm" | "px";
+	calibrated?: boolean;
 };
 
 export type SerializableAngleMeasurement = SerializableMeasurementBase & {
@@ -198,6 +200,8 @@ const serializeMeasurement = (
 					copyMeasurementPoint(measurement.points[1]),
 				],
 				distanceMm: measurement.distanceMm,
+				distanceUnit: measurement.distanceUnit ?? "mm",
+				calibrated: measurement.calibrated ?? true,
 			};
 		case "angle":
 			return {
@@ -415,6 +419,12 @@ const parseStoredMeasurement = (value: unknown): Measurement | null => {
 				type: "distance",
 				points,
 				distanceMm: value.distanceMm,
+				distanceUnit:
+					value.distanceUnit === "px" || value.distanceUnit === "mm"
+						? value.distanceUnit
+						: "mm",
+				calibrated:
+					typeof value.calibrated === "boolean" ? value.calibrated : true,
 			};
 		}
 		case "angle": {

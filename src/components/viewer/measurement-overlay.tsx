@@ -8,6 +8,8 @@ import {
 } from "@/utils/annotation-storage";
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
+const UNCALIBRATED_MEASUREMENT_COLOR = "#ef4444";
+
 type MeasurementOverlayProps = {
 	measurements: Measurement[];
 	activePoints: MeasurementPoint[];
@@ -54,11 +56,16 @@ const DistanceLine = ({
 
 	const midX = (p1.x + p2.x) / 2;
 	const midY = (p1.y + p2.y) / 2;
-	const color = m.color ?? DEFAULT_DISTANCE_COLOR;
-	const label =
+	const uncalibrated = m.calibrated === false;
+	const color = uncalibrated
+		? UNCALIBRATED_MEASUREMENT_COLOR
+		: (m.color ?? DEFAULT_DISTANCE_COLOR);
+	const unit = m.distanceUnit ?? "mm";
+	const valueLabel =
 		m.distanceMm >= 10
-			? `${m.distanceMm.toFixed(1)} mm`
-			: `${m.distanceMm.toFixed(2)} mm`;
+			? `${m.distanceMm.toFixed(1)} ${unit}`
+			: `${m.distanceMm.toFixed(2)} ${unit}`;
+	const label = uncalibrated ? `${valueLabel} (未校正)` : valueLabel;
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: SVG計測線のクリック削除用（role不要）

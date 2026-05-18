@@ -1,5 +1,5 @@
 // 計測ユーティリティ — 距離・角度計算
-import type { MeasurementPoint } from "@/types/measurement";
+import type { MeasurementPoint, MeasurementUnit } from "@/types/measurement";
 
 type OSDViewport = {
 	getZoom: () => number;
@@ -12,6 +12,12 @@ type OSDViewport = {
 	};
 	getRotation?: () => number;
 	getFlip?: () => boolean;
+};
+
+export type DistanceCalculationResult = {
+	value: number;
+	unit: MeasurementUnit;
+	calibrated: boolean;
 };
 
 const getViewportTransformMatrix = (
@@ -73,21 +79,33 @@ export const invertViewportTransform = (
 	});
 };
 
-// 2点間の距離（mm単位）
+// 2点間の距離（校正済みならmm、PixelSpacingなしならpx）
 // pixelSpacing: [rowSpacing, colSpacing] in mm/pixel
-export const calculateDistanceMm = (
+export const calculateDistance = (
 	p1: MeasurementPoint,
 	p2: MeasurementPoint,
 	pixelSpacing: [number, number] | null,
-): number => {
+): DistanceCalculationResult => {
+	const calibrated = pixelSpacing !== null;
 	const rowSpacing = pixelSpacing?.[0] ?? 1;
 	const colSpacing = pixelSpacing?.[1] ?? 1;
 
 	const dx = (p2.x - p1.x) * colSpacing;
 	const dy = (p2.y - p1.y) * rowSpacing;
 
-	return Math.sqrt(dx * dx + dy * dy);
+	return {
+		value: Math.sqrt(dx * dx + dy * dy),
+		unit: calibrated ? "mm" : "px",
+		calibrated,
+	};
 };
+
+// 既存呼び出し向け: 校正なしの場合はpx値を返す
+export const calculateDistanceMm = (
+	p1: MeasurementPoint,
+	p2: MeasurementPoint,
+	pixelSpacing: [number, number] | null,
+): number => calculateDistance(p1, p2, pixelSpacing).value;
 
 // 3点の角度（度単位）— p2が頂点
 export const calculateAngleDeg = (

@@ -110,7 +110,14 @@ describe("annotation-storage", () => {
 		expect(restored).toEqual({
 			studyInstanceUid,
 			annotations,
-			measurements,
+			measurements: [
+				{
+					...measurements[0],
+					distanceUnit: "mm",
+					calibrated: true,
+				},
+				measurements[1],
+			],
 		});
 	});
 

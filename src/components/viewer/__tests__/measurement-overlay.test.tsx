@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MeasurementOverlay } from "../measurement-overlay";
 
@@ -15,6 +15,11 @@ const makeMeasurement = () => ({
 
 const makeViewport = () => ({
 	getBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
+	getZoom: () => 1,
+	getCenter: () => ({ x: 0.5, y: 0.5 }),
+	getHomeBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
+	getRotation: () => 0,
+	getFlip: () => false,
 	imageToViewportCoordinates: (x: number, y: number) => ({ x, y }),
 	viewportToViewerElementCoordinates: (point: { x: number; y: number }) =>
 		point,
@@ -60,5 +65,47 @@ describe("MeasurementOverlay", () => {
 		);
 
 		setIntervalSpy.mockRestore();
+	});
+
+	it("renders uncalibrated distance measurements in red with a warning label", () => {
+		const rectSpy = vi
+			.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+			.mockReturnValue({
+				left: 0,
+				top: 0,
+				width: 100,
+				height: 100,
+				right: 100,
+				bottom: 100,
+				x: 0,
+				y: 0,
+				toJSON: () => ({}),
+			} as DOMRect);
+		const measurement = {
+			...makeMeasurement(),
+			distanceMm: 5,
+			distanceUnit: "px" as const,
+			calibrated: false,
+		};
+
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[measurement]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { rerender } = render(renderOverlay());
+		rerender(renderOverlay());
+
+		const label = screen.getByText("5.00 px (未校正)");
+		expect(label.getAttribute("fill")).toBe("#ef4444");
+		rectSpy.mockRestore();
 	});
 });
