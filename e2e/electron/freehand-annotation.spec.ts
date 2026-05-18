@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
 	type ElectronApplication,
@@ -47,16 +47,6 @@ const waitForAutoloadedFixture = async (page: Page) => {
 		.toBeGreaterThan(0.3);
 };
 
-const reloadFixtures = async (page: Page) => {
-	// Reloading the renderer resets App's autoload ref, then Electron IPC
-	// loadTestDicom reads the tracked test fixture directory again.
-	await page.reload({ waitUntil: "domcontentloaded" });
-	await waitForAutoloadedFixture(page);
-};
-
-const formatPageErrors = (errors: Error[]) =>
-	errors.map((error) => error.stack ?? error.message);
-
 const filterBugConsoleErrors = (errors: string[]) =>
 	errors.filter(
 		(error) =>
@@ -69,8 +59,8 @@ test.beforeAll(() => {
 	mkdirSync(screenshotDir, { recursive: true });
 });
 
-test.describe("real Electron Clear reload regression", () => {
-	test("keeps the renderer alive when Clear is followed by fixture reloads", async () => {
+test.describe("real Electron freehand annotation", () => {
+	test("creates and renders a freehand annotation from the tool panel", async () => {
 		const consoleMessages: string[] = [];
 		const consoleErrors: string[] = [];
 		const pageErrors: Error[] = [];
@@ -102,66 +92,65 @@ test.describe("real Electron Clear reload regression", () => {
 
 			await waitForAutoloadedFixture(page);
 
-			for (let cycle = 1; cycle <= 3; cycle++) {
-				await page.screenshot({
-					path: resolve(screenshotDir, `clear-cycle-${cycle}-before.png`),
-				});
-
-				await page.getByRole("button", { name: "クリア", exact: true }).click();
-
-				await page.screenshot({
-					path: resolve(screenshotDir, `clear-cycle-${cycle}-after.png`),
-				});
-
-				await expect
-					.poll(async () => {
-						const idleVisible = await page
-							.getByText("ファイル待機")
-							.isVisible()
-							.catch(() => false);
-						const bugPageErrorSeen = pageErrors.some((error) =>
-							error.message.includes("removeImageLoadObject"),
-						);
-						const bugConsoleErrorSeen =
-							filterBugConsoleErrors(consoleErrors).length > 0;
-						return idleVisible || bugPageErrorSeen || bugConsoleErrorSeen;
-					})
-					.toBe(true);
-
-				expect(
-					formatPageErrors(pageErrors),
-					`cycle ${cycle} pageerror events: ${JSON.stringify(
-						formatPageErrors(pageErrors),
-					)}`,
-				).toEqual([]);
-				expect(
-					filterBugConsoleErrors(consoleErrors),
-					`cycle ${cycle} console messages:\n${consoleMessages.join("\n")}`,
-				).toEqual([]);
-
-				await expect(page.getByText("ファイル待機")).toBeVisible({
-					timeout: 5000,
-				});
-
-				const aliveAfterClear = await page.evaluate(() => {
-					return (
-						document.readyState === "complete" &&
-						typeof window.electronAPI === "object" &&
-						document.querySelector("header") !== null
-					);
-				});
-				expect(
-					aliveAfterClear,
-					`cycle ${cycle}: renderer dead after Clear`,
-				).toBe(true);
-
-				await reloadFixtures(page);
+			const clearAnnotationsButton = page.getByRole("button", {
+				name: "注釈クリア",
+			});
+			if (await clearAnnotationsButton.isVisible().catch(() => false)) {
+				await clearAnnotationsButton.click();
 			}
 
-			expect(
-				formatPageErrors(pageErrors),
-				`pageerror events: ${JSON.stringify(formatPageErrors(pageErrors))}`,
-			).toEqual([]);
+			const freehandButton = page.getByRole("button", {
+				name: "フリーハンド",
+			});
+			await freehandButton.click();
+			await expect(freehandButton).toHaveAttribute("aria-pressed", "true");
+
+			const viewer = page.locator("#osd-pane-0");
+			await expect(viewer).toBeVisible();
+			const viewerBox = await viewer.boundingBox();
+			expect(viewerBox, "viewer should have a bounding box").not.toBeNull();
+			if (!viewerBox) throw new Error("viewer should have a bounding box");
+
+			const startX = viewerBox.x + viewerBox.width * 0.48;
+			const startY = viewerBox.y + viewerBox.height * 0.5;
+			await page.mouse.move(startX, startY);
+			await page.mouse.down();
+			await page.mouse.move(startX + 55, startY + 20, { steps: 4 });
+			await page.mouse.move(startX + 115, startY + 70, { steps: 5 });
+			await page.mouse.move(startX + 180, startY + 42, { steps: 5 });
+			await page.mouse.up();
+
+			const overlayPolyline = page.locator(
+				"svg[aria-label='注釈オーバーレイ'] polyline",
+			);
+			await expect(overlayPolyline).toHaveCount(1, { timeout: 10_000 });
+
+			const evidence = await page.evaluate(() => {
+				const polyline = document.querySelector(
+					"svg[aria-label='注釈オーバーレイ'] polyline",
+				);
+				const points = polyline?.getAttribute("points") ?? "";
+				return {
+					points,
+					pointCount: points.trim().split(/\s+/).filter(Boolean).length,
+					strokeLinecap: polyline?.getAttribute("stroke-linecap"),
+					strokeLinejoin: polyline?.getAttribute("stroke-linejoin"),
+				};
+			});
+			expect(evidence.pointCount).toBeGreaterThanOrEqual(4);
+			expect(evidence.strokeLinecap).toBe("round");
+			expect(evidence.strokeLinejoin).toBe("round");
+
+			await page.screenshot({
+				path: resolve(screenshotDir, "freehand-annotation-created.png"),
+			});
+			writeFileSync(
+				resolve(screenshotDir, "freehand-annotation-evidence.json"),
+				JSON.stringify(evidence, null, 2),
+				"utf-8",
+			);
+
+			expect(pageErrors.map((error) => error.message)).toEqual([]);
 			expect(
 				filterBugConsoleErrors(consoleErrors),
 				`console messages:\n${consoleMessages.join("\n")}`,

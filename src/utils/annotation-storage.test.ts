@@ -51,6 +51,19 @@ describe("annotation-storage", () => {
 				radiusX: 12,
 				radiusY: 18,
 			},
+			{
+				id: "freehand-1",
+				type: "freehand",
+				sopInstanceUid,
+				color: "#00aaff",
+				label: "輪郭",
+				points: [
+					{ x: 5, y: 6 },
+					{ x: 10, y: 12 },
+					{ x: 20, y: 24 },
+				],
+				strokeWidth: 3,
+			},
 		];
 		const measurements: Measurement[] = [
 			{
@@ -92,7 +105,7 @@ describe("annotation-storage", () => {
 			studyInstanceUid,
 			savedAt: "2026-01-02T03:04:05.000Z",
 		});
-		expect(payload.annotations).toHaveLength(4);
+		expect(payload.annotations).toHaveLength(5);
 		expect(payload.measurements).toHaveLength(2);
 		expect(payload.annotations[0]).toMatchObject({
 			type: "text",
@@ -106,6 +119,16 @@ describe("annotation-storage", () => {
 			sopInstanceUid,
 			distanceMm: 5,
 			color: DEFAULT_DISTANCE_COLOR,
+		});
+		expect(payload.annotations[4]).toMatchObject({
+			type: "freehand",
+			sopInstanceUid,
+			points: [
+				{ x: 5, y: 6 },
+				{ x: 10, y: 12 },
+				{ x: 20, y: 24 },
+			],
+			strokeWidth: 3,
 		});
 		expect(restored).toEqual({
 			studyInstanceUid,
@@ -149,6 +172,46 @@ describe("annotation-storage", () => {
 			sopInstanceUid: "1.2.3.4",
 			color: DEFAULT_ANNOTATION_COLOR,
 			label: "memo",
+		});
+	});
+
+	it("点が2つ未満のフリーハンド注釈は保存・復元しない", () => {
+		const payload = createAnnotationStoragePayload({
+			studyInstanceUid: "1.2.3",
+			fallbackSopInstanceUid: "1.2.3.4",
+			annotations: [
+				{
+					id: "freehand-short",
+					type: "freehand",
+					points: [{ x: 1, y: 2 }],
+				},
+			],
+			measurements: [],
+			savedAt: "2026-01-02T03:04:05.000Z",
+		});
+
+		expect(payload.annotations).toEqual([]);
+
+		expect(
+			deserializeAnnotationStorage("1.2.3", {
+				version: 1,
+				studyInstanceUid: "1.2.3",
+				annotations: [
+					{
+						id: "freehand-short",
+						type: "freehand",
+						sopInstanceUid: "1.2.3.4",
+						color: DEFAULT_ANNOTATION_COLOR,
+						label: "",
+						points: [{ x: 1, y: 2 }],
+					},
+				],
+				measurements: [],
+			}),
+		).toEqual({
+			studyInstanceUid: "1.2.3",
+			annotations: [],
+			measurements: [],
 		});
 	});
 

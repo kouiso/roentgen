@@ -20,6 +20,7 @@ import {
 	Minus,
 	Move,
 	Pause,
+	PencilLine,
 	Play,
 	Plus,
 	Printer,
@@ -80,6 +81,7 @@ export type ToolPanelProps = {
 	onStartArrowTool: () => void;
 	onStartRectTool: () => void;
 	onStartEllipseTool: () => void;
+	onStartFreehandTool: () => void;
 	onClearAnnotations: () => void;
 	hasAnnotations: boolean;
 	isInverted: boolean;
@@ -239,6 +241,7 @@ export const ToolPanel = ({
 	onStartArrowTool,
 	onStartRectTool,
 	onStartEllipseTool,
+	onStartFreehandTool,
 	onClearAnnotations,
 	hasAnnotations,
 	isInverted,
@@ -340,6 +343,12 @@ export const ToolPanel = ({
 						label="楕円ROI"
 						active={activeAnnotationTool === "ellipse"}
 						onClick={onStartEllipseTool}
+					/>
+					<ModeButton
+						icon={<PencilLine size={ICON} />}
+						label="フリーハンド"
+						active={activeAnnotationTool === "freehand"}
+						onClick={onStartFreehandTool}
 					/>
 					{hasAnnotations && (
 						<ActionButton

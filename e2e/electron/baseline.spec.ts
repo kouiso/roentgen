@@ -13,6 +13,7 @@ import {
 	type RendererDevServer,
 	repoRoot,
 	startRendererDevServer,
+	testDicomFixtureDirPath,
 } from "./helpers";
 
 const screenshotDir = resolve(repoRoot, "test-results");
@@ -116,6 +117,7 @@ test.describe("real Electron baseline regression", () => {
 					...process.env,
 					ELECTRON_RUN_AS_NODE: "",
 					NODE_ENV: "development",
+					ROENTGEN_TEST_DICOM_DIR: testDicomFixtureDirPath,
 					VITE_DEV_SERVER_URL: rendererServer.url,
 				},
 			});

@@ -22,7 +22,7 @@ const makeProps = (
 	onToggleOverlay: vi.fn(),
 	showDirection: true,
 	onToggleDirection: vi.fn(),
-	species: "human",
+	species: "equine",
 	onToggleSpecies: vi.fn(),
 	onSetWwWc: vi.fn(),
 	isPlaying: false,
@@ -37,6 +37,7 @@ const makeProps = (
 	onStartArrowTool: vi.fn(),
 	onStartRectTool: vi.fn(),
 	onStartEllipseTool: vi.fn(),
+	onStartFreehandTool: vi.fn(),
 	onClearAnnotations: vi.fn(),
 	hasAnnotations: false,
 	isInverted: false,
@@ -78,5 +79,30 @@ describe("ToolPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
 
 		expect(onClearAll).toHaveBeenCalledOnce();
+	});
+
+	it("starts the freehand annotation tool from the annotation controls", () => {
+		const onStartFreehandTool = vi.fn();
+		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "フリーハンド" }));
+
+		expect(onStartFreehandTool).toHaveBeenCalledOnce();
+	});
+
+	it("marks the freehand annotation tool as active", () => {
+		render(
+			<ToolPanel
+				{...makeProps({
+					activeAnnotationTool: "freehand",
+				})}
+			/>,
+		);
+
+		expect(
+			screen
+				.getByRole("button", { name: "フリーハンド" })
+				.getAttribute("aria-pressed"),
+		).toBe("true");
 	});
 });

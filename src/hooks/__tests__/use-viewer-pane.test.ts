@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { useEffect, useMemo, useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DicomFileInfo } from "@/types/dicom";
 import { useViewerPane } from "../use-viewer-pane";
 
@@ -83,6 +83,7 @@ vi.mock("../use-open-sea-dragon", async () => {
 				}),
 				[],
 			);
+			const getViewport = useCallback(() => viewport, [viewport]);
 			useEffect(() => {
 				onViewerCreated?.({
 					removeAllHandlers: vi.fn(),
@@ -99,7 +100,7 @@ vi.mock("../use-open-sea-dragon", async () => {
 
 			return {
 				initViewer: vi.fn(),
-				getViewport: () => viewport,
+				getViewport,
 				tileReady: true,
 				tileCanvasRef: { current: null },
 			};
@@ -213,6 +214,10 @@ describe("useViewerPane", () => {
 		calculateImageDirectionMock.mockClear();
 	});
 
+	afterEach(() => {
+		document.body.innerHTML = "";
+	});
+
 	it("BUG-1: passes current WW to mouse interaction scaling", async () => {
 		const file = makeFileInfo("roentgen:/test/ww.dcm");
 		renderHook(() => useViewerPane("pane-0", [file]));
@@ -301,5 +306,88 @@ describe("useViewerPane", () => {
 			file.imageOrientationPatient,
 			"human",
 		);
+	});
+
+	it("freehand annotation mode records pointer drag without re-enabling mouse pan/zoom", async () => {
+		const file = makeFileInfo("roentgen:/test/freehand.dcm");
+		file.rows = 100;
+		file.columns = 100;
+		const container = document.createElement("div");
+		container.id = "osd-pane-0";
+		Object.defineProperty(container, "getBoundingClientRect", {
+			value: () => DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 200 }),
+		});
+		container.setPointerCapture = vi.fn();
+		container.releasePointerCapture = vi.fn();
+		document.body.appendChild(container);
+
+		const { result } = renderHook(() => useViewerPane("pane-0", [file]));
+
+		await waitFor(() => {
+			expect(result.current.isOsdReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.controlPanelProps.onStartFreehandTool();
+		});
+
+		await waitFor(() => {
+			expect(result.current.activeAnnotationTool).toBe("freehand");
+		});
+		expect(useMouseInteractionMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({ enabled: false }),
+		);
+
+		fireEvent.pointerDown(container, {
+			button: 0,
+			clientX: 100,
+			clientY: 100,
+			isPrimary: true,
+			pointerId: 7,
+		});
+		await waitFor(() => {
+			expect(result.current.activeAnnotationPoints).toEqual([{ x: 0, y: 0 }]);
+		});
+		fireEvent.pointerMove(container, {
+			clientX: 120,
+			clientY: 110,
+			pointerId: 7,
+		});
+		await waitFor(() => {
+			expect(result.current.activeAnnotationPoints).toHaveLength(2);
+		});
+		fireEvent.pointerMove(container, {
+			clientX: 150,
+			clientY: 130,
+			pointerId: 7,
+		});
+		await waitFor(() => {
+			expect(result.current.activeAnnotationPoints).toHaveLength(3);
+		});
+		fireEvent.pointerUp(container, {
+			clientX: 170,
+			clientY: 140,
+			pointerId: 7,
+		});
+
+		await waitFor(() => {
+			expect(result.current.allAnnotations).toHaveLength(1);
+		});
+		const annotation = result.current.allAnnotations[0];
+		expect(annotation.type).toBe("freehand");
+		if (annotation.type === "freehand") {
+			expect(annotation.sopInstanceUid).toBe("roentgen:/test/freehand.dcm");
+			expect(annotation.points).toHaveLength(4);
+			expect(annotation.points[0]).toEqual({ x: 0, y: 0 });
+			expect(annotation.points[1]?.x).toBeCloseTo(10);
+			expect(annotation.points[1]?.y).toBeCloseTo(5);
+			expect(annotation.points[2]?.x).toBeCloseTo(25);
+			expect(annotation.points[2]?.y).toBeCloseTo(15);
+			expect(annotation.points[3]?.x).toBeCloseTo(35);
+			expect(annotation.points[3]?.y).toBeCloseTo(20);
+		}
+		expect(result.current.activeAnnotationPoints).toEqual([]);
+		expect(container.setPointerCapture).toHaveBeenCalledWith(7);
+		expect(container.releasePointerCapture).toHaveBeenCalledWith(7);
 	});
 });

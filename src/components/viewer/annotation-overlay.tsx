@@ -1,4 +1,4 @@
-// 注釈SVGオーバーレイ — テキスト・矢印・ROIの描画
+// 注釈SVGオーバーレイ — テキスト・矢印・ROI・フリーハンドの描画
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Annotation, AnnotationPoint } from "@/types/annotation";
@@ -230,6 +230,42 @@ const EllipseAnnotationView = ({
 	);
 };
 
+const FreehandAnnotationView = ({
+	annotation,
+	convert,
+	onRemove,
+}: {
+	annotation: Annotation & { type: "freehand" };
+	convert: (p: AnnotationPoint) => AnnotationPoint | null;
+	onRemove: () => void;
+}) => {
+	const points = annotation.points
+		.map(convert)
+		.filter(Boolean) as AnnotationPoint[];
+	if (points.length < 2) return null;
+
+	const color = annotation.color ?? ANNOTATION_COLOR;
+	const lastPoint = points[points.length - 1] as AnnotationPoint;
+
+	return (
+		<g className="group">
+			<polyline
+				points={points.map((p) => `${p.x},${p.y}`).join(" ")}
+				fill="none"
+				stroke={color}
+				strokeWidth={annotation.strokeWidth ?? 2}
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
+			<DeleteButton
+				x={lastPoint.x + 10}
+				y={lastPoint.y - 10}
+				onRemove={onRemove}
+			/>
+		</g>
+	);
+};
+
 const ActivePointsOverlay = ({
 	points,
 	convert,
@@ -244,6 +280,17 @@ const ActivePointsOverlay = ({
 
 	return (
 		<g>
+			{converted.length >= 2 && (
+				<polyline
+					points={converted.map((p) => `${p.x},${p.y}`).join(" ")}
+					fill="none"
+					stroke={ANNOTATION_COLOR}
+					strokeWidth={2}
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					strokeDasharray={converted.length === 2 ? "4,4" : undefined}
+				/>
+			)}
 			{converted.map((p) => (
 				<circle
 					key={`${p.x}:${p.y}`}
@@ -255,17 +302,6 @@ const ActivePointsOverlay = ({
 					strokeWidth={2}
 				/>
 			))}
-			{converted.length >= 2 && (
-				<line
-					x1={converted[0]?.x}
-					y1={converted[0]?.y}
-					x2={converted[1]?.x}
-					y2={converted[1]?.y}
-					stroke={ANNOTATION_COLOR}
-					strokeWidth={1}
-					strokeDasharray="4,4"
-				/>
-			)}
 		</g>
 	);
 };
@@ -473,6 +509,15 @@ export const AnnotationOverlay = ({
 									annotation={annotation}
 									convert={convert}
 									onRemove={() => handleRemoveAnnotation(annotation)}
+								/>
+							);
+						case "freehand":
+							return (
+								<FreehandAnnotationView
+									key={annotation.id}
+									annotation={annotation}
+									convert={convert}
+									onRemove={() => onRemoveAnnotation(annotation.id)}
 								/>
 							);
 					}

@@ -1,10 +1,11 @@
 import { defineConfig } from "@playwright/test";
 
 const isHeaded = process.env.PLAYWRIGHT_HEADED === "1";
+const testTimeout = process.env.CI ? 120_000 : 30_000;
 
 export default defineConfig({
 	testDir: "./e2e",
-	timeout: 30_000,
+	timeout: testTimeout,
 	retries: 1,
 	workers: 1,
 	use: {

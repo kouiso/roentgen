@@ -105,6 +105,43 @@ describe("useAnnotation", () => {
 		}
 	});
 
+	it("creates a freehand annotation from drag points and filters tiny moves", () => {
+		const { result } = renderHook(() => useAnnotation("sop-freehand"));
+
+		act(() => result.current.startFreehandTool());
+		act(() => result.current.beginFreehand({ x: 0, y: 0 }));
+		act(() => result.current.appendFreehandPoint({ x: 0.5, y: 0 }));
+		act(() => result.current.appendFreehandPoint({ x: 2, y: 0 }));
+		act(() => result.current.appendFreehandPoint({ x: 2, y: 3 }));
+		act(() => result.current.finishFreehand());
+
+		expect(result.current.activeAnnotationTool).toBe("freehand");
+		expect(result.current.activePoints).toEqual([]);
+		expect(result.current.annotations).toHaveLength(1);
+		const annotation = result.current.annotations[0];
+		expect(annotation.type).toBe("freehand");
+		if (annotation.type === "freehand") {
+			expect(annotation.sopInstanceUid).toBe("sop-freehand");
+			expect(annotation.strokeWidth).toBe(2);
+			expect(annotation.points).toEqual([
+				{ x: 0, y: 0 },
+				{ x: 2, y: 0 },
+				{ x: 2, y: 3 },
+			]);
+		}
+	});
+
+	it("does not create a freehand annotation from a single point", () => {
+		const { result } = renderHook(() => useAnnotation());
+
+		act(() => result.current.startFreehandTool());
+		act(() => result.current.beginFreehand({ x: 10, y: 10 }));
+		act(() => result.current.finishFreehand());
+
+		expect(result.current.annotations).toEqual([]);
+		expect(result.current.activePoints).toEqual([]);
+	});
+
 	it("removeAnnotation deletes a single annotation by id", () => {
 		const { result } = renderHook(() => useAnnotation());
 

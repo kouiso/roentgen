@@ -129,6 +129,55 @@ describe("AnnotationOverlay", () => {
 		expect(ellipse?.getAttribute("stroke-dasharray")).toBe("6,4");
 	});
 
+	it("renders persisted freehand annotations as rounded polylines", () => {
+		const onRemoveAnnotation = vi.fn();
+		const annotations: Annotation[] = [
+			{
+				id: "a-freehand",
+				type: "freehand",
+				color: "#00aaff",
+				points: [
+					{ x: 10, y: 10 },
+					{ x: 20, y: 30 },
+					{ x: 40, y: 35 },
+				],
+				strokeWidth: 3,
+			},
+		];
+		const { container } = renderOverlay({
+			annotations,
+			viewport: makeViewport(),
+			onRemoveAnnotation,
+		});
+
+		const polyline = container.querySelector("polyline");
+		expect(polyline?.getAttribute("points")).toBe("20,20 40,60 80,70");
+		expect(polyline?.getAttribute("fill")).toBe("none");
+		expect(polyline?.getAttribute("stroke")).toBe("#00aaff");
+		expect(polyline?.getAttribute("stroke-width")).toBe("3");
+		expect(polyline?.getAttribute("stroke-linecap")).toBe("round");
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈削除" }));
+		expect(onRemoveAnnotation).toHaveBeenCalledWith("a-freehand");
+	});
+
+	it("renders active freehand points as a live polyline", () => {
+		const { container } = renderOverlay({
+			annotations: [],
+			activePoints: [
+				{ x: 10, y: 10 },
+				{ x: 20, y: 30 },
+				{ x: 40, y: 35 },
+			],
+			viewport: makeViewport(),
+		});
+
+		const polyline = container.querySelector("polyline");
+		expect(polyline?.getAttribute("points")).toBe("20,20 40,60 80,70");
+		expect(polyline?.getAttribute("stroke")).toBe("#FFD700");
+		expect(polyline?.getAttribute("stroke-dasharray")).toBeNull();
+	});
+
 	it("subscribes to OSD viewport events without polling", () => {
 		const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 		const viewport = makeViewport();
