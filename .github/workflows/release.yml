@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     name: Verify
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LINUX }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
   build-mac:
     name: Build (macOS)
     needs: verify
-    runs-on: macos-latest
+    runs-on: ${{ vars.RUNNER_MACOS }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +93,7 @@ jobs:
   release-linux:
     name: Build (Linux)
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LINUX }}
     steps:
       - uses: actions/checkout@v4
 
