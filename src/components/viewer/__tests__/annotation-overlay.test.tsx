@@ -235,6 +235,24 @@ describe("AnnotationOverlay", () => {
 		expect(onCancelPendingText).toHaveBeenCalledOnce();
 	});
 
+	it("does not submit pending text while IME composition is active", () => {
+		const onSubmitTextAnnotation = vi.fn();
+
+		renderOverlay({
+			annotations: [],
+			pendingTextPosition: { x: 10, y: 20 },
+			viewport: makeViewport(),
+			onSubmitTextAnnotation,
+		});
+
+		const input = screen.getByRole("textbox", { name: "注釈テキスト" });
+		fireEvent.change(input, { target: { value: "蹄骨" } });
+		fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+		fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+		expect(onSubmitTextAnnotation).not.toHaveBeenCalled();
+	});
+
 	it("does not remove an annotation when delete confirmation is canceled", () => {
 		vi.spyOn(window, "confirm").mockReturnValue(false);
 		const onRemoveAnnotation = vi.fn();

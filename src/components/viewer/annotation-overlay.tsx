@@ -338,6 +338,9 @@ const PendingTextInput = ({
 				onChange={(e) => setValue(e.currentTarget.value)}
 				onKeyDown={(e) => {
 					if (e.key === "Enter") {
+						if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) {
+							return;
+						}
 						e.preventDefault();
 						onSubmit(value);
 					} else if (e.key === "Escape") {
