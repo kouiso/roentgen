@@ -1,10 +1,27 @@
 // @vitest-environment jsdom
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
+const googleDriveMock = vi.hoisted(() => ({
+	auth: { status: "unauthenticated" } as {
+		status: "idle" | "checking" | "authenticated" | "unauthenticated";
+		email?: string;
+		error?: string;
+	},
+	sync: { status: "idle" } as {
+		status: "idle" | "listing" | "downloading";
+		progress?: { current: number; total: number };
+		fileCount?: number;
+	},
+	credentialsAvailable: true as boolean | null,
+	login: vi.fn(),
+	logout: vi.fn(),
+	syncToSeed: vi.fn(),
+	available: false,
+}));
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
@@ -19,15 +36,7 @@ vi.mock("../hooks/use-dicom-loader", () => ({
 }));
 
 vi.mock("../hooks/use-google-drive", () => ({
-	useGoogleDrive: () => ({
-		auth: { status: "unauthenticated" },
-		sync: { status: "idle" },
-		credentialsAvailable: true,
-		login: vi.fn(),
-		logout: vi.fn(),
-		syncToSeed: vi.fn(),
-		available: false,
-	}),
+	useGoogleDrive: () => googleDriveMock,
 }));
 
 vi.mock("../components/crash-reporter-toggle", () => ({
@@ -48,6 +57,13 @@ describe("App Wave 4 polish", () => {
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
 		loadFilesMock.mockReset();
+		googleDriveMock.auth = { status: "unauthenticated" };
+		googleDriveMock.sync = { status: "idle" };
+		googleDriveMock.credentialsAvailable = true;
+		googleDriveMock.login.mockReset();
+		googleDriveMock.logout.mockReset();
+		googleDriveMock.syncToSeed.mockReset();
+		googleDriveMock.available = false;
 		loadTestDicomMock.mockResolvedValue([
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
@@ -87,5 +103,19 @@ describe("App Wave 4 polish", () => {
 		await waitFor(() => {
 			expect(loadTestDicomMock).toHaveBeenCalledTimes(1);
 		});
+	});
+
+	it("shows Google Drive auth errors in the header", () => {
+		googleDriveMock.available = true;
+		googleDriveMock.auth = {
+			status: "unauthenticated",
+			error: "access_denied",
+		};
+
+		render(<App />);
+
+		expect(screen.getByRole("alert").textContent).toBe(
+			"Driveエラー: access_denied",
+		);
 	});
 });

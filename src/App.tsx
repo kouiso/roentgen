@@ -1,4 +1,11 @@
-import { CircleDot, Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
+import {
+	AlertTriangle,
+	CircleDot,
+	Cloud,
+	CloudOff,
+	Loader2,
+	LogOut,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CrashReporterToggle } from "./components/crash-reporter-toggle";
 import { ErrorBoundary } from "./components/error-boundary";
@@ -36,6 +43,7 @@ export const App = () => {
 		syncToSeed,
 		available,
 	} = useGoogleDrive(handleFilesLoaded);
+	const driveErrorText = auth.error?.trim() ?? "";
 
 	useEffect(() => {
 		const frameId = requestAnimationFrame(() => setViewerReady(true));
@@ -178,6 +186,18 @@ export const App = () => {
 								<CloudOff size={11} className="text-zinc-500" />
 								<span className="font-sans">Drive接続</span>
 							</button>
+						)}
+						{driveErrorText && (
+							<span
+								role="alert"
+								className="chip max-w-[20rem] border-rose-400/20 text-rose-300"
+								title={`Google Driveエラー: ${driveErrorText}`}
+							>
+								<AlertTriangle size={11} className="shrink-0 text-rose-400" />
+								<span className="truncate font-sans">
+									Driveエラー: {driveErrorText}
+								</span>
+							</span>
 						)}
 					</div>
 				)}
