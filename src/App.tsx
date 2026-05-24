@@ -112,7 +112,25 @@ export const App = () => {
 		}
 	})();
 
+	const statusChipClassName = (() => {
+		switch (loadState.status) {
+			case "idle":
+			case "cancelled":
+				return "chip max-w-[min(18rem,45vw)]";
+			case "loading":
+				return "chip max-w-[min(18rem,45vw)] border-sky-400/20 bg-sky-400/[0.06] text-sky-200";
+			case "loaded":
+				return skippedCount > 0
+					? "chip max-w-[min(18rem,45vw)] border-amber-400/25 bg-amber-400/[0.06] text-amber-200"
+					: "chip max-w-[min(18rem,45vw)] border-sky-400/20 bg-sky-400/[0.04] text-sky-200";
+			case "error":
+				return "chip max-w-[min(18rem,45vw)] border-rose-400/25 bg-rose-400/[0.08] font-medium text-rose-200";
+		}
+	})();
+
 	const isSyncing = sync.status !== "idle";
+	const driveError =
+		available && auth.status !== "checking" && auth.error ? auth.error : null;
 
 	return (
 		<div className="relative flex h-screen w-screen flex-col overflow-hidden">
@@ -184,9 +202,22 @@ export const App = () => {
 
 				<CrashReporterToggle />
 
-				<span className="ml-auto chip">
+				{driveError && (
+					<span
+						className="chip max-w-[min(16rem,32vw)] border-rose-400/25 bg-rose-400/[0.08] font-medium text-rose-200"
+						role="alert"
+						title={`Google Drive: ${driveError}`}
+					>
+						<CloudOff size={11} className="shrink-0 text-rose-300" />
+						<span className="min-w-0 truncate font-sans">
+							Driveエラー: {driveError}
+						</span>
+					</span>
+				)}
+
+				<span className={`ml-auto ${statusChipClassName}`} title={statusText}>
 					<CircleDot size={11} className={statusDotColor} />
-					<span className="font-sans">{statusText}</span>
+					<span className="min-w-0 truncate font-sans">{statusText}</span>
 				</span>
 				{loadState.status === "loading" && !loadState.cancelRequested && (
 					<button

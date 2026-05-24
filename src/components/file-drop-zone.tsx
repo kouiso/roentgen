@@ -221,7 +221,11 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 			</div>
 
 			{readErrors.length > 0 && (
-				<div className="absolute bottom-6 left-1/2 w-full max-w-md -translate-x-1/2 rounded-lg border border-rose-500/20 bg-rose-950/80 px-4 py-3 backdrop-blur">
+				<div
+					className="absolute bottom-6 left-1/2 w-full max-w-md -translate-x-1/2 rounded-lg border border-rose-500/20 bg-rose-950/80 px-4 py-3 backdrop-blur"
+					role="alert"
+					aria-live="assertive"
+				>
 					<p className="mb-1 font-sans text-[12px] font-medium text-rose-300">
 						ファイル読込エラー
 					</p>

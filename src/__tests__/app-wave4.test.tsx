@@ -1,10 +1,18 @@
 // @vitest-environment jsdom
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
+const googleDriveState = vi.hoisted(() => ({
+	auth: {
+		status: "unauthenticated" as const,
+		error: undefined as string | undefined,
+	},
+	available: false,
+	credentialsAvailable: true as boolean | null,
+}));
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
@@ -20,13 +28,13 @@ vi.mock("../hooks/use-dicom-loader", () => ({
 
 vi.mock("../hooks/use-google-drive", () => ({
 	useGoogleDrive: () => ({
-		auth: { status: "unauthenticated" },
+		auth: googleDriveState.auth,
 		sync: { status: "idle" },
-		credentialsAvailable: true,
+		credentialsAvailable: googleDriveState.credentialsAvailable,
 		login: vi.fn(),
 		logout: vi.fn(),
 		syncToSeed: vi.fn(),
-		available: false,
+		available: googleDriveState.available,
 	}),
 }));
 
@@ -48,6 +56,9 @@ describe("App Wave 4 polish", () => {
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
 		loadFilesMock.mockReset();
+		googleDriveState.auth = { status: "unauthenticated", error: undefined };
+		googleDriveState.available = false;
+		googleDriveState.credentialsAvailable = true;
 		loadTestDicomMock.mockResolvedValue([
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
@@ -87,5 +98,19 @@ describe("App Wave 4 polish", () => {
 		await waitFor(() => {
 			expect(loadTestDicomMock).toHaveBeenCalledTimes(1);
 		});
+	});
+
+	it("Google Driveエラーをヘッダーで表示する", () => {
+		googleDriveState.available = true;
+		googleDriveState.auth = {
+			status: "unauthenticated",
+			error: "access_denied",
+		};
+
+		render(<App />);
+
+		const alert = screen.getByRole("alert");
+		expect(alert.textContent).toContain("Driveエラー: access_denied");
+		expect(alert.getAttribute("title")).toBe("Google Drive: access_denied");
 	});
 });
