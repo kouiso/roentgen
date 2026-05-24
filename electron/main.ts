@@ -5,6 +5,8 @@ import {
 	readdir,
 	readFile,
 	realpath,
+	rename,
+	unlink,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -174,6 +176,29 @@ const getAnnotationStorageFilePath = (studyUid: string) =>
 const assertValidStudyUid = (studyUid: string): void => {
 	if (!DICOM_UID_PATTERN.test(studyUid)) {
 		throw new Error("StudyInstanceUIDが不正です");
+	}
+};
+
+export const saveAnnotationStorageFile = async (
+	studyUid: string,
+	data: unknown,
+	storageDirPath = getAnnotationStorageDirPath(),
+): Promise<string> => {
+	assertValidStudyUid(studyUid);
+	await mkdir(storageDirPath, { recursive: true });
+
+	const finalPath = join(storageDirPath, `${studyUid}.json`);
+	const tempPath = join(
+		storageDirPath,
+		`.${studyUid}.${process.pid}.${Date.now()}.tmp`,
+	);
+	try {
+		await writeFile(tempPath, JSON.stringify(data, null, 2), "utf-8");
+		await rename(tempPath, finalPath);
+		return finalPath;
+	} catch (err) {
+		await unlink(tempPath).catch(() => undefined);
+		throw err;
 	}
 };
 
@@ -617,13 +642,7 @@ ipcMain.handle(
 ipcMain.handle(
 	"save-annotations",
 	async (_event, studyUid: string, data: unknown): Promise<boolean> => {
-		assertValidStudyUid(studyUid);
-		await mkdir(getAnnotationStorageDirPath(), { recursive: true });
-		await writeFile(
-			getAnnotationStorageFilePath(studyUid),
-			JSON.stringify(data, null, 2),
-			"utf-8",
-		);
+		await saveAnnotationStorageFile(studyUid, data);
 		return true;
 	},
 );
