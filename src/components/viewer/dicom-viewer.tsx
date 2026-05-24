@@ -17,6 +17,7 @@ import {
 	deserializeAnnotationStorage,
 	getDicomFileSopInstanceUid,
 } from "@/utils/annotation-storage";
+import { runBooleanExportWithFallback } from "@/utils/export-fallback";
 import {
 	buildPrintImageMetadata,
 	createPrintImageHtml,
@@ -89,6 +90,13 @@ const openBrowserPrintWindow = (html: string) => {
 		printWindow.focus();
 		printWindow.print();
 	}, 100);
+};
+
+const saveScreenshotInBrowser = (dataUrl: string) => {
+	const link = document.createElement("a");
+	link.download = `roentgen-${Date.now()}.png`;
+	link.href = dataUrl;
+	link.click();
 };
 
 export const DicomViewer = ({
@@ -320,12 +328,11 @@ export const DicomViewer = ({
 			}
 		).electronAPI;
 		if (api?.saveScreenshot) {
-			api.saveScreenshot(dataUrl);
+			void runBooleanExportWithFallback(api.saveScreenshot(dataUrl), () =>
+				saveScreenshotInBrowser(dataUrl),
+			);
 		} else {
-			const link = document.createElement("a");
-			link.download = `roentgen-${Date.now()}.png`;
-			link.href = dataUrl;
-			link.click();
+			saveScreenshotInBrowser(dataUrl);
 		}
 	}, [activePane.tileCanvasRef]);
 
@@ -335,13 +342,15 @@ export const DicomViewer = ({
 		if (!canvas || !activePane.currentFile) return;
 		const dataUrl = canvas.toDataURL("image/png");
 		const metadata = buildPrintImageMetadata(activePane.currentFile);
+		const html = createPrintImageHtml(dataUrl, metadata);
 		if (window.electronAPI?.printImage) {
-			window.electronAPI.printImage(dataUrl, metadata).catch(() => {
-				openBrowserPrintWindow(createPrintImageHtml(dataUrl, metadata));
-			});
+			void runBooleanExportWithFallback(
+				window.electronAPI.printImage(dataUrl, metadata),
+				() => openBrowserPrintWindow(html),
+			);
 			return;
 		}
-		openBrowserPrintWindow(createPrintImageHtml(dataUrl, metadata));
+		openBrowserPrintWindow(html);
 	}, [activePane.currentFile, activePane.tileCanvasRef]);
 
 	// WW/WCプリセット適用（アクティブペイン）
