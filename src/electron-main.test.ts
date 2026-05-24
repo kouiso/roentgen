@@ -59,6 +59,20 @@ vi.mock("../electron/sentry", () => ({
 }));
 
 describe("electron main read-file path guard", () => {
+	it("rejects invalid IPC path payloads before resolving files", async () => {
+		const { resolveAllowedReadPath } = await import("../electron/main");
+
+		await expect(resolveAllowedReadPath(undefined, [])).rejects.toThrow(
+			"ファイルパスが不正です",
+		);
+		await expect(resolveAllowedReadPath("", [])).rejects.toThrow(
+			"ファイルパスが不正です",
+		);
+		await expect(resolveAllowedReadPath("image.dcm\0.txt", [])).rejects.toThrow(
+			"ファイルパスが不正です",
+		);
+	});
+
 	it("S1/L1: allows only real paths inside an allowed root", async () => {
 		const { resolveAllowedReadPath } = await import("../electron/main");
 		const root = await mkdtemp(join(tmpdir(), "roentgen-allowed-"));
