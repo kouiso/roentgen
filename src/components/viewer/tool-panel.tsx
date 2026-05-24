@@ -485,6 +485,7 @@ export const ToolPanel = ({
 					<div className="flex items-center gap-1 px-3">
 						<button
 							type="button"
+							aria-label="再生速度を下げる"
 							onClick={onDecreaseFps}
 							disabled={fps <= 5}
 							className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
@@ -496,6 +497,7 @@ export const ToolPanel = ({
 						</span>
 						<button
 							type="button"
+							aria-label="再生速度を上げる"
 							onClick={onIncreaseFps}
 							disabled={fps >= 30}
 							className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
