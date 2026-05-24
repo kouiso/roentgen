@@ -46,6 +46,9 @@ let mainWindow: BrowserWindow | null = null;
 const allowedPaths = new Set<string>();
 const dialogReturnedPaths = new Set<string>();
 const resolvedAllowedPathCache = new Map<string, string>();
+const pendingOpenDicomFilePaths = new Set<string>();
+
+const OPEN_DICOM_FILES_CHANNEL = "open-dicom-files";
 
 const registerAllowedPath = (filePath: string) => {
 	const resolved = resolve(filePath);
@@ -105,6 +108,46 @@ export const resolveAllowedReadPath = async (
 export const isDicomFilePath = (filePath: string): boolean => {
 	const extension = extname(filePath).toLowerCase();
 	return extension === ".dcm" || extension === ".dicom";
+};
+
+export const collectOpenDicomFilePaths = (
+	filePaths: string[],
+	cwd = process.cwd(),
+): string[] =>
+	Array.from(
+		new Set(
+			filePaths
+				.filter((filePath) => !filePath.startsWith("-"))
+				.map((filePath) => resolve(cwd, filePath))
+				.filter(isDicomFilePath),
+		),
+	);
+
+const sendOpenDicomFiles = (filePaths: string[]): void => {
+	const dicomFilePaths = collectOpenDicomFilePaths(filePaths);
+	if (dicomFilePaths.length === 0) return;
+
+	for (const filePath of dicomFilePaths) {
+		registerAllowedPath(filePath);
+	}
+
+	if (!mainWindow || mainWindow.isDestroyed()) {
+		for (const filePath of dicomFilePaths) {
+			pendingOpenDicomFilePaths.add(filePath);
+		}
+		return;
+	}
+
+	mainWindow.webContents.send(OPEN_DICOM_FILES_CHANNEL, dicomFilePaths);
+};
+
+const flushPendingOpenDicomFiles = (): void => {
+	if (!mainWindow || mainWindow.isDestroyed()) return;
+	const filePaths = Array.from(pendingOpenDicomFilePaths);
+	pendingOpenDicomFilePaths.clear();
+	if (filePaths.length > 0) {
+		mainWindow.webContents.send(OPEN_DICOM_FILES_CHANNEL, filePaths);
+	}
 };
 
 export const findDicomFilePathsRecursive = async (
@@ -412,6 +455,8 @@ const createWindow = async () => {
 	} else {
 		mainWindow.loadFile(join(__dirname, "../dist/index.html"));
 	}
+
+	mainWindow.webContents.once("did-finish-load", flushPendingOpenDicomFiles);
 };
 
 // Google Drive — 遅延読込でIPC登録
@@ -497,6 +542,7 @@ app.whenReady().then(async () => {
 
 	await createWindow();
 	log.info("Window created");
+	sendOpenDicomFiles(process.argv.slice(1));
 	registerGdriveHandlers().catch((err) =>
 		log.error("[gdrive] handler registration failed:", err),
 	);
@@ -516,6 +562,11 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
 	if (mainWindow) saveWindowStateSync(mainWindow, lastWwwc);
+});
+
+app.on("open-file", (event, filePath) => {
+	event.preventDefault();
+	sendOpenDicomFiles([filePath]);
 });
 
 ipcMain.handle("select-dicom-files", async () => {

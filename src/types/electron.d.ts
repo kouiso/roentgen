@@ -22,6 +22,7 @@ interface ElectronAPI {
 	selectDicomDirectory: () => Promise<string[]>;
 	readDirectoryRecursive: (directoryPath: string) => Promise<string[]>;
 	readFile: (filePath: string) => Promise<ArrayBuffer>;
+	onOpenDicomFiles?: (callback: (filePaths: string[]) => void) => () => void;
 	loadTestDicom?: () => Promise<{ path: string; data: ArrayBuffer }[] | null>;
 	saveScreenshot: (dataUrl: string) => Promise<boolean>;
 	printImage: (

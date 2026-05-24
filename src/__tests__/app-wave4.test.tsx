@@ -5,6 +5,8 @@ import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
+const readFileMock = vi.hoisted(() => vi.fn());
+const onOpenDicomFilesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
@@ -44,13 +46,22 @@ vi.mock("../components/viewer/dicom-viewer", () => ({
 
 describe("App Wave 4 polish", () => {
 	let scheduledFrame: FrameRequestCallback | null;
+	let openDicomFilesCallback: ((filePaths: string[]) => void) | null;
 
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
 		loadFilesMock.mockReset();
+		readFileMock.mockReset();
+		onOpenDicomFilesMock.mockReset();
 		loadTestDicomMock.mockResolvedValue([
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
+		readFileMock.mockResolvedValue(new ArrayBuffer(2));
+		openDicomFilesCallback = null;
+		onOpenDicomFilesMock.mockImplementation((callback) => {
+			openDicomFilesCallback = callback;
+			return vi.fn();
+		});
 		scheduledFrame = null;
 		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
 			scheduledFrame = callback;
@@ -60,6 +71,8 @@ describe("App Wave 4 polish", () => {
 		Object.defineProperty(window, "electronAPI", {
 			configurable: true,
 			value: {
+				readFile: readFileMock,
+				onOpenDicomFiles: onOpenDicomFilesMock,
 				loadTestDicom: loadTestDicomMock,
 			},
 		});
@@ -86,6 +99,25 @@ describe("App Wave 4 polish", () => {
 
 		await waitFor(() => {
 			expect(loadTestDicomMock).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it("loads DICOM files opened by the OS into the viewer", async () => {
+		render(<App />);
+
+		expect(onOpenDicomFilesMock).toHaveBeenCalledOnce();
+		const callback = openDicomFilesCallback;
+		if (!callback) throw new Error("open-file callback was not registered");
+
+		act(() => {
+			callback(["/tmp/opened-from-finder.dcm"]);
+		});
+
+		await waitFor(() => {
+			expect(readFileMock).toHaveBeenCalledWith("/tmp/opened-from-finder.dcm");
+			expect(loadFilesMock).toHaveBeenCalledWith([
+				{ path: "/tmp/opened-from-finder.dcm", data: expect.any(ArrayBuffer) },
+			]);
 		});
 	});
 });

@@ -27,6 +27,27 @@ export const App = () => {
 		[loadFiles],
 	);
 
+	const loadExternalDicomPaths = useCallback(
+		async (filePaths: string[]) => {
+			const api = window.electronAPI;
+			if (!api?.readFile) return;
+
+			const loaded: { path: string; data: ArrayBuffer }[] = [];
+			for (const filePath of filePaths) {
+				try {
+					const data = await api.readFile(filePath);
+					loaded.push({ path: filePath, data });
+				} catch (err) {
+					console.warn("[open-file]", err);
+				}
+			}
+			if (loaded.length > 0) {
+				loadFiles(loaded);
+			}
+		},
+		[loadFiles],
+	);
+
 	const {
 		auth,
 		sync,
@@ -41,6 +62,13 @@ export const App = () => {
 		const frameId = requestAnimationFrame(() => setViewerReady(true));
 		return () => cancelAnimationFrame(frameId);
 	}, []);
+
+	useEffect(() => {
+		const unsubscribe = window.electronAPI?.onOpenDicomFiles?.((filePaths) => {
+			void loadExternalDicomPaths(filePaths);
+		});
+		return () => unsubscribe?.();
+	}, [loadExternalDicomPaths]);
 
 	// dev環境でのテスト用自動読込（Electron環境のみ）
 	useEffect(() => {
