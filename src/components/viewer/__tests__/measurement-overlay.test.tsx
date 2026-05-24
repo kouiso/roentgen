@@ -123,6 +123,42 @@ describe("MeasurementOverlay", () => {
 	it("does not remove a measurement when delete confirmation is canceled", () => {
 		vi.spyOn(window, "confirm").mockReturnValue(false);
 		const onRemoveMeasurement = vi.fn();
+		const { rerender } = render(
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={onRemoveMeasurement}
+					visible={true}
+				/>
+			</div>,
+		);
+		rerender(
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={onRemoveMeasurement}
+					visible={true}
+				/>
+			</div>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "計測削除" }));
+
+		expect(window.confirm).toHaveBeenCalledWith("この計測を削除しますか？");
+		expect(onRemoveMeasurement).not.toHaveBeenCalled();
+	});
+
+	it("does not start deletion when the measurement line is clicked", () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onRemoveMeasurement = vi.fn();
 		const { container, rerender } = render(
 			<div id="osd-test">
 				<MeasurementOverlay
@@ -150,9 +186,9 @@ describe("MeasurementOverlay", () => {
 			</div>,
 		);
 
-		fireEvent.click(container.querySelector("g.cursor-pointer") as Element);
+		fireEvent.click(container.querySelector("line") as Element);
 
-		expect(window.confirm).toHaveBeenCalledWith("この計測を削除しますか？");
+		expect(confirmSpy).not.toHaveBeenCalled();
 		expect(onRemoveMeasurement).not.toHaveBeenCalled();
 	});
 
@@ -161,7 +197,7 @@ describe("MeasurementOverlay", () => {
 		const measurement = makeMeasurement();
 		const onRemoveMeasurement = vi.fn();
 		const onRestoreMeasurement = vi.fn();
-		const { container, rerender } = render(
+		const { rerender } = render(
 			<div id="osd-test">
 				<MeasurementOverlay
 					measurements={[measurement]}
@@ -190,7 +226,7 @@ describe("MeasurementOverlay", () => {
 			</div>,
 		);
 
-		fireEvent.click(container.querySelector("g.cursor-pointer") as Element);
+		fireEvent.click(screen.getByRole("button", { name: "計測削除" }));
 		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
 		expect(onRemoveMeasurement).toHaveBeenCalledWith("m1");
