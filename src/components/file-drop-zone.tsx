@@ -1,5 +1,10 @@
 import { FileUp, FolderOpen, UploadCloud } from "lucide-react";
-import { type DragEvent, useCallback, useState } from "react";
+import {
+	type DragEvent,
+	type KeyboardEvent,
+	useCallback,
+	useState,
+} from "react";
 
 type FileDropZoneProps = {
 	onFilesLoaded: (files: { path: string; data: ArrayBuffer }[]) => void;
@@ -131,15 +136,17 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 	}, []);
 
 	const handleFileClick = useCallback(async () => {
+		if (isLoading) return;
 		const api = window.electronAPI;
 		if (!api) return;
 		const paths = await api.selectDicomFiles();
 		if (paths.length > 0) {
 			loadFiles(paths);
 		}
-	}, [loadFiles]);
+	}, [isLoading, loadFiles]);
 
 	const handleDirectoryClick = useCallback(async () => {
+		if (isLoading) return;
 		const api = window.electronAPI;
 		if (!api) return;
 		try {
@@ -150,7 +157,16 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 		} catch (err) {
 			setReadErrors([toDirectoryReadErrorMessage("DICOMフォルダ", err)]);
 		}
-	}, [loadFiles]);
+	}, [isLoading, loadFiles]);
+
+	const handleDropZoneKeyDown = useCallback(
+		(e: KeyboardEvent<HTMLDivElement>) => {
+			if (e.key !== "Enter" && e.key !== " ") return;
+			e.preventDefault();
+			void handleFileClick();
+		},
+		[handleFileClick],
+	);
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: ドロップ対象は視覚的な余白を持つコンテナで、フォーカス可能なボタンは内側のカード
@@ -164,11 +180,11 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 				{/* biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない） */}
 				<div
 					role="button"
+					aria-label="DICOMファイルを選択"
+					aria-disabled={isLoading}
 					tabIndex={0}
 					onClick={handleFileClick}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") handleFileClick();
-					}}
+					onKeyDown={handleDropZoneKeyDown}
 					className={`group relative flex w-full cursor-pointer flex-col items-center gap-5 rounded-2xl panel-surface px-10 py-14 text-center transition-all duration-200 ${
 						isDragging
 							? "ring-2 ring-sky-400/70 ring-offset-0"
