@@ -178,6 +178,36 @@ describe("AnnotationOverlay", () => {
 		expect(polyline?.getAttribute("stroke-dasharray")).toBeNull();
 	});
 
+	it("keeps annotation geometry from capturing viewer drag events", () => {
+		const annotations: Annotation[] = [
+			{
+				id: "a-rect",
+				type: "rect",
+				topLeft: { x: 10, y: 20 },
+				bottomRight: { x: 40, y: 60 },
+			},
+		];
+		const { container } = renderOverlay({
+			annotations,
+			activePoints: [{ x: 10, y: 20 }],
+			viewport: makeViewport(),
+		});
+
+		const annotationLayer = container.querySelector("svg > g");
+		const deleteHandle = container.querySelector("foreignObject");
+		const activePoint = container.querySelector("circle[stroke='#FFD700']");
+
+		expect(annotationLayer?.getAttribute("class") ?? "").not.toContain(
+			"pointer-events-auto",
+		);
+		expect(activePoint?.getAttribute("class") ?? "").not.toContain(
+			"pointer-events-auto",
+		);
+		expect(deleteHandle?.getAttribute("class")).toContain(
+			"pointer-events-auto",
+		);
+	});
+
 	it("subscribes to OSD viewport events without polling", () => {
 		const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 		const viewport = makeViewport();
