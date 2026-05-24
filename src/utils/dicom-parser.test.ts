@@ -267,6 +267,15 @@ describe("parsePixelSpacing", () => {
 		const ds = makeDataSet({ strings: { x00280030: "abc\\0.5" } });
 		expect(parsePixelSpacing(ds)).toBeNull();
 	});
+
+	it.each([
+		"0\\0.5",
+		"-1\\0.5",
+		"Infinity\\0.5",
+	])("returns null when values are not finite positive spacing: %s", (value) => {
+		const ds = makeDataSet({ strings: { x00280030: value } });
+		expect(parsePixelSpacing(ds)).toBeNull();
+	});
 });
 
 // ---------------------------------------------------------------------------
