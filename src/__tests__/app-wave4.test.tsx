@@ -1,17 +1,27 @@
 // @vitest-environment jsdom
-import { act, render, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
+const clearFilesMock = vi.hoisted(() => vi.fn());
+const dicomFilesMock = vi.hoisted(() => ({
+	value: [] as { imageId: string }[],
+}));
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
 		loadState: { status: "idle" },
-		dicomFiles: [],
+		dicomFiles: dicomFilesMock.value,
 		loadFiles: loadFilesMock,
-		clearFiles: vi.fn(),
+		clearFiles: clearFilesMock,
 		removeFile: vi.fn(),
 		cancelLoad: vi.fn(),
 		setImageDataRegistrar: vi.fn(),
@@ -48,6 +58,8 @@ describe("App Wave 4 polish", () => {
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
 		loadFilesMock.mockReset();
+		clearFilesMock.mockReset();
+		dicomFilesMock.value = [];
 		loadTestDicomMock.mockResolvedValue([
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
@@ -87,5 +99,30 @@ describe("App Wave 4 polish", () => {
 		await waitFor(() => {
 			expect(loadTestDicomMock).toHaveBeenCalledTimes(1);
 		});
+	});
+
+	it("does not clear header DICOM files when confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		dicomFilesMock.value = [{ imageId: "roentgen:/tmp/dev.dcm" }];
+
+		render(<App />);
+
+		fireEvent.click(screen.getByRole("button", { name: "クリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"全 DICOM をクリアします。よろしいですか？",
+		);
+		expect(clearFilesMock).not.toHaveBeenCalled();
+	});
+
+	it("clears header DICOM files after confirmation", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		dicomFilesMock.value = [{ imageId: "roentgen:/tmp/dev.dcm" }];
+
+		render(<App />);
+
+		fireEvent.click(screen.getByRole("button", { name: "クリア" }));
+
+		expect(clearFilesMock).toHaveBeenCalledOnce();
 	});
 });

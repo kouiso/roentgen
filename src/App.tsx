@@ -27,6 +27,11 @@ export const App = () => {
 		[loadFiles],
 	);
 
+	const handleClearFiles = useCallback(() => {
+		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
+		clearFiles();
+	}, [clearFiles]);
+
 	const {
 		auth,
 		sync,
@@ -198,7 +203,7 @@ export const App = () => {
 					</button>
 				)}
 				{dicomFiles.length > 0 && (
-					<button type="button" onClick={clearFiles} className="chip">
+					<button type="button" onClick={handleClearFiles} className="chip">
 						クリア
 					</button>
 				)}

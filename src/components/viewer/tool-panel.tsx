@@ -255,6 +255,22 @@ export const ToolPanel = ({
 	onSetLayout,
 	viewerReady = true,
 }: ToolPanelProps) => {
+	const handleClearMeasurements = () => {
+		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) return;
+		onClearMeasurements();
+	};
+
+	const handleClearAnnotations = () => {
+		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) return;
+		onClearAnnotations();
+	};
+
+	const handleClearSelected = () => {
+		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？"))
+			return;
+		onClearSelected();
+	};
+
 	const handleClearAll = () => {
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
 		onClearAll();
@@ -312,7 +328,7 @@ export const ToolPanel = ({
 							icon={<Trash2 size={ICON} />}
 							label="計測クリア"
 							shortcut="Del"
-							onClick={onClearMeasurements}
+							onClick={handleClearMeasurements}
 						/>
 					)}
 				</div>
@@ -354,7 +370,7 @@ export const ToolPanel = ({
 						<ActionButton
 							icon={<Trash2 size={ICON} />}
 							label="注釈クリア"
-							onClick={onClearAnnotations}
+							onClick={handleClearAnnotations}
 						/>
 					)}
 				</div>
@@ -529,7 +545,7 @@ export const ToolPanel = ({
 					<ActionButton
 						icon={<X size={ICON} />}
 						label="選択クリア"
-						onClick={onClearSelected}
+						onClick={handleClearSelected}
 					/>
 					<ActionButton
 						icon={<XCircle size={ICON} />}
