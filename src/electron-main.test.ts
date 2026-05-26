@@ -174,6 +174,31 @@ describe("electron main annotation persistence", () => {
 		await expect(readdir(storageDir)).resolves.toEqual([`${studyUid}.json`]);
 	});
 
+	it("handles concurrent saves for the same study without leaving temporary files", async () => {
+		const { saveAnnotationStorageFile } = await import("../electron/main");
+		const storageDir = await mkdtemp(join(tmpdir(), "roentgen-annotations-"));
+		const studyUid = "1.2.826.0.1.3680043.8.498.2";
+		const payloads = Array.from({ length: 8 }, (_, index) => ({
+			version: 1,
+			studyInstanceUid: studyUid,
+			annotations: [{ id: `a${index}`, type: "text", text: `note-${index}` }],
+			measurements: [],
+		}));
+
+		const savedPaths = await Promise.all(
+			payloads.map((payload) =>
+				saveAnnotationStorageFile(studyUid, payload, storageDir),
+			),
+		);
+
+		expect(new Set(savedPaths)).toEqual(
+			new Set([join(storageDir, `${studyUid}.json`)]),
+		);
+		const savedPayload = JSON.parse(await readFile(savedPaths[0], "utf-8"));
+		expect(payloads).toContainEqual(savedPayload);
+		await expect(readdir(storageDir)).resolves.toEqual([`${studyUid}.json`]);
+	});
+
 	it("rejects invalid StudyInstanceUID before writing annotation storage", async () => {
 		const { saveAnnotationStorageFile } = await import("../electron/main");
 		const storageDir = await mkdtemp(join(tmpdir(), "roentgen-annotations-"));

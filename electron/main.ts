@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import {
 	lstat,
@@ -190,7 +191,7 @@ export const saveAnnotationStorageFile = async (
 	const finalPath = join(storageDirPath, `${studyUid}.json`);
 	const tempPath = join(
 		storageDirPath,
-		`.${studyUid}.${process.pid}.${Date.now()}.tmp`,
+		`.${studyUid}.${process.pid}.${randomUUID()}.tmp`,
 	);
 	try {
 		await writeFile(tempPath, JSON.stringify(data, null, 2), "utf-8");
