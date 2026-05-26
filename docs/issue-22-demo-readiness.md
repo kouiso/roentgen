@@ -28,19 +28,19 @@ This inventory consolidates the active issue body plus existing repo-local audit
 
 - `docs/ux-audit-2026-05-16.md`
 - `docs/comprehensive-audit-2026-05-18.md`
-- `doc/qa-runbook-2026-05-18.md`
+- `doc/qa-runbook-2026-05-18.md` (legacy `doc/` path; keep this exact relative path until that file is moved)
 
 | Priority | Area | Source | Symptom / Risk | Current Evidence | Verification Route |
 |---|---|---|---|---|---|
-| P0 | Measurement correctness | UX audit TOP 10 | Pixel spacing fallback can display millimeters when spacing is absent or untrusted | `src/utils/measurement-math.ts`, measurement overlay, QA Path C | Unit test plus Electron DICOM fixture with calibrated and uncalibrated cases |
-| P0 | Measurement calibration | UX audit TOP 10 | No known-length calibration flow for images without reliable spacing | `src/components/viewer/tool-panel.tsx`, measurement hooks | UI test for calibration state and measurement label |
-| P0 | Destructive actions | UX audit TOP 10 / QA Path F | All-clear, measurement delete, annotation delete can destroy work too easily | `src/App.tsx`, `measurement-overlay.tsx`, `annotation-overlay.tsx`, `tool-panel.tsx` | Unit tests plus Electron confirm/undo path |
-| P0 | File association / import | UX audit TOP 10 | `.dcm` double-click and first open path can fail or feel unclear | `electron/main.ts`, `electron/preload.ts`, file-drop zone | macOS `open-file` and argv handling tests where feasible |
+| P0 | Measurement correctness | UX audit TOP 10 | Pixel spacing fallback can display millimeters when spacing is absent or untrusted | `src/utils/measurement-math.ts`, `src/components/viewer/measurement-overlay.tsx`, QA Path C | Unit test plus Electron DICOM fixture with calibrated and uncalibrated cases |
+| P0 | Measurement calibration | UX audit TOP 10 | No known-length calibration flow for images without reliable spacing | `src/components/viewer/tool-panel.tsx`, `src/hooks/use-measurement.ts` | UI test for calibration state and measurement label |
+| P0 | Destructive actions | UX audit TOP 10 / QA Path F | All-clear, measurement delete, annotation delete can destroy work too easily | `src/App.tsx`, `src/components/viewer/measurement-overlay.tsx`, `src/components/viewer/annotation-overlay.tsx`, `src/components/viewer/tool-panel.tsx` | Unit tests plus Electron confirm/undo path |
+| P0 | File association / import | UX audit TOP 10 | `.dcm` double-click and first open path can fail or feel unclear | `electron/main.ts`, `electron/preload.ts`, `src/components/file-drop-zone.tsx` | macOS `open-file` and argv handling tests where feasible |
 | P1 | First-run onboarding | UX audit TOP 10 | Empty state does not explain supported formats, samples, or Drive path | `src/components/file-drop-zone.tsx` | Renderer screenshot and Electron smoke |
 | P1 | Drive setup | UX audit TOP 10 / QA Path E | Credentials setup is hidden in tooltip-level UI | `src/App.tsx`, `src/hooks/use-google-drive.ts`, `electron/google-drive.ts` | Negative path without credentials and positive path when credentials exist |
-| P1 | Error feedback | UX audit | Renderer, Drive, and read failures can be console-only or underexplained | `use-cornerstone.ts`, `use-google-drive.ts`, `file-drop-zone.tsx`, `error-boundary.tsx` | Error-state tests plus screenshot evidence |
-| P1 | Accessibility controls | UX audit | Many icon/toggle controls need accessible names and focus states | `tool-panel.tsx`, `stack-slider.tsx`, panels, overlays | Testing Library role queries plus keyboard smoke |
-| P1 | Demo IA / visual hierarchy | Issue #22 | Current layout assumes expert medical-tool familiarity and is hard to learn quickly | viewer layout, tool panel, drop zone, side panels | Wireframes plus one bounded UI implementation PR after approval |
+| P1 | Error feedback | UX audit | Renderer, Drive, and read failures can be console-only or underexplained | `src/hooks/use-cornerstone.ts`, `src/hooks/use-google-drive.ts`, `src/components/file-drop-zone.tsx`, `src/components/error-boundary.tsx` | Error-state tests plus screenshot evidence |
+| P1 | Accessibility controls | UX audit | Many icon/toggle controls need accessible names and focus states | `src/components/viewer/tool-panel.tsx`, `src/components/viewer/stack-slider.tsx`, `src/components/viewer/series-panel.tsx`, `src/components/viewer/measurement-overlay.tsx`, `src/components/viewer/annotation-overlay.tsx` | Testing Library role queries plus keyboard smoke |
+| P1 | Demo IA / visual hierarchy | Issue #22 | Current layout assumes expert medical-tool familiarity and is hard to learn quickly | `src/App.tsx`, `src/components/viewer/tool-panel.tsx`, `src/components/file-drop-zone.tsx`, `src/components/viewer/series-panel.tsx` | Wireframes plus one bounded UI implementation PR after approval |
 | P2 | Release readiness | Comprehensive audit | Release/signed-binary/update confidence remains incomplete | workflows, electron-builder config | CI and release workflow audit |
 | P2 | i18n / copy system | Comprehensive audit | Hardcoded Japanese strings make copy consistency hard | `src/**/*.tsx` | Catalog extraction after demo-critical flows stabilize |
 
@@ -69,11 +69,11 @@ The redesign should optimize the first five minutes of a demo:
 | Stage | PR Scope | Files / Areas | Required Evidence |
 |---|---|---|---|
 | 1 | Baseline issue #22 board and verification checklist | `docs/issue-22-demo-readiness.md` | `git diff --check` |
-| 2 | P0 destructive-action safety | `App.tsx`, overlays, tool panel, tests | `pnpm test`, Electron confirm/undo smoke |
-| 3 | P0 measurement trust | measurement math, overlays, hooks, tests | calibrated/uncalibrated unit tests and Electron fixture |
-| 4 | First-run import/onboarding | drop zone, app shell, docs/screenshots | renderer screenshot and Electron smoke |
-| 5 | Drive setup and error feedback | Drive hook, Electron Drive module, app status UI | no-credentials and credentials-present paths |
-| 6 | Demo IA visual pass | viewer layout, panels, tool grouping, status strip | desktop screenshot review and no layout regressions |
+| 2 | P0 destructive-action safety | `src/App.tsx`, `src/components/viewer/measurement-overlay.tsx`, `src/components/viewer/annotation-overlay.tsx`, `src/components/viewer/tool-panel.tsx`, `src/components/viewer/__tests__/*.test.tsx` | `pnpm test`, Electron confirm/undo smoke |
+| 3 | P0 measurement trust | `src/utils/measurement-math.ts`, `src/components/viewer/measurement-overlay.tsx`, `src/hooks/use-measurement.ts`, `src/utils/*.test.ts` | calibrated/uncalibrated unit tests and Electron fixture |
+| 4 | First-run import/onboarding | `src/components/file-drop-zone.tsx`, `src/App.tsx`, `docs/`, screenshot artifacts | renderer screenshot and Electron smoke |
+| 5 | Drive setup and error feedback | `src/hooks/use-google-drive.ts`, `electron/google-drive.ts`, `src/App.tsx`, `src/components/error-boundary.tsx` | no-credentials and credentials-present paths |
+| 6 | Demo IA visual pass | `src/App.tsx`, `src/components/viewer/series-panel.tsx`, `src/components/viewer/tool-panel.tsx`, `src/components/viewer/stack-slider.tsx` | desktop screenshot review and no layout regressions |
 | 7 | Release/demo verification | QA runbook, workflows, release notes | full command matrix and issue #22 update |
 
 ## Verification Matrix
