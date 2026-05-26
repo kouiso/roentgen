@@ -78,6 +78,7 @@ describe("App Wave 4 polish", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
 		Object.defineProperty(window, "electronAPI", {
 			configurable: true,
