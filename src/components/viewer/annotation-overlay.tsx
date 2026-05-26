@@ -319,6 +319,7 @@ const PendingTextInput = ({
 }) => {
 	const [value, setValue] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
+	const isComposingRef = useRef(false);
 	const p = convert(position);
 
 	useEffect(() => {
@@ -336,11 +337,17 @@ const PendingTextInput = ({
 				value={value}
 				onClick={(e) => e.stopPropagation()}
 				onChange={(e) => setValue(e.currentTarget.value)}
+				onCompositionStart={() => {
+					isComposingRef.current = true;
+				}}
+				onCompositionEnd={() => {
+					isComposingRef.current = false;
+				}}
 				onKeyDown={(e) => {
+					if (isComposingRef.current || e.keyCode === 229) {
+						return;
+					}
 					if (e.key === "Enter") {
-						if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) {
-							return;
-						}
 						e.preventDefault();
 						onSubmit(value);
 					} else if (e.key === "Escape") {
