@@ -117,7 +117,43 @@ describe("MeasurementOverlay", () => {
 
 		const label = screen.getByText("5.00 px (未校正)");
 		expect(label.getAttribute("fill")).toBe("#ef4444");
+		const labelBackground = label.previousElementSibling;
+		expect(labelBackground?.getAttribute("width")).toBe("110");
 		rectSpy.mockRestore();
+	});
+
+	it("gives the measurement delete control enough SVG box space for focus styles", () => {
+		const { container, rerender } = render(
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>,
+		);
+		rerender(
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>,
+		);
+
+		const deleteBox = container.querySelector("foreignObject");
+
+		expect(deleteBox?.getAttribute("width")).toBe("24");
+		expect(deleteBox?.getAttribute("height")).toBe("24");
 	});
 
 	it("does not remove a measurement when delete confirmation is canceled", () => {

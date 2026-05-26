@@ -9,7 +9,15 @@ import {
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
 const UNCALIBRATED_MEASUREMENT_COLOR = "#ef4444";
-const DELETE_BUTTON_SIZE = 18;
+const DELETE_BUTTON_BOX_SIZE = 24;
+
+const estimateMeasurementLabelWidth = (label: string): number => {
+	let width = 4;
+	for (const character of label) {
+		width += character.charCodeAt(0) > 0xff ? 12 : 7;
+	}
+	return width;
+};
 
 type MeasurementOverlayProps = {
 	measurements: Measurement[];
@@ -54,8 +62,8 @@ const DeleteButton = ({
 	<foreignObject
 		x={x}
 		y={y}
-		width={DELETE_BUTTON_SIZE}
-		height={DELETE_BUTTON_SIZE}
+		width={DELETE_BUTTON_BOX_SIZE}
+		height={DELETE_BUTTON_BOX_SIZE}
 	>
 		<button
 			type="button"
@@ -97,7 +105,7 @@ const DistanceLine = ({
 			? `${m.distanceMm.toFixed(1)} ${unit}`
 			: `${m.distanceMm.toFixed(2)} ${unit}`;
 	const label = uncalibrated ? `${valueLabel} (未校正)` : valueLabel;
-	const labelWidth = label.length * 7 + 4;
+	const labelWidth = estimateMeasurementLabelWidth(label);
 
 	return (
 		<g>
@@ -133,7 +141,7 @@ const DistanceLine = ({
 			</text>
 			<DeleteButton
 				x={midX + labelWidth + 4}
-				y={midY - 15}
+				y={midY - 18}
 				onRemove={onRemove}
 			/>
 		</g>
@@ -157,7 +165,7 @@ const AngleLine = ({
 
 	const label = `${m.angleDeg.toFixed(1)}°`;
 	const color = m.color ?? DEFAULT_ANGLE_COLOR;
-	const labelWidth = label.length * 7 + 4;
+	const labelWidth = estimateMeasurementLabelWidth(label);
 
 	return (
 		<g>
@@ -203,7 +211,7 @@ const AngleLine = ({
 			</text>
 			<DeleteButton
 				x={p2.x + labelWidth + 16}
-				y={p2.y - 15}
+				y={p2.y - 18}
 				onRemove={onRemove}
 			/>
 		</g>
