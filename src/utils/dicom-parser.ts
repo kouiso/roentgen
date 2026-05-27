@@ -148,7 +148,12 @@ const parseSpacingValue = (
 ): [number, number] | null => {
 	if (!value) return null;
 	const parts = value.split("\\").map(Number);
-	if (parts.length !== 2 || parts.some(Number.isNaN)) return null;
+	if (
+		parts.length !== 2 ||
+		parts.some((part) => !Number.isFinite(part) || part <= 0)
+	) {
+		return null;
+	}
 	return [parts[0] ?? 0, parts[1] ?? 0];
 };
 

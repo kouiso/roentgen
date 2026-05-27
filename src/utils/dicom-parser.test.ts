@@ -267,6 +267,22 @@ describe("parsePixelSpacing", () => {
 		const ds = makeDataSet({ strings: { x00280030: "abc\\0.5" } });
 		expect(parsePixelSpacing(ds)).toBeNull();
 	});
+
+	it("returns null when values are zero or negative", () => {
+		expect(
+			parsePixelSpacing(makeDataSet({ strings: { x00280030: "0\\0.5" } })),
+		).toBeNull();
+		expect(
+			parsePixelSpacing(makeDataSet({ strings: { x00280030: "-0.3\\0.5" } })),
+		).toBeNull();
+	});
+
+	it("falls back to ImagerPixelSpacing when PixelSpacing is invalid", () => {
+		const ds = makeDataSet({
+			strings: { x00280030: "0\\0", x00181164: "0.4\\0.8" },
+		});
+		expect(parsePixelSpacing(ds)).toEqual([0.4, 0.8]);
+	});
 });
 
 // ---------------------------------------------------------------------------
