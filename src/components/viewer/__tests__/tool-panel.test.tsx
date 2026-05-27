@@ -81,6 +81,80 @@ describe("ToolPanel", () => {
 		expect(onClearAll).toHaveBeenCalledOnce();
 	});
 
+	it("does not clear measurements when confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		const onClearMeasurements = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"すべての計測をクリアします。よろしいですか？",
+		);
+		expect(onClearMeasurements).not.toHaveBeenCalled();
+	});
+
+	it("clears measurements after confirmation", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onClearMeasurements = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
+
+		expect(onClearMeasurements).toHaveBeenCalledOnce();
+	});
+
+	it("does not clear annotations when confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		const onClearAnnotations = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"すべての注釈をクリアします。よろしいですか？",
+		);
+		expect(onClearAnnotations).not.toHaveBeenCalled();
+	});
+
+	it("clears annotations after confirmation", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onClearAnnotations = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
+
+		expect(onClearAnnotations).toHaveBeenCalledOnce();
+	});
+
 	it("starts the freehand annotation tool from the annotation controls", () => {
 		const onStartFreehandTool = vi.fn();
 		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);
