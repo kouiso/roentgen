@@ -85,6 +85,7 @@ export const App = () => {
 		setImageDataRegistrar,
 	} = useDicomLoader();
 	const [viewerReady, setViewerReady] = useState(false);
+	const [driveSetupOpen, setDriveSetupOpen] = useState(false);
 	const devAutoloadStartedRef = useRef(false);
 
 	const handleFilesLoaded = useCallback(
@@ -209,15 +210,18 @@ export const App = () => {
 
 				{/* Google Drive 連携 */}
 				{available && (
-					<div className="flex items-center gap-1.5">
+					<div className="relative flex items-center gap-1.5">
 						{credentialsAvailable === false ? (
-							<span
-								className="chip text-amber-400 border-amber-400/20"
-								title="GCPコンソールからOAuth2クライアントIDをダウンロードし、Electronのユーザーデータディレクトリに gdrive-credentials.json として配置してください"
+							<button
+								type="button"
+								className="chip text-amber-400 border-amber-400/20 transition-colors hover:border-amber-400/40 hover:text-amber-300"
+								aria-expanded={driveSetupOpen}
+								aria-controls="drive-setup-panel"
+								onClick={() => setDriveSetupOpen((open) => !open)}
 							>
 								<CloudOff size={11} className="text-amber-400" />
 								<span className="font-sans">Drive未設定</span>
-							</span>
+							</button>
 						) : auth.status === "authenticated" ? (
 							<>
 								<button
@@ -264,6 +268,30 @@ export const App = () => {
 								<CloudOff size={11} className="text-zinc-500" />
 								<span className="font-sans">Drive接続</span>
 							</button>
+						)}
+						{credentialsAvailable === false && driveSetupOpen && (
+							<div
+								id="drive-setup-panel"
+								className="absolute left-0 top-8 z-50 w-[360px] rounded-md border border-amber-400/20 bg-zinc-950 p-3 text-xs text-zinc-300 shadow-xl"
+								role="status"
+							>
+								<p className="font-semibold text-amber-300">
+									Google Drive連携の準備が未完了です
+								</p>
+								<ol className="mt-2 list-decimal space-y-1 pl-4 text-zinc-400">
+									<li>GCPコンソールでOAuth2クライアントIDを作成</li>
+									<li>JSONをダウンロードしてファイル名を変更</li>
+									<li>
+										Electronのユーザーデータディレクトリへ配置:
+										<code className="ml-1 rounded bg-white/5 px-1 py-0.5 text-amber-200">
+											gdrive-credentials.json
+										</code>
+									</li>
+								</ol>
+								<p className="mt-2 text-[11px] text-zinc-500">
+									配置後にアプリを再起動するとDrive接続ボタンが有効になります。
+								</p>
+							</div>
 						)}
 					</div>
 				)}
