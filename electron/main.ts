@@ -610,9 +610,9 @@ app.on("open-file", (event, filePath) => {
 ipcMain.handle("select-dicom-files", async () => {
 	if (!mainWindow) return [];
 	const result = await dialog.showOpenDialog(mainWindow, {
-		title: "DICOMファイルを選択",
+		title: "レントゲンファイルを選択",
 		filters: [
-			{ name: "DICOM", extensions: ["dcm", "DCM", "dicom", "DICOM"] },
+			{ name: "レントゲン画像", extensions: ["dcm", "DCM", "dicom", "DICOM"] },
 			{ name: "すべてのファイル", extensions: ["*"] },
 		],
 		properties: ["openFile", "multiSelections"],
@@ -628,7 +628,7 @@ ipcMain.handle("select-dicom-files", async () => {
 ipcMain.handle("select-dicom-directory", async () => {
 	if (!mainWindow) return [];
 	const result = await dialog.showOpenDialog(mainWindow, {
-		title: "DICOMフォルダを選択",
+		title: "レントゲンフォルダを選択",
 		properties: ["openDirectory", "multiSelections"],
 	});
 	if (result.canceled) return [];
