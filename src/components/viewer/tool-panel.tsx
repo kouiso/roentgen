@@ -56,6 +56,8 @@ export type ToolPanelProps = {
 	onFitSize: () => void;
 	onFitAllPanes?: () => void;
 	onOneToOne: () => void;
+	syncWwWc?: boolean;
+	onToggleSyncWwWc?: () => void;
 	onToggleInvert: () => void;
 	onReset: () => void;
 	onRotateCW: () => void;
@@ -282,6 +284,8 @@ export const ToolPanel = ({
 	onPrint,
 	isFullscreen,
 	onToggleFullscreen,
+	syncWwWc,
+	onToggleSyncWwWc,
 	layout,
 	onSetLayout,
 	viewerReady = true,
@@ -364,6 +368,14 @@ export const ToolPanel = ({
 							icon={<Maximize size={ICON} />}
 							label="全ペイン合わせる"
 							onClick={onFitAllPanes}
+						/>
+					)}
+					{onToggleSyncWwWc && layout !== LAYOUT_TYPE.ONE_BY_ONE && (
+						<ToggleButton
+							icon={<Contrast size={ICON} />}
+							label="コントラスト同期"
+							active={syncWwWc ?? false}
+							onClick={onToggleSyncWwWc}
 						/>
 					)}
 					<ActionButton

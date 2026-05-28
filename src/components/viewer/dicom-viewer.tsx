@@ -150,6 +150,7 @@ export const DicomViewer = ({
 	>(null);
 	const [annotationSaveStatus, setAnnotationSaveStatus] =
 		useState<AnnotationSaveStatus>("idle");
+	const [syncWwWc, setSyncWwWc] = useState(false);
 
 	const paneCount = LAYOUT_PANE_COUNT[layout];
 	const studyInstanceUid = useMemo(
@@ -476,6 +477,24 @@ export const DicomViewer = ({
 
 	useKeyboardShortcuts(shortcutActions, activePane.isOsdReady);
 
+	// WW/WC同期: アクティブペインの値変化を他の全アクティブペインへ伝播
+	useEffect(() => {
+		if (!syncWwWc || paneCount <= 1) return;
+		const ww = activePane.worldInfo.windowWidth;
+		const wc = activePane.worldInfo.windowCenter;
+		for (const pane of allPanes.slice(0, paneCount)) {
+			if (pane.containerId === activePane.containerId) continue;
+			pane.controls.setWwWc(ww, wc);
+		}
+	}, [
+		syncWwWc,
+		paneCount,
+		activePane.worldInfo.windowWidth,
+		activePane.worldInfo.windowCenter,
+		activePane.containerId,
+		allPanes,
+	]);
+
 	return (
 		<div className="relative flex flex-1">
 			<AnnotationSaveStatusBadge status={annotationSaveStatus} />
@@ -494,6 +513,10 @@ export const DicomViewer = ({
 			<ToolPanel
 				{...activePane.controlPanelProps}
 				onFitAllPanes={paneCount > 1 ? handleFitAllPanes : undefined}
+				syncWwWc={syncWwWc}
+				onToggleSyncWwWc={
+					paneCount > 1 ? () => setSyncWwWc((v) => !v) : undefined
+				}
 				onClearSelected={handleClearSelected}
 				onClearAll={handleClearAll}
 				onScreenshot={handleScreenshot}
