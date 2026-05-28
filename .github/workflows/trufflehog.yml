@@ -17,7 +17,7 @@ concurrency:
 jobs:
   trufflehog:
     name: Secret Scan
-    runs-on: ${{ vars.RUNNER_LINUX }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:

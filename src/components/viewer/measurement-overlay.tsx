@@ -9,6 +9,15 @@ import {
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
 const UNCALIBRATED_MEASUREMENT_COLOR = "#ef4444";
+const DELETE_BUTTON_BOX_SIZE = 24;
+
+const estimateMeasurementLabelWidth = (label: string): number => {
+	let width = 4;
+	for (const character of label) {
+		width += character.charCodeAt(0) > 0xff ? 12 : 7;
+	}
+	return width;
+};
 
 type MeasurementOverlayProps = {
 	measurements: Measurement[];
@@ -41,6 +50,35 @@ const useCoordConverter = (
 	return convert;
 };
 
+const DeleteButton = ({
+	x,
+	y,
+	onRemove,
+}: {
+	x: number;
+	y: number;
+	onRemove: () => void;
+}) => (
+	<foreignObject
+		x={x}
+		y={y}
+		width={DELETE_BUTTON_BOX_SIZE}
+		height={DELETE_BUTTON_BOX_SIZE}
+	>
+		<button
+			type="button"
+			aria-label="計測削除"
+			className="flex h-[18px] w-[18px] items-center justify-center rounded bg-black/75 text-[13px] leading-none text-white shadow-sm ring-1 ring-white/40 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+			onClick={(event) => {
+				event.stopPropagation();
+				onRemove();
+			}}
+		>
+			×
+		</button>
+	</foreignObject>
+);
+
 // 距離計測の描画
 const DistanceLine = ({
 	m,
@@ -67,10 +105,10 @@ const DistanceLine = ({
 			? `${m.distanceMm.toFixed(1)} ${unit}`
 			: `${m.distanceMm.toFixed(2)} ${unit}`;
 	const label = uncalibrated ? `${valueLabel} (未校正)` : valueLabel;
+	const labelWidth = estimateMeasurementLabelWidth(label);
 
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: SVG計測線のクリック削除用（role不要）
-		<g className="cursor-pointer" onClick={onRemove}>
+		<g>
 			<line
 				x1={p1.x}
 				y1={p1.y}
@@ -87,7 +125,7 @@ const DistanceLine = ({
 			<rect
 				x={midX - 2}
 				y={midY - 14}
-				width={label.length * 7 + 4}
+				width={labelWidth}
 				height={16}
 				fill="rgba(0,0,0,0.7)"
 				rx={2}
@@ -101,6 +139,11 @@ const DistanceLine = ({
 			>
 				{label}
 			</text>
+			<DeleteButton
+				x={midX + labelWidth + 4}
+				y={midY - 18}
+				onRemove={onRemove}
+			/>
 		</g>
 	);
 };
@@ -122,10 +165,10 @@ const AngleLine = ({
 
 	const label = `${m.angleDeg.toFixed(1)}°`;
 	const color = m.color ?? DEFAULT_ANGLE_COLOR;
+	const labelWidth = estimateMeasurementLabelWidth(label);
 
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: SVG計測線のクリック削除用（role不要）
-		<g className="cursor-pointer" onClick={onRemove}>
+		<g>
 			<line
 				x1={p1.x}
 				y1={p1.y}
@@ -152,7 +195,7 @@ const AngleLine = ({
 			<rect
 				x={p2.x + 8}
 				y={p2.y - 14}
-				width={label.length * 7 + 4}
+				width={labelWidth}
 				height={16}
 				fill="rgba(0,0,0,0.7)"
 				rx={2}
@@ -166,6 +209,11 @@ const AngleLine = ({
 			>
 				{label}
 			</text>
+			<DeleteButton
+				x={p2.x + labelWidth + 16}
+				y={p2.y - 18}
+				onRemove={onRemove}
+			/>
 		</g>
 	);
 };

@@ -166,6 +166,28 @@ describe("useKeyboardShortcuts", () => {
 		expect(actions.setModePan).not.toHaveBeenCalled();
 	});
 
+	it("does not fire mode shortcuts while IME composition is active", () => {
+		const actions = makeActions();
+		renderHook(() => useKeyboardShortcuts(actions, true));
+		fireKey("w", { isComposing: true });
+		fireKey("a", { keyCode: 229 });
+		expect(actions.setModeWwWc).not.toHaveBeenCalled();
+		expect(actions.setModeMeasureAngle).not.toHaveBeenCalled();
+	});
+
+	it("ignores modified single-key shortcuts except print", () => {
+		const actions = makeActions();
+		renderHook(() => useKeyboardShortcuts(actions, true));
+		fireKey("w", { ctrlKey: true });
+		fireKey("z", { metaKey: true });
+		fireKey("d", { altKey: true });
+		fireKey("1", { shiftKey: true });
+		expect(actions.setModeWwWc).not.toHaveBeenCalled();
+		expect(actions.setModeZoom).not.toHaveBeenCalled();
+		expect(actions.setModeMeasureDistance).not.toHaveBeenCalled();
+		expect(actions.setWwWcPreset).not.toHaveBeenCalled();
+	});
+
 	it("calls setWwWcPreset with index for number keys 1-7", () => {
 		const actions = makeActions();
 		renderHook(() => useKeyboardShortcuts(actions, true));

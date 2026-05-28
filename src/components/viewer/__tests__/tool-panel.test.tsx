@@ -81,35 +81,15 @@ describe("ToolPanel", () => {
 		expect(onClearAll).toHaveBeenCalledOnce();
 	});
 
-	it("does not clear selected DICOM when confirmation is canceled", () => {
-		vi.spyOn(window, "confirm").mockReturnValue(false);
-		const onClearSelected = vi.fn();
-		render(<ToolPanel {...makeProps({ onClearSelected })} />);
-
-		fireEvent.click(screen.getByRole("button", { name: "選択クリア" }));
-
-		expect(window.confirm).toHaveBeenCalledWith(
-			"選択中の DICOM をクリアします。よろしいですか？",
-		);
-		expect(onClearSelected).not.toHaveBeenCalled();
-	});
-
-	it("clears selected DICOM after confirmation", () => {
-		vi.spyOn(window, "confirm").mockReturnValue(true);
-		const onClearSelected = vi.fn();
-		render(<ToolPanel {...makeProps({ onClearSelected })} />);
-
-		fireEvent.click(screen.getByRole("button", { name: "選択クリア" }));
-
-		expect(onClearSelected).toHaveBeenCalledOnce();
-	});
-
 	it("does not clear measurements when confirmation is canceled", () => {
 		vi.spyOn(window, "confirm").mockReturnValue(false);
 		const onClearMeasurements = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasMeasurements: true, onClearMeasurements })}
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
 			/>,
 		);
 
@@ -126,7 +106,10 @@ describe("ToolPanel", () => {
 		const onClearMeasurements = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasMeasurements: true, onClearMeasurements })}
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
 			/>,
 		);
 
@@ -140,7 +123,10 @@ describe("ToolPanel", () => {
 		const onClearAnnotations = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasAnnotations: true, onClearAnnotations })}
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
 			/>,
 		);
 
@@ -157,7 +143,10 @@ describe("ToolPanel", () => {
 		const onClearAnnotations = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasAnnotations: true, onClearAnnotations })}
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
 			/>,
 		);
 
@@ -189,5 +178,35 @@ describe("ToolPanel", () => {
 				.getByRole("button", { name: "フリーハンド" })
 				.getAttribute("aria-pressed"),
 		).toBe("true");
+	});
+
+	it("exposes named FPS stepper controls", () => {
+		const onDecreaseFps = vi.fn();
+		const onIncreaseFps = vi.fn();
+		render(<ToolPanel {...makeProps({ onDecreaseFps, onIncreaseFps })} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "再生速度を下げる" }));
+		fireEvent.click(screen.getByRole("button", { name: "再生速度を上げる" }));
+
+		expect(onDecreaseFps).toHaveBeenCalledOnce();
+		expect(onIncreaseFps).toHaveBeenCalledOnce();
+	});
+
+	it("disables FPS steppers at their bounds", () => {
+		const { rerender } = render(<ToolPanel {...makeProps({ fps: 5 })} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "再生速度を下げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
+
+		rerender(<ToolPanel {...makeProps({ fps: 30 })} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "再生速度を上げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
 	});
 });

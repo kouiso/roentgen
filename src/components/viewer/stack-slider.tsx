@@ -18,6 +18,8 @@ export const StackSlider = ({
 }: StackSliderProps) => {
 	if (maxFrame <= 0) return null;
 
+	const currentFrameLabel = `${currentFrame + 1}枚目 / 全${maxFrame + 1}枚`;
+
 	return (
 		<div className="flex shrink-0 items-center gap-1.5 border-t border-white/5 px-3 py-1 panel-surface">
 			<button
@@ -34,8 +36,8 @@ export const StackSlider = ({
 				min={0}
 				max={maxFrame}
 				value={currentFrame}
-				aria-label="フレーム"
-				aria-valuetext={`${currentFrame + 1} / ${maxFrame + 1}`}
+				aria-label="スタックフレーム選択"
+				aria-valuetext={currentFrameLabel}
 				onChange={(e) => onFrameChange(Number(e.target.value))}
 				className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-sky-400"
 			/>
@@ -48,7 +50,10 @@ export const StackSlider = ({
 			>
 				<ChevronRight size={14} />
 			</button>
-			<span className="min-w-[3.5rem] text-right font-mono tabular-nums text-[11px] text-zinc-400">
+			<span
+				aria-hidden="true"
+				className="min-w-[3.5rem] text-right font-mono tabular-nums text-[11px] text-zinc-400"
+			>
 				{currentFrame + 1} / {maxFrame + 1}
 			</span>
 		</div>

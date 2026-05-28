@@ -256,20 +256,24 @@ export const ToolPanel = ({
 	viewerReady = true,
 }: ToolPanelProps) => {
 	const handleClearMeasurements = () => {
-		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) return;
+		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) {
+			return;
+		}
 		onClearMeasurements();
 	};
 
 	const handleClearAnnotations = () => {
-		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) return;
+		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) {
+			return;
+		}
 		onClearAnnotations();
 	};
 
 	const handleClearSelected = () => {
-		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？"))
-			return;
+		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？")) return;
 		onClearSelected();
 	};
+
 
 	const handleClearAll = () => {
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
@@ -501,6 +505,7 @@ export const ToolPanel = ({
 					<div className="flex items-center gap-1 px-3">
 						<button
 							type="button"
+							aria-label="再生速度を下げる"
 							onClick={onDecreaseFps}
 							disabled={fps <= 5}
 							className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
@@ -512,6 +517,7 @@ export const ToolPanel = ({
 						</span>
 						<button
 							type="button"
+							aria-label="再生速度を上げる"
 							onClick={onIncreaseFps}
 							disabled={fps >= 30}
 							className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
