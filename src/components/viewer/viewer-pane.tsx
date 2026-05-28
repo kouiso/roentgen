@@ -36,6 +36,16 @@ export const ViewerPane = ({
 	isActive,
 	onFocus,
 }: ViewerPaneProps) => {
+	if (files.length === 0) {
+		return (
+			<div className="relative flex min-h-0 flex-1 items-center justify-center bg-zinc-950">
+				<span className="select-none text-[11px] text-zinc-700">
+					シリーズなし
+				</span>
+			</div>
+		);
+	}
+
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: ペインフォーカスのクリック検出用
 		// biome-ignore lint/a11y/noStaticElementInteractions: ペインフォーカスのクリック検出用
