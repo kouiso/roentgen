@@ -269,6 +269,12 @@ export const ToolPanel = ({
 		onClearAnnotations();
 	};
 
+	const handleClearSelected = () => {
+		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？")) return;
+		onClearSelected();
+	};
+
+
 	const handleClearAll = () => {
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
 		onClearAll();
@@ -545,7 +551,7 @@ export const ToolPanel = ({
 					<ActionButton
 						icon={<X size={ICON} />}
 						label="選択クリア"
-						onClick={onClearSelected}
+						onClick={handleClearSelected}
 					/>
 					<ActionButton
 						icon={<XCircle size={ICON} />}
