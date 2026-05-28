@@ -224,6 +224,8 @@ export const App = () => {
 		}
 	})();
 
+	const driveError =
+		auth.status === "authenticated" ? (auth.error?.trim() ?? "") : "";
 	const isSyncing = sync.status !== "idle";
 	const handleClearFiles = useCallback(() => {
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;

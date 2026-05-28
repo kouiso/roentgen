@@ -57,7 +57,7 @@ vi.mock("../components/viewer/dicom-viewer", () => ({
 
 describe("App Wave 4 polish", () => {
 	let scheduledFrame: FrameRequestCallback | null;
-	let openDicomFilesCallback: ((filePaths: string[]) => void) | null;
+	let _openDicomFilesCallback: ((filePaths: string[]) => void) | null;
 
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
@@ -68,9 +68,9 @@ describe("App Wave 4 polish", () => {
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
 		readFileMock.mockResolvedValue(new ArrayBuffer(2));
-		openDicomFilesCallback = null;
+		_openDicomFilesCallback = null;
 		onOpenDicomFilesMock.mockImplementation((callback) => {
-			openDicomFilesCallback = callback;
+			_openDicomFilesCallback = callback;
 			return vi.fn();
 		});
 		scheduledFrame = null;
