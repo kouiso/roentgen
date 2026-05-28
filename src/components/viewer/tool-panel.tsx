@@ -273,14 +273,6 @@ export const ToolPanel = ({
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
 		onClearAll();
 	};
-	const handleClearMeasurements = () => {
-		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) return;
-		onClearMeasurements();
-	};
-	const handleClearAnnotations = () => {
-		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) return;
-		onClearAnnotations();
-	};
 
 	return (
 		<aside className="flex w-[200px] shrink-0 flex-col overflow-y-auto py-2 panel-surface">
