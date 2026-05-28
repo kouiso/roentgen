@@ -512,13 +512,13 @@ export const useCornerstone = () => {
 		async (
 			fileInfo: DicomFileInfo,
 			options?: { signal?: AbortSignal },
-		): Promise<void> => {
+		): Promise<boolean> => {
 			const cs = _cornerstoneModule;
-			if (!cs || options?.signal?.aborted) return;
+			if (!cs || options?.signal?.aborted) return false;
 
 			try {
 				const image = await cs.loadImage(getLoadImageId(fileInfo));
-				if (options?.signal?.aborted) return;
+				if (options?.signal?.aborted) return false;
 				currentImageRef.current = image;
 				setCurrentImage(image);
 				overlayDataRef.current = fileInfo.overlayData;
@@ -570,10 +570,12 @@ export const useCornerstone = () => {
 					windowWidth: ww,
 					windowCenter: wc,
 				}));
+				return true;
 			} catch (err) {
 				if (!options?.signal?.aborted) {
 					console.error("[useCornerstone] loadImage失敗:", err);
 				}
+				return false;
 			}
 		},
 		[],

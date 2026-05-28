@@ -32,6 +32,8 @@ export const CrashReporterToggle = () => {
 	return (
 		<button
 			type="button"
+			aria-label="クラッシュレポート設定"
+			aria-pressed={enabled}
 			onClick={toggle}
 			className="chip transition-colors hover:border-white/10 hover:text-zinc-200"
 			title={

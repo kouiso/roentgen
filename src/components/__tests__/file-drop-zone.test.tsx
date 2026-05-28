@@ -1,36 +1,15 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { FileDropZone } from "../file-drop-zone";
 
 describe("FileDropZone", () => {
-	afterEach(() => {
-		vi.unstubAllGlobals();
-		Object.defineProperty(window, "electronAPI", {
-			configurable: true,
-			value: undefined,
-		});
-	});
-
-	it("ファイル読込エラーをalertとして通知する", async () => {
-		Object.defineProperty(window, "electronAPI", {
-			configurable: true,
-			value: {
-				selectDicomFiles: vi.fn().mockResolvedValue(["/tmp/missing.dcm"]),
-				readFile: vi.fn().mockRejectedValue(new Error("ENOENT")),
-			},
-		});
-
+	it("shows first-run import guidance for supported DICOM sources", () => {
 		render(<FileDropZone onFilesLoaded={vi.fn()} />);
 
-		fireEvent.click(screen.getByRole("button", { name: "ファイルを開く" }));
-
-		const alert = await screen.findByRole("alert");
-		expect(alert.getAttribute("aria-live")).toBe("assertive");
-		await waitFor(() => {
-			expect(alert.textContent).toContain(
-				"missing.dcm: ファイルが見つかりません",
-			);
-		});
+		expect(screen.getByText("対応形式: .dcm / .dicom / DICOMDIR")).toBeTruthy();
+		expect(screen.getByText("単体ファイル")).toBeTruthy();
+		expect(screen.getByText("検査フォルダ")).toBeTruthy();
+		expect(screen.getByText("Drive同期")).toBeTruthy();
 	});
 });

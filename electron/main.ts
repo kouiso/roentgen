@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import {
 	lstat,
@@ -5,6 +6,8 @@ import {
 	readdir,
 	readFile,
 	realpath,
+	rename,
+	unlink,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -46,6 +49,9 @@ let mainWindow: BrowserWindow | null = null;
 const allowedPaths = new Set<string>();
 const dialogReturnedPaths = new Set<string>();
 const resolvedAllowedPathCache = new Map<string, string>();
+const pendingOpenDicomFilePaths = new Set<string>();
+
+const OPEN_DICOM_FILES_CHANNEL = "open-dicom-files";
 
 const registerAllowedPath = (filePath: string) => {
 	const resolved = resolve(filePath);
@@ -76,16 +82,28 @@ const getResolvedAllowedPath = async (allowedPath: string): Promise<string> => {
 	return realAllowed;
 };
 
+const assertValidFilePathInput = (filePath: unknown): string => {
+	if (
+		typeof filePath !== "string" ||
+		filePath.length === 0 ||
+		filePath.includes("\0")
+	) {
+		throw new Error("ファイルパスが不正です");
+	}
+	return filePath;
+};
+
 export const resolveAllowedReadPath = async (
-	filePath: string,
+	filePath: unknown,
 	allowedPathEntries: Iterable<string> = allowedPaths,
 ): Promise<string> => {
+	const requestedPath = assertValidFilePathInput(filePath);
 	let requestedRealPath: string;
 	try {
-		requestedRealPath = await realpath(resolve(filePath));
+		requestedRealPath = await realpath(resolve(requestedPath));
 	} catch (err) {
-		log.warn(`Blocked missing file access: ${filePath}`, err);
-		throw new Error(`ファイルが見つかりません: ${filePath}`);
+		log.warn(`Blocked missing file access: ${requestedPath}`, err);
+		throw new Error(`ファイルが見つかりません: ${requestedPath}`);
 	}
 
 	for (const allowedPath of allowedPathEntries) {
@@ -98,13 +116,53 @@ export const resolveAllowedReadPath = async (
 		}
 	}
 
-	log.warn(`Blocked file access: ${filePath}`);
-	throw new Error(`許可されていないファイルパス: ${filePath}`);
+	log.warn(`Blocked file access: ${requestedPath}`);
+	throw new Error(`許可されていないファイルパス: ${requestedPath}`);
 };
 
 export const isDicomFilePath = (filePath: string): boolean => {
 	const extension = extname(filePath).toLowerCase();
 	return extension === ".dcm" || extension === ".dicom";
+};
+
+export const collectOpenDicomFilePaths = (
+	filePaths: string[],
+	cwd = process.cwd(),
+): string[] =>
+	Array.from(
+		new Set(
+			filePaths
+				.filter((filePath) => !filePath.startsWith("-"))
+				.map((filePath) => resolve(cwd, filePath))
+				.filter(isDicomFilePath),
+		),
+	);
+
+const sendOpenDicomFiles = (filePaths: string[]): void => {
+	const dicomFilePaths = collectOpenDicomFilePaths(filePaths);
+	if (dicomFilePaths.length === 0) return;
+
+	for (const filePath of dicomFilePaths) {
+		registerAllowedPath(filePath);
+	}
+
+	if (!mainWindow || mainWindow.isDestroyed()) {
+		for (const filePath of dicomFilePaths) {
+			pendingOpenDicomFilePaths.add(filePath);
+		}
+		return;
+	}
+
+	mainWindow.webContents.send(OPEN_DICOM_FILES_CHANNEL, dicomFilePaths);
+};
+
+const flushPendingOpenDicomFiles = (): void => {
+	if (!mainWindow || mainWindow.isDestroyed()) return;
+	const filePaths = Array.from(pendingOpenDicomFilePaths);
+	pendingOpenDicomFilePaths.clear();
+	if (filePaths.length > 0) {
+		mainWindow.webContents.send(OPEN_DICOM_FILES_CHANNEL, filePaths);
+	}
 };
 
 export const findDicomFilePathsRecursive = async (
@@ -174,6 +232,29 @@ const getAnnotationStorageFilePath = (studyUid: string) =>
 const assertValidStudyUid = (studyUid: string): void => {
 	if (!DICOM_UID_PATTERN.test(studyUid)) {
 		throw new Error("StudyInstanceUIDが不正です");
+	}
+};
+
+export const saveAnnotationStorageFile = async (
+	studyUid: string,
+	data: unknown,
+	storageDirPath = getAnnotationStorageDirPath(),
+): Promise<string> => {
+	assertValidStudyUid(studyUid);
+	await mkdir(storageDirPath, { recursive: true });
+
+	const finalPath = join(storageDirPath, `${studyUid}.json`);
+	const tempPath = join(
+		storageDirPath,
+		`.${studyUid}.${process.pid}.${randomUUID()}.tmp`,
+	);
+	try {
+		await writeFile(tempPath, JSON.stringify(data, null, 2), "utf-8");
+		await rename(tempPath, finalPath);
+		return finalPath;
+	} catch (err) {
+		await unlink(tempPath).catch(() => undefined);
+		throw err;
 	}
 };
 
@@ -412,6 +493,8 @@ const createWindow = async () => {
 	} else {
 		mainWindow.loadFile(join(__dirname, "../dist/index.html"));
 	}
+
+	mainWindow.webContents.once("did-finish-load", flushPendingOpenDicomFiles);
 };
 
 // Google Drive — 遅延読込でIPC登録
@@ -497,6 +580,7 @@ app.whenReady().then(async () => {
 
 	await createWindow();
 	log.info("Window created");
+	sendOpenDicomFiles(process.argv.slice(1));
 	registerGdriveHandlers().catch((err) =>
 		log.error("[gdrive] handler registration failed:", err),
 	);
@@ -516,6 +600,11 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
 	if (mainWindow) saveWindowStateSync(mainWindow, lastWwwc);
+});
+
+app.on("open-file", (event, filePath) => {
+	event.preventDefault();
+	sendOpenDicomFiles([filePath]);
 });
 
 ipcMain.handle("select-dicom-files", async () => {
@@ -617,13 +706,7 @@ ipcMain.handle(
 ipcMain.handle(
 	"save-annotations",
 	async (_event, studyUid: string, data: unknown): Promise<boolean> => {
-		assertValidStudyUid(studyUid);
-		await mkdir(getAnnotationStorageDirPath(), { recursive: true });
-		await writeFile(
-			getAnnotationStorageFilePath(studyUid),
-			JSON.stringify(data, null, 2),
-			"utf-8",
-		);
+		await saveAnnotationStorageFile(studyUid, data);
 		return true;
 	},
 );

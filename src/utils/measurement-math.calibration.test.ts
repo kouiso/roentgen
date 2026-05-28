@@ -21,4 +21,23 @@ describe("calculateDistance calibration", () => {
 			calibrated: true,
 		});
 	});
+
+	it.each([
+		{ name: "zero row spacing", spacing: [0, 0.5] as [number, number] },
+		{ name: "negative column spacing", spacing: [1, -0.5] as [number, number] },
+		{
+			name: "infinite row spacing",
+			spacing: [Infinity, 0.5] as [number, number],
+		},
+	])("treats invalid PixelSpacing as uncalibrated pixels: $name", ({
+		spacing,
+	}) => {
+		const result = calculateDistance({ x: 0, y: 0 }, { x: 3, y: 4 }, spacing);
+
+		expect(result).toEqual({
+			value: 5,
+			unit: "px",
+			calibrated: false,
+		});
+	});
 });
