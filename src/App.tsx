@@ -125,6 +125,7 @@ export const App = () => {
 		syncToSeed,
 		available,
 	} = useGoogleDrive(handleFilesLoaded);
+	const driveErrorText = auth.error?.trim() ?? "";
 
 	useEffect(() => {
 		const frameId = requestAnimationFrame(() => setViewerReady(true));

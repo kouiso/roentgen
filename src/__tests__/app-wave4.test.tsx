@@ -29,15 +29,7 @@ vi.mock("../hooks/use-dicom-loader", () => ({
 }));
 
 vi.mock("../hooks/use-google-drive", () => ({
-	useGoogleDrive: () => ({
-		auth: { status: "unauthenticated" },
-		sync: { status: "idle" },
-		credentialsAvailable: true,
-		login: vi.fn(),
-		logout: vi.fn(),
-		syncToSeed: vi.fn(),
-		available: false,
-	}),
+	useGoogleDrive: () => googleDriveMock,
 }));
 
 vi.mock("../components/crash-reporter-toggle", () => ({
