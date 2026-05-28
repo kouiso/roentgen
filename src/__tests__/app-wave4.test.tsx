@@ -10,11 +10,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
+const readFileMock = vi.hoisted(() => vi.fn());
+const onOpenDicomFilesMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
 const clearFilesMock = vi.hoisted(() => vi.fn());
 const dicomFilesState = vi.hoisted(() => ({
 	files: [] as { path: string; data: ArrayBuffer }[],
 }));
+const googleDriveMock = {
+	auth: { status: "unauthenticated" as const },
+	sync: { status: "idle" as const },
+	credentialsAvailable: false,
+	login: vi.fn(),
+	logout: vi.fn(),
+	syncToSeed: vi.fn(),
+	available: false,
+};
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
