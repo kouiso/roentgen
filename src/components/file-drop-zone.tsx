@@ -205,7 +205,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					) : (
 						<div className="flex flex-col gap-1.5">
 							<p className="font-sans text-[15px] font-medium text-zinc-100">
-								DICOMファイルまたはフォルダをドロップ
+								レントゲン画像をドロップ
 							</p>
 							<p className="font-sans text-[12px] text-zinc-400">
 								クリックしてファイルを選択
@@ -222,7 +222,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 						単体ファイル
 					</div>
 					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
-						検査フォルダ
+						フォルダ一括
 					</div>
 					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
 						Drive同期
