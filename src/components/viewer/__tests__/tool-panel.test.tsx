@@ -179,4 +179,34 @@ describe("ToolPanel", () => {
 				.getAttribute("aria-pressed"),
 		).toBe("true");
 	});
+
+	it("exposes named FPS stepper controls", () => {
+		const onDecreaseFps = vi.fn();
+		const onIncreaseFps = vi.fn();
+		render(<ToolPanel {...makeProps({ onDecreaseFps, onIncreaseFps })} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "再生速度を下げる" }));
+		fireEvent.click(screen.getByRole("button", { name: "再生速度を上げる" }));
+
+		expect(onDecreaseFps).toHaveBeenCalledOnce();
+		expect(onIncreaseFps).toHaveBeenCalledOnce();
+	});
+
+	it("disables FPS steppers at their bounds", () => {
+		const { rerender } = render(<ToolPanel {...makeProps({ fps: 5 })} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "再生速度を下げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
+
+		rerender(<ToolPanel {...makeProps({ fps: 30 })} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "再生速度を上げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
+	});
 });
