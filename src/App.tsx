@@ -180,6 +180,11 @@ export const App = () => {
 	})();
 
 	const isSyncing = sync.status !== "idle";
+	const handleClearFiles = useCallback(() => {
+		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
+		clearFiles();
+	}, [clearFiles]);
+
 	const loadFeedback =
 		loadState.status === "error"
 			? {
@@ -279,8 +284,13 @@ export const App = () => {
 					</button>
 				)}
 				{dicomFiles.length > 0 && (
-					<button type="button" onClick={clearFiles} className="chip">
-						クリア
+					<button
+						type="button"
+						onClick={handleClearFiles}
+						className="chip"
+						aria-label="全 DICOM をクリア"
+					>
+						全クリア
 					</button>
 				)}
 			</header>

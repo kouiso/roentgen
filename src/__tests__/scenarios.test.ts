@@ -3,15 +3,21 @@ import { act, renderHook } from "@testing-library/react";
 import * as dicomParser from "dicom-parser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
+import { useAnnotation } from "@/hooks/use-annotation";
 import { disposeCornerstoneHmrState } from "@/hooks/use-cornerstone";
 import {
 	createDicomParseWorkerPool,
 	useDicomLoader,
 } from "@/hooks/use-dicom-loader";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useMeasurement } from "@/hooks/use-measurement";
 import { useViewerControls } from "@/hooks/use-viewer-controls";
 import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
+import {
+	createAnnotationStoragePayload,
+	deserializeAnnotationStorage,
+} from "@/utils/annotation-storage";
 import {
 	buildDicomFileInfo,
 	UnsupportedTransferSyntaxError,
@@ -203,6 +209,78 @@ describe("Daily workflow scenarios", () => {
 				"not-dicom",
 			);
 		}
+	});
+
+	it("import→view→measurement→annotation→save/reopenで状態を復元できる", async () => {
+		const loader = renderHook(() => useDicomLoader());
+
+		await act(async () => {
+			await loader.result.current.loadFiles([
+				{
+					path: "/horse/workflow-1.dcm",
+					data: makeDicomBuffer({ instance: 1 }),
+				},
+			]);
+		});
+
+		expect(loader.result.current.loadState.status).toBe("loaded");
+		const current = loader.result.current.dicomFiles[0];
+		expect(current).toBeDefined();
+		if (!current) throw new Error("DICOM should be loaded");
+
+		const measurement = renderHook(() =>
+			useMeasurement(current.pixelSpacing, current.imageId),
+		);
+		const annotation = renderHook(() => useAnnotation(current.imageId));
+
+		act(() => {
+			measurement.result.current.startDistanceTool();
+			annotation.result.current.startArrowTool();
+		});
+		act(() => {
+			measurement.result.current.addPoint({ x: 0, y: 0 });
+			annotation.result.current.addPoint({ x: 10, y: 12 });
+		});
+		act(() => {
+			measurement.result.current.addPoint({ x: 3, y: 4 });
+			annotation.result.current.addPoint({ x: 20, y: 24 });
+		});
+
+		expect(measurement.result.current.measurements).toHaveLength(1);
+		expect(annotation.result.current.annotations).toHaveLength(1);
+
+		const payload = createAnnotationStoragePayload({
+			studyInstanceUid: current.studyInstanceUID,
+			fallbackSopInstanceUid: current.imageId,
+			annotations: annotation.result.current.annotations,
+			measurements: measurement.result.current.measurements,
+			savedAt: "2026-06-18T00:00:00.000Z",
+		});
+		const reopened = deserializeAnnotationStorage(
+			current.studyInstanceUID,
+			JSON.parse(JSON.stringify(payload)),
+		);
+
+		const reopenedMeasurement = renderHook(() =>
+			useMeasurement(current.pixelSpacing, current.imageId),
+		);
+		const reopenedAnnotation = renderHook(() => useAnnotation(current.imageId));
+
+		act(() => {
+			reopenedMeasurement.result.current.replaceMeasurements(
+				reopened.measurements,
+			);
+			reopenedAnnotation.result.current.replaceAnnotations(
+				reopened.annotations,
+			);
+		});
+
+		expect(reopenedMeasurement.result.current.measurements).toEqual(
+			measurement.result.current.measurements,
+		);
+		expect(reopenedAnnotation.result.current.annotations).toEqual(
+			annotation.result.current.annotations,
+		);
 	});
 
 	it("opens a multi-frame DICOM and navigates to the last frame and back", () => {

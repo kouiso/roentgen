@@ -17,6 +17,19 @@ type ViewerPaneProps = {
 	onFocus: () => void;
 };
 
+export const ImageRenderErrorBanner = ({ message }: { message: string }) => (
+	<div
+		className="pointer-events-none absolute left-3 top-3 z-40 max-w-[min(24rem,calc(100%-1.5rem))] rounded border border-rose-400/25 bg-rose-950/80 px-3 py-2 text-xs text-rose-100 shadow-lg"
+		role="alert"
+	>
+		<p className="font-semibold">画像表示に失敗しました</p>
+		<p className="mt-1 text-[11px] text-rose-200/90">{message}</p>
+		<p className="mt-1 text-[11px] text-rose-200/75">
+			別フレームを選択するか、ファイルを読み込み直してください。
+		</p>
+	</div>
+);
+
 export const ViewerPane = ({
 	pane,
 	files,
@@ -39,6 +52,9 @@ export const ViewerPane = ({
 							containerId={pane.containerId}
 							onViewerReady={pane.initViewer}
 						/>
+						{pane.imageLoadError && (
+							<ImageRenderErrorBanner message={pane.imageLoadError} />
+						)}
 						<ImageOverlay
 							overlayInfo={pane.overlayInfo}
 							visible={pane.showOverlay}

@@ -17,6 +17,7 @@ import {
 	deserializeAnnotationStorage,
 	getDicomFileSopInstanceUid,
 } from "@/utils/annotation-storage";
+import { runBooleanExportWithFallback } from "@/utils/export-fallback";
 import {
 	buildPrintImageMetadata,
 	createPrintImageHtml,
@@ -36,6 +37,41 @@ type DicomViewerProps = {
 };
 
 const SAVE_DEBOUNCE_MS = 1000;
+
+export type AnnotationSaveStatus = "idle" | "pending" | "saved" | "error";
+
+export const AnnotationSaveStatusBadge = ({
+	status,
+}: {
+	status: AnnotationSaveStatus;
+}) => {
+	if (status === "idle") return null;
+
+	const config = {
+		pending: {
+			label: "注釈を保存中",
+			className: "border-sky-400/20 bg-sky-950/50 text-sky-200",
+		},
+		saved: {
+			label: "注釈を保存しました",
+			className: "border-emerald-400/20 bg-emerald-950/50 text-emerald-200",
+		},
+		error: {
+			label: "注釈の保存に失敗しました",
+			className: "border-rose-400/25 bg-rose-950/60 text-rose-200",
+		},
+	}[status];
+
+	return (
+		<div
+			className={`pointer-events-none absolute left-3 top-3 z-40 rounded border px-2.5 py-1 text-[11px] shadow-lg ${config.className}`}
+			role="status"
+			aria-live="polite"
+		>
+			{config.label}
+		</div>
+	);
+};
 
 const getPrimaryStudyInstanceUid = (files: DicomFileInfo[]): string | null => {
 	for (const file of files) {
@@ -91,6 +127,13 @@ const openBrowserPrintWindow = (html: string) => {
 	}, 100);
 };
 
+const saveScreenshotInBrowser = (dataUrl: string) => {
+	const link = document.createElement("a");
+	link.download = `roentgen-${Date.now()}.png`;
+	link.href = dataUrl;
+	link.click();
+};
+
 export const DicomViewer = ({
 	files,
 	onClearAll,
@@ -105,6 +148,8 @@ export const DicomViewer = ({
 	const [storageReadyStudyUid, setStorageReadyStudyUid] = useState<
 		string | null
 	>(null);
+	const [annotationSaveStatus, setAnnotationSaveStatus] =
+		useState<AnnotationSaveStatus>("idle");
 
 	const paneCount = LAYOUT_PANE_COUNT[layout];
 	const studyInstanceUid = useMemo(
@@ -145,6 +190,7 @@ export const DicomViewer = ({
 	// Study単位の注釈・計測を読み込み
 	useEffect(() => {
 		setStorageReadyStudyUid(null);
+		setAnnotationSaveStatus("idle");
 		if (!studyInstanceUid) {
 			setLoadedStorage(null);
 			return;
@@ -261,15 +307,20 @@ export const DicomViewer = ({
 		const api = window.electronAPI;
 		if (!api?.saveAnnotations) return;
 
+		setAnnotationSaveStatus("pending");
 		const timeoutId = window.setTimeout(() => {
 			const payload = createAnnotationStoragePayload({
 				studyInstanceUid,
 				annotations: allStoredAnnotations,
 				measurements: allStoredMeasurements,
 			});
-			api.saveAnnotations(studyInstanceUid, payload).catch((err: unknown) => {
-				console.warn("[annotations] 保存失敗", err);
-			});
+			api
+				.saveAnnotations(studyInstanceUid, payload)
+				.then(() => setAnnotationSaveStatus("saved"))
+				.catch((err: unknown) => {
+					console.warn("[annotations] 保存失敗", err);
+					setAnnotationSaveStatus("error");
+				});
 		}, SAVE_DEBOUNCE_MS);
 
 		return () => window.clearTimeout(timeoutId);
@@ -320,12 +371,11 @@ export const DicomViewer = ({
 			}
 		).electronAPI;
 		if (api?.saveScreenshot) {
-			api.saveScreenshot(dataUrl);
+			void runBooleanExportWithFallback(api.saveScreenshot(dataUrl), () =>
+				saveScreenshotInBrowser(dataUrl),
+			);
 		} else {
-			const link = document.createElement("a");
-			link.download = `roentgen-${Date.now()}.png`;
-			link.href = dataUrl;
-			link.click();
+			saveScreenshotInBrowser(dataUrl);
 		}
 	}, [activePane.tileCanvasRef]);
 
@@ -335,13 +385,15 @@ export const DicomViewer = ({
 		if (!canvas || !activePane.currentFile) return;
 		const dataUrl = canvas.toDataURL("image/png");
 		const metadata = buildPrintImageMetadata(activePane.currentFile);
+		const html = createPrintImageHtml(dataUrl, metadata);
 		if (window.electronAPI?.printImage) {
-			window.electronAPI.printImage(dataUrl, metadata).catch(() => {
-				openBrowserPrintWindow(createPrintImageHtml(dataUrl, metadata));
-			});
+			void runBooleanExportWithFallback(
+				window.electronAPI.printImage(dataUrl, metadata),
+				() => openBrowserPrintWindow(html),
+			);
 			return;
 		}
-		openBrowserPrintWindow(createPrintImageHtml(dataUrl, metadata));
+		openBrowserPrintWindow(html);
 	}, [activePane.currentFile, activePane.tileCanvasRef]);
 
 	// WW/WCプリセット適用（アクティブペイン）
@@ -409,7 +461,8 @@ export const DicomViewer = ({
 	useKeyboardShortcuts(shortcutActions, activePane.isOsdReady);
 
 	return (
-		<div className="flex flex-1">
+		<div className="relative flex flex-1">
+			<AnnotationSaveStatusBadge status={annotationSaveStatus} />
 			<ViewerLayout layout={layout}>
 				{allPanes.slice(0, paneCount).map((pane, i) => (
 					<ViewerPane

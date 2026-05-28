@@ -178,6 +178,36 @@ describe("AnnotationOverlay", () => {
 		expect(polyline?.getAttribute("stroke-dasharray")).toBeNull();
 	});
 
+	it("keeps annotation geometry from capturing viewer drag events", () => {
+		const annotations: Annotation[] = [
+			{
+				id: "a-rect",
+				type: "rect",
+				topLeft: { x: 10, y: 20 },
+				bottomRight: { x: 40, y: 60 },
+			},
+		];
+		const { container } = renderOverlay({
+			annotations,
+			activePoints: [{ x: 10, y: 20 }],
+			viewport: makeViewport(),
+		});
+
+		const annotationLayer = container.querySelector("svg > g");
+		const deleteHandle = container.querySelector("foreignObject");
+		const activePoint = container.querySelector("circle[stroke='#FFD700']");
+
+		expect(annotationLayer?.getAttribute("class") ?? "").not.toContain(
+			"pointer-events-auto",
+		);
+		expect(activePoint?.getAttribute("class") ?? "").not.toContain(
+			"pointer-events-auto",
+		);
+		expect(deleteHandle?.getAttribute("class")).toContain(
+			"pointer-events-auto",
+		);
+	});
+
 	it("subscribes to OSD viewport events without polling", () => {
 		const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 		const viewport = makeViewport();
@@ -233,6 +263,31 @@ describe("AnnotationOverlay", () => {
 
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(onCancelPendingText).toHaveBeenCalledOnce();
+	});
+
+	it("does not submit pending text while IME composition is active", () => {
+		const onSubmitTextAnnotation = vi.fn();
+		const onCancelPendingText = vi.fn();
+
+		renderOverlay({
+			annotations: [],
+			pendingTextPosition: { x: 10, y: 20 },
+			viewport: makeViewport(),
+			onSubmitTextAnnotation,
+			onCancelPendingText,
+		});
+
+		const input = screen.getByRole("textbox", { name: "注釈テキスト" });
+		fireEvent.change(input, { target: { value: "蹄骨" } });
+		fireEvent.compositionStart(input);
+		fireEvent.keyDown(input, { key: "Enter" });
+		fireEvent.keyDown(input, { key: "Escape" });
+		fireEvent.compositionEnd(input);
+		fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+		fireEvent.keyDown(input, { key: "Escape", keyCode: 229 });
+
+		expect(onSubmitTextAnnotation).not.toHaveBeenCalled();
+		expect(onCancelPendingText).not.toHaveBeenCalled();
 	});
 
 	it("does not remove an annotation when delete confirmation is canceled", () => {

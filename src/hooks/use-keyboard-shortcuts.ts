@@ -33,6 +33,8 @@ export const useKeyboardShortcuts = (
 		if (!enabled) return;
 
 		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.isComposing || e.keyCode === 229) return;
+
 			// input/textarea/contenteditable内では無効化
 			const target = e.target as HTMLElement;
 			if (
@@ -50,6 +52,7 @@ export const useKeyboardShortcuts = (
 				a.printImage();
 				return;
 			}
+			if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
 
 			switch (e.key) {
 				case "ArrowUp":

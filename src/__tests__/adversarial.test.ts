@@ -10,6 +10,7 @@ import {
 } from "@/hooks/use-cornerstone";
 import {
 	createDicomParseWorkerPool,
+	getPrimaryLoadErrorMessage,
 	useDicomLoader,
 } from "@/hooks/use-dicom-loader";
 import { useMeasurement } from "@/hooks/use-measurement";
@@ -191,6 +192,17 @@ afterEach(() => {
 });
 
 describe("DICOM parser adversarial", () => {
+	it("missing referenced file is surfaced with a user-facing load message", () => {
+		const message = getPrimaryLoadErrorMessage([
+			{
+				filePath: "/tmp/missing.dcm",
+				reason: "read-error",
+				detail: "DICOMDIR参照ファイルが見つかりません",
+			},
+		]);
+
+		expect(message).toBe("参照ファイルが見つからないため読込できませんでした");
+	});
 	it("zero-byte file is rejected as not-dicom by the loader", async () => {
 		const { result } = renderHook(() => useDicomLoader());
 
@@ -271,12 +283,12 @@ describe("DICOM parser adversarial", () => {
 		expect(Number.isNaN(info.windowCenter)).toBe(false);
 	});
 
-	it("PixelSpacing=0\\0 parses to finite spacing and measurement math stays finite", () => {
+	it("PixelSpacing=0\\0 is treated as uncalibrated pixel distance", () => {
 		const ds = makeDataSet({ strings: { x00280030: "0\\0" } });
 		const spacing = parsePixelSpacing(ds);
-		expect(spacing).toEqual([0, 0]);
+		expect(spacing).toBeNull();
 		expect(calculateDistanceMm({ x: 1, y: 1 }, { x: 2, y: 2 }, spacing)).toBe(
-			0,
+			Math.sqrt(2),
 		);
 	});
 

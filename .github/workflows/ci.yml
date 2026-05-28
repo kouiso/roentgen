@@ -17,7 +17,7 @@ concurrency:
 jobs:
   node:
     name: Node (${{ matrix.check-type }})
-    runs-on: ${{ vars.RUNNER_LINUX }}
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     strategy:
       fail-fast: false
@@ -52,7 +52,7 @@ jobs:
 
   electron-e2e:
     name: Electron E2E
-    runs-on: ${{ vars.RUNNER_LINUX }}
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     timeout-minutes: 20
     steps:
