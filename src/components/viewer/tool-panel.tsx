@@ -54,6 +54,7 @@ export type ToolPanelProps = {
 	activeMode: ViewerControlType;
 	onModeChange: (mode: ViewerControlType) => void;
 	onFitSize: () => void;
+	onFitAllPanes?: () => void;
 	onOneToOne: () => void;
 	onToggleInvert: () => void;
 	onReset: () => void;
@@ -242,6 +243,7 @@ export const ToolPanel = ({
 	activeMode,
 	onModeChange,
 	onFitSize,
+	onFitAllPanes,
 	onOneToOne,
 	onToggleInvert,
 	onReset,
@@ -357,6 +359,13 @@ export const ToolPanel = ({
 						shortcut="F"
 						onClick={onFitSize}
 					/>
+					{onFitAllPanes && layout !== LAYOUT_TYPE.ONE_BY_ONE && (
+						<ActionButton
+							icon={<Maximize size={ICON} />}
+							label="全ペイン合わせる"
+							onClick={onFitAllPanes}
+						/>
+					)}
 					<ActionButton
 						icon={<Scan size={ICON} />}
 						label="原寸大 1:1"

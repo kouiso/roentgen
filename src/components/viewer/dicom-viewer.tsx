@@ -414,6 +414,13 @@ export const DicomViewer = ({
 		[activePane.controls.setWwWc],
 	);
 
+	// 全アクティブペインを画面にフィット
+	const handleFitAllPanes = useCallback(() => {
+		for (const pane of allPanes.slice(0, paneCount)) {
+			pane.controls.fitSize();
+		}
+	}, [allPanes, paneCount]);
+
 	// 全ファイルクリア
 	const handleClearAll = useCallback(() => {
 		pane0.clearAllImageData();
@@ -486,6 +493,7 @@ export const DicomViewer = ({
 
 			<ToolPanel
 				{...activePane.controlPanelProps}
+				onFitAllPanes={paneCount > 1 ? handleFitAllPanes : undefined}
 				onClearSelected={handleClearSelected}
 				onClearAll={handleClearAll}
 				onScreenshot={handleScreenshot}
