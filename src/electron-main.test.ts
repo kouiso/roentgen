@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	realpath,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -153,5 +161,65 @@ describe("electron main DICOM directory scan", () => {
 		await expect(findDicomFilePathsRecursive(root, [root])).resolves.toEqual(
 			[],
 		);
+	});
+});
+
+describe("electron main annotation persistence", () => {
+	it("writes annotation storage through a temporary file before replacing final JSON", async () => {
+		const { saveAnnotationStorageFile } = await import("../electron/main");
+		const storageDir = await mkdtemp(join(tmpdir(), "roentgen-annotations-"));
+		const studyUid = "1.2.826.0.1.3680043.8.498.1";
+		const payload = {
+			version: 1,
+			studyInstanceUid: studyUid,
+			annotations: [{ id: "a1", type: "text", text: "蹄骨" }],
+			measurements: [],
+		};
+
+		const filePath = await saveAnnotationStorageFile(
+			studyUid,
+			payload,
+			storageDir,
+		);
+
+		await expect(readFile(filePath, "utf-8")).resolves.toBe(
+			JSON.stringify(payload, null, 2),
+		);
+		await expect(readdir(storageDir)).resolves.toEqual([`${studyUid}.json`]);
+	});
+
+	it("handles concurrent saves for the same study without leaving temporary files", async () => {
+		const { saveAnnotationStorageFile } = await import("../electron/main");
+		const storageDir = await mkdtemp(join(tmpdir(), "roentgen-annotations-"));
+		const studyUid = "1.2.826.0.1.3680043.8.498.2";
+		const payloads = Array.from({ length: 8 }, (_, index) => ({
+			version: 1,
+			studyInstanceUid: studyUid,
+			annotations: [{ id: `a${index}`, type: "text", text: `note-${index}` }],
+			measurements: [],
+		}));
+
+		const savedPaths = await Promise.all(
+			payloads.map((payload) =>
+				saveAnnotationStorageFile(studyUid, payload, storageDir),
+			),
+		);
+
+		expect(new Set(savedPaths)).toEqual(
+			new Set([join(storageDir, `${studyUid}.json`)]),
+		);
+		const savedPayload = JSON.parse(await readFile(savedPaths[0], "utf-8"));
+		expect(payloads).toContainEqual(savedPayload);
+		await expect(readdir(storageDir)).resolves.toEqual([`${studyUid}.json`]);
+	});
+
+	it("rejects invalid StudyInstanceUID before writing annotation storage", async () => {
+		const { saveAnnotationStorageFile } = await import("../electron/main");
+		const storageDir = await mkdtemp(join(tmpdir(), "roentgen-annotations-"));
+
+		await expect(
+			saveAnnotationStorageFile("../escape", {}, storageDir),
+		).rejects.toThrow("StudyInstanceUIDが不正です");
+		await expect(readdir(storageDir)).resolves.toEqual([]);
 	});
 });
