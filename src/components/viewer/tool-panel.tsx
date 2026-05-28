@@ -286,7 +286,7 @@ export const ToolPanel = ({
 	);
 	const [transformOpen, setTransformOpen] = useState(false);
 	const [clinicalPresetOpen, setClinicalPresetOpen] = useState(false);
-	const [playbackOpen, setPlaybackOpen] = useState(true);
+	const [playbackOpen, setPlaybackOpen] = useState(false);
 
 	const handleClearMeasurements = () => {
 		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) return;
@@ -299,13 +299,12 @@ export const ToolPanel = ({
 	};
 
 	const handleClearSelected = () => {
-		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？"))
-			return;
+		if (!window.confirm("選択中の画像をクリアします。よろしいですか？")) return;
 		onClearSelected();
 	};
 
 	const handleClearAll = () => {
-		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
+		if (!window.confirm("すべての画像をクリアします。よろしいですか？")) return;
 		onClearAll();
 	};
 

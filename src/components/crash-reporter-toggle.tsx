@@ -7,7 +7,11 @@ import { useCallback, useEffect, useState } from "react";
  * Shows current consent status and lets the user toggle it.
  * Changes that disable an active Sentry session require an app restart.
  */
-export const CrashReporterToggle = () => {
+export const CrashReporterToggle = ({
+	compact = false,
+}: {
+	compact?: boolean;
+}) => {
 	const [enabled, setEnabled] = useState<boolean | null>(null);
 	const [requiresRestart, setRequiresRestart] = useState(false);
 
@@ -49,13 +53,15 @@ export const CrashReporterToggle = () => {
 			) : (
 				<ShieldOff size={11} className="text-zinc-500" />
 			)}
-			<span className="font-sans">
-				{requiresRestart
-					? "要再起動"
-					: enabled
-						? "レポート有効"
-						: "レポート無効"}
-			</span>
+			{!compact && (
+				<span className="font-sans">
+					{requiresRestart
+						? "要再起動"
+						: enabled
+							? "レポート有効"
+							: "レポート無効"}
+				</span>
+			)}
 		</button>
 	);
 };

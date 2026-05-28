@@ -177,15 +177,15 @@ export const App = () => {
 	const statusText = (() => {
 		switch (loadState.status) {
 			case "idle":
-				return "ファイル待機";
+				return "画像なし";
 			case "loading":
 				return loadState.cancelRequested
 					? "キャンセル中..."
-					: `読込 ${Math.round(loadState.progress)}%`;
+					: `読込中 ${Math.round(loadState.progress)}%`;
 			case "loaded":
 				return skippedCount > 0
-					? `${dicomFiles.length} ファイル（${skippedCount}件スキップ）`
-					: `${dicomFiles.length} ファイル`;
+					? `${dicomFiles.length} 枚（${skippedCount}件スキップ）`
+					: `${dicomFiles.length} 枚`;
 			case "error":
 				return `エラー: ${loadState.message}`;
 			case "cancelled":
@@ -228,7 +228,7 @@ export const App = () => {
 		auth.status === "authenticated" ? (auth.error?.trim() ?? "") : "";
 	const isSyncing = sync.status !== "idle";
 	const handleClearFiles = useCallback(() => {
-		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
+		if (!window.confirm("すべての画像をクリアします。よろしいですか？")) return;
 		clearFiles();
 	}, [clearFiles]);
 
@@ -275,7 +275,7 @@ export const App = () => {
 									onClick={syncToSeed}
 									disabled={isSyncing}
 									className="chip transition-colors hover:border-sky-400/30 hover:text-sky-300"
-									title={`${auth.email} — クリックでDICOMをdicom-files/に保存`}
+									title={`${auth.email} — クリックして画像をDriveに保存`}
 								>
 									{isSyncing ? (
 										<Loader2 size={11} className="animate-spin text-sky-400" />
@@ -342,7 +342,7 @@ export const App = () => {
 					</div>
 				)}
 
-				<CrashReporterToggle />
+				<CrashReporterToggle compact />
 
 				{driveError && (
 					<span
@@ -375,7 +375,7 @@ export const App = () => {
 						type="button"
 						onClick={handleClearFiles}
 						className="chip"
-						aria-label="全 DICOM をクリア"
+						aria-label="すべての画像をクリア"
 					>
 						全クリア
 					</button>

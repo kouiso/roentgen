@@ -200,7 +200,7 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		expect(result.current.loadState.status).toBe("error");
 		if (result.current.loadState.status === "error") {
 			expect(result.current.loadState.message).toContain(
-				"対応していないDICOM圧縮形式",
+				"対応していない圧縮形式",
 			);
 			expect(result.current.loadState.skipped).toHaveLength(1);
 			expect(result.current.loadState.skipped?.[0]?.detail).toContain(
@@ -221,7 +221,7 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		expect(result.current.loadState.status).toBe("error");
 		if (result.current.loadState.status === "error") {
 			expect(result.current.loadState.message).toBe(
-				"DICOMファイルではありません",
+				"レントゲン画像ではありません",
 			);
 			expect(result.current.loadState.skipped).toHaveLength(1);
 			expect(result.current.loadState.skipped?.[0]?.reason).toBe("not-dicom");
@@ -379,7 +379,7 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		expect(result.current.loadState.status).toBe("error");
 		if (result.current.loadState.status === "error") {
 			expect(result.current.loadState.message).toContain(
-				"有効なDICOMファイルが見つかりませんでした",
+				"読み込める画像ファイルが見つかりませんでした",
 			);
 		}
 	});

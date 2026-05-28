@@ -58,7 +58,7 @@ describe("ToolPanel", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("does not clear all DICOM when confirmation is canceled", () => {
+	it("does not clear all images when confirmation is canceled", () => {
 		vi.spyOn(window, "confirm").mockReturnValue(false);
 		const onClearAll = vi.fn();
 		render(<ToolPanel {...makeProps({ onClearAll })} />);
@@ -66,12 +66,12 @@ describe("ToolPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
 
 		expect(window.confirm).toHaveBeenCalledWith(
-			"全 DICOM をクリアします。よろしいですか？",
+			"すべての画像をクリアします。よろしいですか？",
 		);
 		expect(onClearAll).not.toHaveBeenCalled();
 	});
 
-	it("clears all DICOM after confirmation", () => {
+	it("clears all images after confirmation", () => {
 		vi.spyOn(window, "confirm").mockReturnValue(true);
 		const onClearAll = vi.fn();
 		render(<ToolPanel {...makeProps({ onClearAll })} />);
@@ -187,6 +187,9 @@ describe("ToolPanel", () => {
 		const onIncreaseFps = vi.fn();
 		render(<ToolPanel {...makeProps({ onDecreaseFps, onIncreaseFps })} />);
 
+		// シリーズ再生セクションは初期折りたたみ → ヘッダーをクリックして展開
+		fireEvent.click(screen.getByRole("button", { name: /^シリーズ再生$/ }));
+
 		fireEvent.click(screen.getByRole("button", { name: "再生速度を下げる" }));
 		fireEvent.click(screen.getByRole("button", { name: "再生速度を上げる" }));
 
@@ -196,6 +199,9 @@ describe("ToolPanel", () => {
 
 	it("disables FPS steppers at their bounds", () => {
 		const { rerender } = render(<ToolPanel {...makeProps({ fps: 5 })} />);
+
+		// シリーズ再生セクションは初期折りたたみ → ヘッダーをクリックして展開
+		fireEvent.click(screen.getByRole("button", { name: /^シリーズ再生$/ }));
 
 		expect(
 			screen

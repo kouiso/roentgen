@@ -134,7 +134,7 @@ const classifyParseError = (
 		return {
 			filePath,
 			reason: "not-dicom",
-			detail: "DICOMファイルではありません",
+			detail: "レントゲン画像ではありません",
 		};
 	}
 
@@ -142,7 +142,7 @@ const classifyParseError = (
 		return {
 			filePath,
 			reason: "corrupt",
-			detail: `対応していないDICOM圧縮形式です: ${error.transferSyntaxUid}`,
+			detail: `対応していない圧縮形式です: ${error.transferSyntaxUid}`,
 		};
 	}
 
@@ -156,17 +156,18 @@ const classifyParseError = (
 export const getPrimaryLoadErrorMessage = (
 	skipped: DicomFileError[],
 ): string => {
-	if (skipped.length === 0) return "有効なDICOMファイルが見つかりませんでした";
+	if (skipped.length === 0)
+		return "読み込める画像ファイルが見つかりませんでした";
 	if (skipped.some((s) => s.reason === "read-error")) {
 		return "参照ファイルが見つからないため読込できませんでした";
 	}
 	if (skipped.some((s) => s.reason === "not-dicom")) {
-		return "DICOMファイルではありません";
+		return "レントゲン画像ではありません";
 	}
-	if (skipped.some((s) => s.detail.includes("対応していないDICOM圧縮形式"))) {
-		return "対応していないDICOM圧縮形式です";
+	if (skipped.some((s) => s.detail.includes("対応していない圧縮形式"))) {
+		return "対応していない圧縮形式です";
 	}
-	return "ファイルが破損しているか、有効なDICOMデータを含んでいません";
+	return "ファイルが破損しているか、対応する画像データを含んでいません";
 };
 
 const getPathSegments = (path: string): string[] => path.split(/[\\/]+/);
@@ -254,7 +255,8 @@ const selectDicomdirReferencedFiles = (
 			skipped.push({
 				filePath: resolvedPath,
 				reason: "read-error",
-				detail: "DICOMDIR参照ファイルが見つかりません",
+				detail:
+					"目次ファイル(DICOMDIR)は見つかりましたが、画像ファイルが同じフォルダに揃っていません",
 			});
 			continue;
 		}
@@ -526,7 +528,7 @@ export const useDicomLoader = () => {
 						skipped.push({
 							filePath: fileData.path,
 							reason: "not-dicom",
-							detail: "DICOMファイルではありません",
+							detail: "レントゲン画像ではありません",
 						});
 						setLoadState({
 							status: "loading",
