@@ -30,6 +30,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const [showDirection, setShowDirection] = useState(true);
 	const [species, setSpecies] = useState<Species>("equine");
 	const [isOsdReady, setIsOsdReady] = useState(false);
+	const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 	const isFreehandDraggingRef = useRef(false);
 	const freehandPointerIdRef = useRef<number | null>(null);
 
@@ -388,7 +389,17 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	useEffect(() => {
 		if (!currentFile || !isOsdReady || !cornerstoneReady) return;
 		const controller = new AbortController();
-		loadAndDisplayImage(currentFile, { signal: controller.signal });
+		setImageLoadError(null);
+		Promise.resolve(
+			loadAndDisplayImage(currentFile, { signal: controller.signal }),
+		).then((success) => {
+			if (controller.signal.aborted) return;
+			setImageLoadError(
+				success !== false
+					? null
+					: `${currentFile.fileName} の画像表示に失敗しました`,
+			);
+		});
 		return () => {
 			controller.abort();
 		};
@@ -524,6 +535,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		imageHeight,
 		cornerstoneReady,
 		currentImage,
+		imageLoadError,
 		worldInfo,
 		// スライダー
 		sliderState,
