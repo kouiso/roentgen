@@ -15,14 +15,55 @@ type ThumbnailPanelProps = {
 
 const ThumbnailImage = ({
 	file,
+	index,
+	totalCount,
 	isActive,
 	onClick,
+	onNavigate,
 }: {
 	file: DicomFileInfo;
+	index: number;
+	totalCount: number;
 	isActive: boolean;
 	onClick: () => void;
+	onNavigate: (index: number) => void;
 }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const frameNumber = file.instanceNumber ?? index + 1;
+	const frameLabel = `フレーム ${frameNumber} (${index + 1}/${totalCount})`;
+
+	const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+		let nextIndex: number | null = null;
+
+		switch (event.key) {
+			case "ArrowDown":
+			case "ArrowRight":
+				nextIndex = Math.min(index + 1, totalCount - 1);
+				break;
+			case "ArrowUp":
+			case "ArrowLeft":
+				nextIndex = Math.max(index - 1, 0);
+				break;
+			case "Home":
+				nextIndex = 0;
+				break;
+			case "End":
+				nextIndex = totalCount - 1;
+				break;
+			default:
+				return;
+		}
+
+		event.preventDefault();
+		if (nextIndex === index) return;
+
+		const options =
+			event.currentTarget.parentElement?.querySelectorAll<HTMLElement>(
+				'[role="option"]',
+			);
+		options?.[nextIndex]?.focus();
+		onNavigate(nextIndex);
+	};
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -47,20 +88,20 @@ const ThumbnailImage = ({
 			ctx.font = "12px sans-serif";
 			ctx.textAlign = "center";
 			ctx.textBaseline = "middle";
-			ctx.fillText(
-				String(file.instanceNumber ?? "?"),
-				THUMB_W / 2,
-				THUMB_H / 2,
-			);
+			ctx.fillText(String(frameNumber), THUMB_W / 2, THUMB_H / 2);
 		}
-	}, [file]);
+	}, [file, frameNumber]);
 
 	return (
 		<button
 			type="button"
-			aria-label={`フレーム ${file.instanceNumber ?? "?"} を表示`}
+			role="option"
+			aria-label={frameLabel}
 			aria-current={isActive ? "true" : undefined}
+			aria-selected={isActive}
+			tabIndex={isActive ? 0 : -1}
 			onClick={onClick}
+			onKeyDown={handleKeyDown}
 			className={`group relative shrink-0 overflow-hidden rounded-md border-2 transition-all duration-150 ease-out ${
 				isActive
 					? "border-sky-400 shadow-md shadow-sky-400/20"
@@ -81,7 +122,7 @@ const ThumbnailImage = ({
 						: "bg-black/70 text-zinc-300 backdrop-blur-sm"
 				}`}
 			>
-				{file.instanceNumber ?? "?"}
+				{frameNumber}
 			</span>
 		</button>
 	);
@@ -95,13 +136,21 @@ export const ThumbnailPanel = ({
 	if (files.length <= 1) return null;
 
 	return (
-		<div className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 panel-surface">
+		<div
+			role="listbox"
+			aria-label="フレーム一覧"
+			aria-orientation="vertical"
+			className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 panel-surface"
+		>
 			{files.map((file, index) => (
 				<ThumbnailImage
 					key={file.imageId}
 					file={file}
+					index={index}
+					totalCount={files.length}
 					isActive={index === currentIndex}
 					onClick={() => onSelect(index)}
+					onNavigate={onSelect}
 				/>
 			))}
 		</div>

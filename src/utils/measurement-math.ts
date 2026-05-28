@@ -86,17 +86,20 @@ export const calculateDistance = (
 	p2: MeasurementPoint,
 	pixelSpacing: [number, number] | null,
 ): DistanceCalculationResult => {
-	const calibrated = pixelSpacing !== null;
-	const rowSpacing = pixelSpacing?.[0] ?? 1;
-	const colSpacing = pixelSpacing?.[1] ?? 1;
+	const validSpacing =
+		pixelSpacing?.every((spacing) => Number.isFinite(spacing) && spacing > 0) ??
+		false;
+	const spacing = validSpacing ? pixelSpacing : null;
+	const rowSpacing = spacing?.[0] ?? 1;
+	const colSpacing = spacing?.[1] ?? 1;
 
 	const dx = (p2.x - p1.x) * colSpacing;
 	const dy = (p2.y - p1.y) * rowSpacing;
 
 	return {
 		value: Math.sqrt(dx * dx + dy * dy),
-		unit: calibrated ? "mm" : "px",
-		calibrated,
+		unit: spacing ? "mm" : "px",
+		calibrated: spacing !== null,
 	};
 };
 

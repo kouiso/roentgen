@@ -1,34 +1,27 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
-const googleDriveMock = vi.hoisted(() => ({
-	auth: { status: "unauthenticated" } as {
-		status: "idle" | "checking" | "authenticated" | "unauthenticated";
-		email?: string;
-		error?: string;
-	},
-	sync: { status: "idle" } as {
-		status: "idle" | "listing" | "downloading";
-		progress?: { current: number; total: number };
-		fileCount?: number;
-	},
-	credentialsAvailable: true as boolean | null,
-	login: vi.fn(),
-	logout: vi.fn(),
-	syncToSeed: vi.fn(),
-	available: false,
+const clearFilesMock = vi.hoisted(() => vi.fn());
+const dicomFilesState = vi.hoisted(() => ({
+	files: [] as { path: string; data: ArrayBuffer }[],
 }));
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
 		loadState: { status: "idle" },
-		dicomFiles: [],
+		dicomFiles: dicomFilesState.files,
 		loadFiles: loadFilesMock,
-		clearFiles: vi.fn(),
+		clearFiles: clearFilesMock,
 		removeFile: vi.fn(),
 		cancelLoad: vi.fn(),
 		setImageDataRegistrar: vi.fn(),
@@ -57,13 +50,8 @@ describe("App Wave 4 polish", () => {
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
 		loadFilesMock.mockReset();
-		googleDriveMock.auth = { status: "unauthenticated" };
-		googleDriveMock.sync = { status: "idle" };
-		googleDriveMock.credentialsAvailable = true;
-		googleDriveMock.login.mockReset();
-		googleDriveMock.logout.mockReset();
-		googleDriveMock.syncToSeed.mockReset();
-		googleDriveMock.available = false;
+		clearFilesMock.mockReset();
+		dicomFilesState.files = [];
 		loadTestDicomMock.mockResolvedValue([
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
@@ -82,6 +70,7 @@ describe("App Wave 4 polish", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
 		Object.defineProperty(window, "electronAPI", {
 			configurable: true,
@@ -105,17 +94,32 @@ describe("App Wave 4 polish", () => {
 		});
 	});
 
-	it("shows Google Drive auth errors in the header", () => {
-		googleDriveMock.available = true;
-		googleDriveMock.auth = {
-			status: "unauthenticated",
-			error: "access_denied",
-		};
+	it("requires confirmation before clearing all DICOM from the header", () => {
+		dicomFilesState.files = [
+			{ path: "/tmp/horse.dcm", data: new ArrayBuffer(1) },
+		];
+		vi.spyOn(window, "confirm").mockReturnValue(false);
 
 		render(<App />);
 
-		expect(screen.getByRole("alert").textContent).toBe(
-			"Driveエラー: access_denied",
+		fireEvent.click(screen.getByRole("button", { name: "全 DICOM をクリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"全 DICOM をクリアします。よろしいですか？",
 		);
+		expect(clearFilesMock).not.toHaveBeenCalled();
+	});
+
+	it("clears all DICOM from the header after confirmation", () => {
+		dicomFilesState.files = [
+			{ path: "/tmp/horse.dcm", data: new ArrayBuffer(1) },
+		];
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+
+		render(<App />);
+
+		fireEvent.click(screen.getByRole("button", { name: "全 DICOM をクリア" }));
+
+		expect(clearFilesMock).toHaveBeenCalledTimes(1);
 	});
 });

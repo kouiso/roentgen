@@ -81,6 +81,80 @@ describe("ToolPanel", () => {
 		expect(onClearAll).toHaveBeenCalledOnce();
 	});
 
+	it("does not clear measurements when confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		const onClearMeasurements = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"すべての計測をクリアします。よろしいですか？",
+		);
+		expect(onClearMeasurements).not.toHaveBeenCalled();
+	});
+
+	it("clears measurements after confirmation", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onClearMeasurements = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
+
+		expect(onClearMeasurements).toHaveBeenCalledOnce();
+	});
+
+	it("does not clear annotations when confirmation is canceled", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+		const onClearAnnotations = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
+
+		expect(window.confirm).toHaveBeenCalledWith(
+			"すべての注釈をクリアします。よろしいですか？",
+		);
+		expect(onClearAnnotations).not.toHaveBeenCalled();
+	});
+
+	it("clears annotations after confirmation", () => {
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onClearAnnotations = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
+
+		expect(onClearAnnotations).toHaveBeenCalledOnce();
+	});
+
 	it("starts the freehand annotation tool from the annotation controls", () => {
 		const onStartFreehandTool = vi.fn();
 		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);
@@ -104,5 +178,35 @@ describe("ToolPanel", () => {
 				.getByRole("button", { name: "フリーハンド" })
 				.getAttribute("aria-pressed"),
 		).toBe("true");
+	});
+
+	it("exposes named FPS stepper controls", () => {
+		const onDecreaseFps = vi.fn();
+		const onIncreaseFps = vi.fn();
+		render(<ToolPanel {...makeProps({ onDecreaseFps, onIncreaseFps })} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "再生速度を下げる" }));
+		fireEvent.click(screen.getByRole("button", { name: "再生速度を上げる" }));
+
+		expect(onDecreaseFps).toHaveBeenCalledOnce();
+		expect(onIncreaseFps).toHaveBeenCalledOnce();
+	});
+
+	it("disables FPS steppers at their bounds", () => {
+		const { rerender } = render(<ToolPanel {...makeProps({ fps: 5 })} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "再生速度を下げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
+
+		rerender(<ToolPanel {...makeProps({ fps: 30 })} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "再生速度を上げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
 	});
 });

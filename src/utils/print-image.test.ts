@@ -57,40 +57,66 @@ describe("print-image utilities", () => {
 		const metadata = buildPrintImageMetadata(
 			makeFileInfo({
 				PatientName: "Test^Horse",
+				PatientID: "HORSE-001",
 				StudyDate: "20240315",
+				AccessionNumber: "ACC-123",
 				Modality: "CR",
 				StudyDescription: "LEFT FORELIMB",
 				SeriesDescription: "LATERAL",
+				InstanceNumber: "7",
 			}),
 		);
 
 		expect(metadata).toEqual({
 			patientName: "Test Horse",
+			patientId: "HORSE-001",
 			studyDate: "2024/03/15",
+			accessionNumber: "ACC-123",
 			modality: "CR",
 			description: "LEFT FORELIMB / LATERAL",
+			instanceNumber: "7",
 		});
+	});
+
+	it("falls back to DicomFileInfo instance number for print metadata", () => {
+		const metadata = buildPrintImageMetadata({
+			...makeFileInfo({
+				PatientName: "Fallback^Instance",
+			}),
+			instanceNumber: 12,
+		});
+
+		expect(metadata.instanceNumber).toBe("12");
 	});
 
 	it("uses fallback values when DICOM tags are missing", () => {
 		expect(buildPrintImageMetadata(null)).toEqual({
 			patientName: "未設定",
+			patientId: "未設定",
 			studyDate: "未設定",
+			accessionNumber: "未設定",
 			modality: "未設定",
 			description: "未設定",
+			instanceNumber: "未設定",
 		});
 	});
 
 	it("escapes metadata in generated print HTML", () => {
 		const html = createPrintImageHtml("data:image/png;base64,AAAA", {
 			patientName: "<script>alert(1)</script>",
+			patientId: "ID<&>",
 			studyDate: "2024/03/15",
+			accessionNumber: "ACC-001",
 			modality: "CR",
 			description: 'A&B "test"',
+			instanceNumber: "1",
 		});
 
 		expect(html).toContain("data:image/png;base64,AAAA");
 		expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+		expect(html).toContain("ID&lt;&amp;&gt;");
+		expect(html).toContain("受付番号");
+		expect(html).toContain("インスタンス");
 		expect(html).toContain("A&amp;B &quot;test&quot;");
 		expect(html).not.toContain("<script>alert(1)</script>");
 	});

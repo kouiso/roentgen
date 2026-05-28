@@ -107,7 +107,11 @@ test.describe("real Electron Clear reload regression", () => {
 					path: resolve(screenshotDir, `clear-cycle-${cycle}-before.png`),
 				});
 
-				await page.getByRole("button", { name: "クリア", exact: true }).click();
+				page.once("dialog", (dialog) => dialog.accept());
+				await page
+					.getByRole("button", { name: "全クリア", exact: true })
+					.first()
+					.click();
 
 				await page.screenshot({
 					path: resolve(screenshotDir, `clear-cycle-${cycle}-after.png`),

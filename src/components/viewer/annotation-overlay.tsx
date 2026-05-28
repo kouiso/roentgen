@@ -62,7 +62,7 @@ const DeleteButton = ({
 		y={y - 8}
 		width={16}
 		height={16}
-		className="cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
+		className="pointer-events-auto cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
 	>
 		<button
 			type="button"
@@ -319,6 +319,7 @@ const PendingTextInput = ({
 }) => {
 	const [value, setValue] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
+	const isComposingRef = useRef(false);
 	const p = convert(position);
 
 	useEffect(() => {
@@ -328,7 +329,13 @@ const PendingTextInput = ({
 	if (!p) return null;
 
 	return (
-		<foreignObject x={p.x} y={p.y - 22} width={180} height={28}>
+		<foreignObject
+			x={p.x}
+			y={p.y - 22}
+			width={180}
+			height={28}
+			className="pointer-events-auto"
+		>
 			<input
 				ref={inputRef}
 				type="text"
@@ -336,7 +343,16 @@ const PendingTextInput = ({
 				value={value}
 				onClick={(e) => e.stopPropagation()}
 				onChange={(e) => setValue(e.currentTarget.value)}
+				onCompositionStart={() => {
+					isComposingRef.current = true;
+				}}
+				onCompositionEnd={() => {
+					isComposingRef.current = false;
+				}}
 				onKeyDown={(e) => {
+					if (isComposingRef.current || e.keyCode === 229) {
+						return;
+					}
 					if (e.key === "Enter") {
 						e.preventDefault();
 						onSubmit(value);
@@ -472,7 +488,7 @@ export const AnnotationOverlay = ({
 					<path d="M0,0 L0,6 L9,3 z" fill={ANNOTATION_COLOR} />
 				</marker>
 			</defs>
-			<g className="pointer-events-auto">
+			<g>
 				{annotations.map((annotation) => {
 					switch (annotation.type) {
 						case "text":
