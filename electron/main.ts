@@ -76,16 +76,28 @@ const getResolvedAllowedPath = async (allowedPath: string): Promise<string> => {
 	return realAllowed;
 };
 
+const assertValidFilePathInput = (filePath: unknown): string => {
+	if (
+		typeof filePath !== "string" ||
+		filePath.length === 0 ||
+		filePath.includes("\0")
+	) {
+		throw new Error("ファイルパスが不正です");
+	}
+	return filePath;
+};
+
 export const resolveAllowedReadPath = async (
-	filePath: string,
+	filePath: unknown,
 	allowedPathEntries: Iterable<string> = allowedPaths,
 ): Promise<string> => {
+	const requestedPath = assertValidFilePathInput(filePath);
 	let requestedRealPath: string;
 	try {
-		requestedRealPath = await realpath(resolve(filePath));
+		requestedRealPath = await realpath(resolve(requestedPath));
 	} catch (err) {
-		log.warn(`Blocked missing file access: ${filePath}`, err);
-		throw new Error(`ファイルが見つかりません: ${filePath}`);
+		log.warn(`Blocked missing file access: ${requestedPath}`, err);
+		throw new Error(`ファイルが見つかりません: ${requestedPath}`);
 	}
 
 	for (const allowedPath of allowedPathEntries) {
@@ -98,8 +110,8 @@ export const resolveAllowedReadPath = async (
 		}
 	}
 
-	log.warn(`Blocked file access: ${filePath}`);
-	throw new Error(`許可されていないファイルパス: ${filePath}`);
+	log.warn(`Blocked file access: ${requestedPath}`);
+	throw new Error(`許可されていないファイルパス: ${requestedPath}`);
 };
 
 export const isDicomFilePath = (filePath: string): boolean => {
