@@ -57,14 +57,19 @@ type CornerstoneWadoImageLoader = {
 
 // OSD (OpenSeadragon)の型
 export type OSDViewer = {
-	addHandler: (event: string, handler: (event: OSDTileEvent) => void) => void;
+	addHandler: (event: string, handler: (event?: unknown) => void) => void;
+	removeHandler: (event: string, handler: (event?: unknown) => void) => void;
 	removeAllHandlers: (event: string) => void;
 	world: { needsDraw: () => boolean };
 	viewport: {
 		getZoom: () => number;
-		zoomTo: (zoom: number) => void;
+		zoomTo: (
+			zoom: number,
+			refPoint?: { x: number; y: number } | null,
+			immediately?: boolean,
+		) => void;
 		zoomBy: (factor: number) => void;
-		panTo: (point: { x: number; y: number }) => void;
+		panTo: (point: { x: number; y: number }, immediately?: boolean) => void;
 		panBy: (delta: { x: number; y: number }) => void;
 		fitBounds: (rect: {
 			x: number;
@@ -588,7 +593,8 @@ export const useCornerstone = () => {
 		}
 		osdViewerRef.current = osdViewer;
 
-		osdViewer.addHandler("tile-drawing", (event: OSDTileEvent) => {
+		osdViewer.addHandler("tile-drawing", (rawEvent) => {
+			const event = rawEvent as OSDTileEvent;
 			const cs = _cornerstoneModule;
 			const image = currentImageRef.current;
 			if (!cs || !image || !event.rendered?.canvas) return;

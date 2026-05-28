@@ -58,6 +58,8 @@ export type ToolPanelProps = {
 	onOneToOne: () => void;
 	syncWwWc?: boolean;
 	onToggleSyncWwWc?: () => void;
+	syncZoom?: boolean;
+	onToggleSyncZoom?: () => void;
 	onToggleInvert: () => void;
 	onReset: () => void;
 	onRotateCW: () => void;
@@ -286,6 +288,8 @@ export const ToolPanel = ({
 	onToggleFullscreen,
 	syncWwWc,
 	onToggleSyncWwWc,
+	syncZoom,
+	onToggleSyncZoom,
 	layout,
 	onSetLayout,
 	viewerReady = true,
@@ -376,6 +380,14 @@ export const ToolPanel = ({
 							label="コントラスト同期"
 							active={syncWwWc ?? false}
 							onClick={onToggleSyncWwWc}
+						/>
+					)}
+					{onToggleSyncZoom && layout !== LAYOUT_TYPE.ONE_BY_ONE && (
+						<ToggleButton
+							icon={<ZoomIn size={ICON} />}
+							label="ズーム同期"
+							active={syncZoom ?? false}
+							onClick={onToggleSyncZoom}
 						/>
 					)}
 					<ActionButton
