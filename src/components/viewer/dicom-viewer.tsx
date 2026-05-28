@@ -151,6 +151,7 @@ export const DicomViewer = ({
 	const [annotationSaveStatus, setAnnotationSaveStatus] =
 		useState<AnnotationSaveStatus>("idle");
 	const [syncWwWc, setSyncWwWc] = useState(false);
+	const [syncZoom, setSyncZoom] = useState(false);
 
 	const paneCount = LAYOUT_PANE_COUNT[layout];
 	const studyInstanceUid = useMemo(
@@ -495,6 +496,38 @@ export const DicomViewer = ({
 		allPanes,
 	]);
 
+	// ズーム/パン同期: アクティブペインのOSD viewport-changeを他のペインへ伝播
+	useEffect(() => {
+		if (!syncZoom || paneCount <= 1) return;
+		const viewer = activePane.viewerRef.current;
+		if (!viewer) return;
+		const activePaneId = activePane.containerId;
+		const handler = () => {
+			const vp = activePane.getViewport();
+			if (!vp) return;
+			const center = vp.getCenter();
+			const zoom = vp.getZoom();
+			for (const pane of allPanes.slice(0, paneCount)) {
+				if (pane.containerId === activePaneId) continue;
+				const otherVp = pane.getViewport();
+				if (!otherVp) continue;
+				otherVp.zoomTo(zoom, undefined, true);
+				otherVp.panTo(center, true);
+			}
+		};
+		viewer.addHandler("viewport-change", handler);
+		return () => {
+			viewer.removeHandler("viewport-change", handler);
+		};
+	}, [
+		syncZoom,
+		paneCount,
+		activePane.viewerRef,
+		activePane.getViewport,
+		activePane.containerId,
+		allPanes,
+	]);
+
 	return (
 		<div className="relative flex flex-1">
 			<AnnotationSaveStatusBadge status={annotationSaveStatus} />
@@ -516,6 +549,10 @@ export const DicomViewer = ({
 				syncWwWc={syncWwWc}
 				onToggleSyncWwWc={
 					paneCount > 1 ? () => setSyncWwWc((v) => !v) : undefined
+				}
+				syncZoom={syncZoom}
+				onToggleSyncZoom={
+					paneCount > 1 ? () => setSyncZoom((v) => !v) : undefined
 				}
 				onClearSelected={handleClearSelected}
 				onClearAll={handleClearAll}

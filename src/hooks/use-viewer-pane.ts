@@ -58,7 +58,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 
 	const containerId = `osd-${paneId}`;
 
-	const { initViewer, getViewport, tileReady, tileCanvasRef } =
+	const { initViewer, getViewport, tileReady, tileCanvasRef, viewerRef } =
 		useOpenSeaDragon({
 			containerId,
 			imageWidth,
@@ -531,6 +531,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		// OSD / cornerstone
 		initViewer,
 		getViewport,
+		viewerRef,
 		tileReady,
 		tileCanvasRef,
 		isOsdReady,
