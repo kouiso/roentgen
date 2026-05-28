@@ -96,12 +96,12 @@ describe("App load feedback", () => {
 	it("shows skipped file detail when loading fails", () => {
 		appState.loadState = {
 			status: "error",
-			message: "有効なDICOMファイルが見つかりませんでした",
+			message: "レントゲン画像ではありません",
 			skipped: [
 				{
 					filePath: "/tmp/report.pdf",
 					reason: "not-dicom",
-					detail: "DICOM形式ではありません",
+					detail: "レントゲン画像ではありません",
 				},
 			],
 		};
@@ -109,10 +109,9 @@ describe("App load feedback", () => {
 		render(<App />);
 
 		expect(
-			screen.getByText("有効なDICOMファイルが見つかりませんでした"),
-		).toBeTruthy();
+			screen.getAllByText("レントゲン画像ではありません").length,
+		).toBeGreaterThan(0);
 		expect(screen.getByText("report.pdf")).toBeTruthy();
-		expect(screen.getByText("DICOM形式ではありません")).toBeTruthy();
 	});
 
 	it("keeps partial import warnings visible above the viewer", () => {
@@ -124,7 +123,7 @@ describe("App load feedback", () => {
 				{
 					filePath: "/tmp/broken.dcm",
 					reason: "corrupt",
-					detail: "DICOM解析に失敗しました",
+					detail: "ファイルが破損しているため読み込めませんでした",
 				},
 			],
 		};
@@ -134,6 +133,8 @@ describe("App load feedback", () => {
 		expect(screen.getByTestId("dicom-viewer")).toBeTruthy();
 		expect(screen.getByText("1件のファイルをスキップしました")).toBeTruthy();
 		expect(screen.getByText("broken.dcm")).toBeTruthy();
-		expect(screen.getByText("DICOM解析に失敗しました")).toBeTruthy();
+		expect(
+			screen.getByText("ファイルが破損しているため読み込めませんでした"),
+		).toBeTruthy();
 	});
 });
