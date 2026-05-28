@@ -120,7 +120,7 @@ test.describe("real Electron Clear reload regression", () => {
 				await expect
 					.poll(async () => {
 						const idleVisible = await page
-							.getByText("ファイル待機")
+							.getByText("画像なし")
 							.isVisible()
 							.catch(() => false);
 						const bugPageErrorSeen = pageErrors.some((error) =>
@@ -143,7 +143,7 @@ test.describe("real Electron Clear reload regression", () => {
 					`cycle ${cycle} console messages:\n${consoleMessages.join("\n")}`,
 				).toEqual([]);
 
-				await expect(page.getByText("ファイル待機")).toBeVisible({
+				await expect(page.getByText("画像なし")).toBeVisible({
 					timeout: 5000,
 				});
 
