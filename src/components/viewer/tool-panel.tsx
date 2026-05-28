@@ -255,6 +255,20 @@ export const ToolPanel = ({
 	onSetLayout,
 	viewerReady = true,
 }: ToolPanelProps) => {
+	const handleClearMeasurements = () => {
+		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) {
+			return;
+		}
+		onClearMeasurements();
+	};
+
+	const handleClearAnnotations = () => {
+		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) {
+			return;
+		}
+		onClearAnnotations();
+	};
+
 	const handleClearAll = () => {
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
 		onClearAll();
