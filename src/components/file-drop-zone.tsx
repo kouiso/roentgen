@@ -194,8 +194,23 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 							<p className="font-sans text-[12px] text-zinc-400">
 								クリックしてファイルを選択
 							</p>
+							<p className="font-sans text-[11px] text-zinc-500">
+								対応形式: .dcm / .dicom / DICOMDIR
+							</p>
 						</div>
 					)}
+				</div>
+
+				<div className="grid w-full grid-cols-3 gap-2 text-center font-sans text-[11px] text-zinc-500">
+					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
+						単体ファイル
+					</div>
+					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
+						検査フォルダ
+					</div>
+					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
+						Drive同期
+					</div>
 				</div>
 
 				<div className="grid w-full grid-cols-2 gap-2">
