@@ -68,6 +68,8 @@ export type ToolPanelProps = {
 	species: Species;
 	onToggleSpecies: () => void;
 	onSetWwWc: (ww: number, wc: number) => void;
+	currentWW?: number;
+	currentWC?: number;
 	isPlaying: boolean;
 	fps: number;
 	onTogglePlay: () => void;
@@ -254,6 +256,8 @@ export const ToolPanel = ({
 	species,
 	onToggleSpecies,
 	onSetWwWc,
+	currentWW,
+	currentWC,
 	isPlaying,
 	fps,
 	onTogglePlay,
@@ -322,6 +326,12 @@ export const ToolPanel = ({
 						active={activeMode === VIEWER_CONTROL_TYPE.WW_WC}
 						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.WW_WC)}
 					/>
+					{currentWW !== undefined && currentWC !== undefined && (
+						<div className="mx-3 mb-0.5 flex items-center justify-between font-mono text-[10px] text-zinc-500 tabular-nums">
+							<span>WW {Math.round(currentWW)}</span>
+							<span>WC {Math.round(currentWC)}</span>
+						</div>
+					)}
 					<ModeButton
 						icon={<ZoomIn size={ICON} />}
 						label="ズーム"

@@ -471,6 +471,8 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onToggleSpecies: () =>
 				setSpecies((current) => (current === "equine" ? "human" : "equine")),
 			onSetWwWc: controls.setWwWc,
+			currentWW: worldInfo.windowWidth,
+			currentWC: worldInfo.windowCenter,
 			isPlaying: cine.isPlaying,
 			fps: cine.fps,
 			onTogglePlay: cine.togglePlay,
@@ -502,6 +504,8 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			showDirection,
 			species,
 			controls.setWwWc,
+			worldInfo.windowWidth,
+			worldInfo.windowCenter,
 			cine.isPlaying,
 			worldInfo.invert,
 			cine.fps,

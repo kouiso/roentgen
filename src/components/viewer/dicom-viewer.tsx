@@ -1,13 +1,13 @@
 // メインビューア全体コンポーネント（複数ペインレイアウト対応版）
 // useViewerPane × 4 + ViewerLayout + 右サイドToolPanel の構成
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useViewerLayout } from "@/hooks/use-viewer-layout";
 import { useViewerPane } from "@/hooks/use-viewer-pane";
 import type { Annotation } from "@/types/annotation";
 import type { DicomFileInfo } from "@/types/dicom";
-import { LAYOUT_PANE_COUNT } from "@/types/layout";
+import { LAYOUT_PANE_COUNT, LAYOUT_TYPE } from "@/types/layout";
 import type { Measurement } from "@/types/measurement";
 import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
 import {
@@ -160,6 +160,15 @@ export const DicomViewer = ({
 	// Study/Series グルーピング → ペイン用ファイルリスト
 	const studies = useMemo(() => groupByStudySeries(files), [files]);
 	const seriesList = useMemo(() => getAllSeries(studies), [studies]);
+
+	// 複数シリーズ検出時に1回だけ2x1レイアウトへ自動切替（ユーザー操作後は介入しない）
+	const hasAutoLayouted = useRef(false);
+	useEffect(() => {
+		if (!hasAutoLayouted.current && seriesList.length >= 2) {
+			hasAutoLayouted.current = true;
+			setLayout(LAYOUT_TYPE.TWO_BY_ONE);
+		}
+	}, [seriesList.length, setLayout]);
 
 	// 1x1: pane0 = 全ファイル / マルチペイン: pane i = series i のファイル
 	const paneFiles = useMemo<
