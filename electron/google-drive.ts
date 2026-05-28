@@ -283,7 +283,7 @@ export const listDicomFiles = async (
 		return {
 			files: [],
 			error:
-				err instanceof Error ? err.message : "DICOMファイル一覧の取得に失敗",
+				err instanceof Error ? err.message : "レントゲンファイル一覧の取得に失敗",
 		};
 	}
 };

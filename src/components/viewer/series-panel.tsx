@@ -109,7 +109,7 @@ const groupBySeries = (
 			const label =
 				[modality, seriesNum ? `S${seriesNum}` : "", seriesDesc]
 					.filter(Boolean)
-					.join(" · ") || "Series";
+					.join(" · ") || "シリーズ";
 			map.set(uid, { label, items: [] });
 		}
 		(
