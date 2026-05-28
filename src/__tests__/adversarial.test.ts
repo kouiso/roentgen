@@ -538,7 +538,7 @@ describe("Viewer lifecycle adversarial", () => {
 				path: "/study/after-terminate.dcm",
 				data: makeExplicitDicomBuffer(),
 			}),
-		).rejects.toThrow("terminated");
+		).rejects.toThrow("レントゲン解析処理が停止しました");
 	});
 });
 
