@@ -304,7 +304,7 @@ const restoreWorkerError = (error: DicomParseWorkerError["error"]): Error => {
 };
 
 const restoreWorkerCrashError = (event: ErrorEvent): Error => {
-	return new Error(event.message || "DICOM parse worker failed");
+	return new Error(event.message || "レントゲン解析エラー");
 };
 
 export const createDicomParseWorkerPool = (
@@ -405,7 +405,7 @@ export const createDicomParseWorkerPool = (
 		parse: (input) =>
 			new Promise((resolve, reject) => {
 				if (terminated) {
-					reject(new Error("DICOM parse worker pool is terminated"));
+					reject(new Error("レントゲン解析処理が停止しました"));
 					return;
 				}
 				queue.push({ input, resolve, reject });
@@ -417,10 +417,10 @@ export const createDicomParseWorkerPool = (
 				slot.worker.terminate();
 			}
 			for (const task of queue) {
-				task.reject(new Error("DICOM parse worker pool is terminated"));
+				task.reject(new Error("レントゲン解析処理が停止しました"));
 			}
 			for (const task of pending.values()) {
-				task.reject(new Error("DICOM parse worker pool is terminated"));
+				task.reject(new Error("レントゲン解析処理が停止しました"));
 			}
 			queue.length = 0;
 			pending.clear();
