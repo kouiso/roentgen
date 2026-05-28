@@ -235,6 +235,31 @@ describe("AnnotationOverlay", () => {
 		expect(onCancelPendingText).toHaveBeenCalledOnce();
 	});
 
+	it("does not submit pending text while IME composition is active", () => {
+		const onSubmitTextAnnotation = vi.fn();
+		const onCancelPendingText = vi.fn();
+
+		renderOverlay({
+			annotations: [],
+			pendingTextPosition: { x: 10, y: 20 },
+			viewport: makeViewport(),
+			onSubmitTextAnnotation,
+			onCancelPendingText,
+		});
+
+		const input = screen.getByRole("textbox", { name: "注釈テキスト" });
+		fireEvent.change(input, { target: { value: "蹄骨" } });
+		fireEvent.compositionStart(input);
+		fireEvent.keyDown(input, { key: "Enter" });
+		fireEvent.keyDown(input, { key: "Escape" });
+		fireEvent.compositionEnd(input);
+		fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+		fireEvent.keyDown(input, { key: "Escape", keyCode: 229 });
+
+		expect(onSubmitTextAnnotation).not.toHaveBeenCalled();
+		expect(onCancelPendingText).not.toHaveBeenCalled();
+	});
+
 	it("does not remove an annotation when delete confirmation is canceled", () => {
 		vi.spyOn(window, "confirm").mockReturnValue(false);
 		const onRemoveAnnotation = vi.fn();

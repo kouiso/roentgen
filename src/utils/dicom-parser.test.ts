@@ -276,6 +276,13 @@ describe("parsePixelSpacing", () => {
 		const ds = makeDataSet({ strings: { x00280030: value } });
 		expect(parsePixelSpacing(ds)).toBeNull();
 	});
+
+	it("falls back to ImagerPixelSpacing when PixelSpacing is invalid", () => {
+		const ds = makeDataSet({
+			strings: { x00280030: "0\\0", x00181164: "0.4\\0.8" },
+		});
+		expect(parsePixelSpacing(ds)).toEqual([0.4, 0.8]);
+	});
 });
 
 // ---------------------------------------------------------------------------
