@@ -271,12 +271,12 @@ describe("DICOM parser adversarial", () => {
 		expect(Number.isNaN(info.windowCenter)).toBe(false);
 	});
 
-	it("PixelSpacing=0\\0 parses to finite spacing and measurement math stays finite", () => {
+	it("PixelSpacing=0\\0 is treated as uncalibrated pixel distance", () => {
 		const ds = makeDataSet({ strings: { x00280030: "0\\0" } });
 		const spacing = parsePixelSpacing(ds);
-		expect(spacing).toEqual([0, 0]);
+		expect(spacing).toBeNull();
 		expect(calculateDistanceMm({ x: 1, y: 1 }, { x: 2, y: 2 }, spacing)).toBe(
-			0,
+			Math.sqrt(2),
 		);
 	});
 
