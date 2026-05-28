@@ -171,7 +171,7 @@ export const createPrintImageHtml = (
 </head>
 <body>
 	<header>
-		<h1>DICOM画像</h1>
+		<h1>レントゲン画像</h1>
 		<dl>${metadataHtml}
 		</dl>
 	</header>
