@@ -86,7 +86,10 @@ describe("ToolPanel", () => {
 		const onClearMeasurements = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasMeasurements: true, onClearMeasurements })}
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
 			/>,
 		);
 
@@ -103,7 +106,10 @@ describe("ToolPanel", () => {
 		const onClearMeasurements = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasMeasurements: true, onClearMeasurements })}
+				{...makeProps({
+					hasMeasurements: true,
+					onClearMeasurements,
+				})}
 			/>,
 		);
 
@@ -117,7 +123,10 @@ describe("ToolPanel", () => {
 		const onClearAnnotations = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasAnnotations: true, onClearAnnotations })}
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
 			/>,
 		);
 
@@ -134,7 +143,10 @@ describe("ToolPanel", () => {
 		const onClearAnnotations = vi.fn();
 		render(
 			<ToolPanel
-				{...makeProps({ hasAnnotations: true, onClearAnnotations })}
+				{...makeProps({
+					hasAnnotations: true,
+					onClearAnnotations,
+				})}
 			/>,
 		);
 
