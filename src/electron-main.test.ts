@@ -8,7 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
@@ -114,6 +114,26 @@ describe("electron main read-file path guard", () => {
 		await expect(resolveAllowedReadPath(link, [allowedDir])).rejects.toThrow(
 			"許可されていないファイルパス",
 		);
+	});
+});
+
+describe("electron main open-file import", () => {
+	it("collects DICOM file paths from OS open arguments", async () => {
+		const { collectOpenDicomFilePaths } = await import("../electron/main");
+		const cwd = await mkdtemp(join(tmpdir(), "roentgen-open-file-"));
+
+		expect(
+			collectOpenDicomFilePaths(
+				[
+					"--flag",
+					"image-001.dcm",
+					"image-002.DICOM",
+					"notes.txt",
+					"image-001.dcm",
+				],
+				cwd,
+			),
+		).toEqual([resolve(cwd, "image-001.dcm"), resolve(cwd, "image-002.DICOM")]);
 	});
 });
 
