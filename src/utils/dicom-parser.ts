@@ -148,8 +148,13 @@ const parseSpacingValue = (
 ): [number, number] | null => {
 	if (!value) return null;
 	const parts = value.split("\\").map(Number);
-	if (parts.length !== 2 || parts.some(Number.isNaN)) return null;
-	return [parts[0] ?? 0, parts[1] ?? 0];
+	if (
+		parts.length !== 2 ||
+		parts.some((part) => !Number.isFinite(part) || part <= 0)
+	) {
+		return null;
+	}
+	return [parts[0] as number, parts[1] as number];
 };
 
 // Pixel Spacing (0028,0030) を優先し、無い場合は Imager Pixel Spacing (0018,1164) を使う

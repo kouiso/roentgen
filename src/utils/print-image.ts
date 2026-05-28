@@ -2,9 +2,12 @@ import type { DicomFileInfo } from "../types/dicom";
 
 export type PrintImageMetadata = {
 	patientName: string;
+	patientId: string;
 	studyDate: string;
+	accessionNumber: string;
 	modality: string;
 	description: string;
+	instanceNumber: string;
 };
 
 const EMPTY_VALUE = "未設定";
@@ -43,9 +46,14 @@ export const buildPrintImageMetadata = (
 
 	return {
 		patientName: formatDicomPersonNameForPrint(tags.PatientName),
+		patientId: normalizeMetadataValue(tags.PatientID),
 		studyDate: formatDicomDateForPrint(tags.StudyDate),
+		accessionNumber: normalizeMetadataValue(tags.AccessionNumber),
 		modality: normalizeMetadataValue(tags.Modality),
 		description: normalizeMetadataValue(description),
+		instanceNumber: normalizeMetadataValue(
+			tags.InstanceNumber ?? fileInfo?.instanceNumber?.toString(),
+		),
 	};
 };
 
@@ -63,9 +71,12 @@ export const createPrintImageHtml = (
 ): string => {
 	const items: { label: string; value: string }[] = [
 		{ label: "患者名", value: metadata.patientName },
+		{ label: "患者ID", value: metadata.patientId },
 		{ label: "検査日", value: metadata.studyDate },
+		{ label: "受付番号", value: metadata.accessionNumber },
 		{ label: "モダリティ", value: metadata.modality },
 		{ label: "説明", value: metadata.description },
+		{ label: "インスタンス", value: metadata.instanceNumber },
 	];
 	const metadataHtml = items
 		.map(

@@ -1,19 +1,27 @@
 // @vitest-environment jsdom
-import { act, render, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 const loadTestDicomMock = vi.hoisted(() => vi.fn());
 const loadFilesMock = vi.hoisted(() => vi.fn());
-const readFileMock = vi.hoisted(() => vi.fn());
-const onOpenDicomFilesMock = vi.hoisted(() => vi.fn());
+const clearFilesMock = vi.hoisted(() => vi.fn());
+const dicomFilesState = vi.hoisted(() => ({
+	files: [] as { path: string; data: ArrayBuffer }[],
+}));
 
 vi.mock("../hooks/use-dicom-loader", () => ({
 	useDicomLoader: () => ({
 		loadState: { status: "idle" },
-		dicomFiles: [],
+		dicomFiles: dicomFilesState.files,
 		loadFiles: loadFilesMock,
-		clearFiles: vi.fn(),
+		clearFiles: clearFilesMock,
 		removeFile: vi.fn(),
 		cancelLoad: vi.fn(),
 		setImageDataRegistrar: vi.fn(),
@@ -51,8 +59,8 @@ describe("App Wave 4 polish", () => {
 	beforeEach(() => {
 		loadTestDicomMock.mockReset();
 		loadFilesMock.mockReset();
-		readFileMock.mockReset();
-		onOpenDicomFilesMock.mockReset();
+		clearFilesMock.mockReset();
+		dicomFilesState.files = [];
 		loadTestDicomMock.mockResolvedValue([
 			{ path: "/tmp/dev.dcm", data: new ArrayBuffer(1) },
 		]);
@@ -79,6 +87,7 @@ describe("App Wave 4 polish", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
 		Object.defineProperty(window, "electronAPI", {
 			configurable: true,
@@ -102,22 +111,32 @@ describe("App Wave 4 polish", () => {
 		});
 	});
 
-	it("loads DICOM files opened by the OS into the viewer", async () => {
+	it("requires confirmation before clearing all DICOM from the header", () => {
+		dicomFilesState.files = [
+			{ path: "/tmp/horse.dcm", data: new ArrayBuffer(1) },
+		];
+		vi.spyOn(window, "confirm").mockReturnValue(false);
+
 		render(<App />);
 
-		expect(onOpenDicomFilesMock).toHaveBeenCalledOnce();
-		const callback = openDicomFilesCallback;
-		if (!callback) throw new Error("open-file callback was not registered");
+		fireEvent.click(screen.getByRole("button", { name: "全 DICOM をクリア" }));
 
-		act(() => {
-			callback(["/tmp/opened-from-finder.dcm"]);
-		});
+		expect(window.confirm).toHaveBeenCalledWith(
+			"全 DICOM をクリアします。よろしいですか？",
+		);
+		expect(clearFilesMock).not.toHaveBeenCalled();
+	});
 
-		await waitFor(() => {
-			expect(readFileMock).toHaveBeenCalledWith("/tmp/opened-from-finder.dcm");
-			expect(loadFilesMock).toHaveBeenCalledWith([
-				{ path: "/tmp/opened-from-finder.dcm", data: expect.any(ArrayBuffer) },
-			]);
-		});
+	it("clears all DICOM from the header after confirmation", () => {
+		dicomFilesState.files = [
+			{ path: "/tmp/horse.dcm", data: new ArrayBuffer(1) },
+		];
+		vi.spyOn(window, "confirm").mockReturnValue(true);
+
+		render(<App />);
+
+		fireEvent.click(screen.getByRole("button", { name: "全 DICOM をクリア" }));
+
+		expect(clearFilesMock).toHaveBeenCalledTimes(1);
 	});
 });
