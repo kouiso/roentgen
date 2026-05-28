@@ -1,10 +1,9 @@
-// 右サイド縦型ツールパネル（mgboxviewer SmartPanel準拠）
-// Mode/Toggle/Actionの3分類で視覚的に区別
-
 import {
 	ArrowUpRight,
 	Bone,
 	Camera,
+	ChevronDown,
+	ChevronRight,
 	Circle,
 	Columns2,
 	Compass,
@@ -38,7 +37,7 @@ import {
 	XCircle,
 	ZoomIn,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import {
 	CLINICAL_WW_WC_PRESETS,
 	EQUINE_WW_WC_PRESETS,
@@ -85,7 +84,6 @@ export type ToolPanelProps = {
 	onClearAnnotations: () => void;
 	hasAnnotations: boolean;
 	isInverted: boolean;
-	// DicomViewerから追加
 	onClearSelected: () => void;
 	onClearAll: () => void;
 	onScreenshot: () => void;
@@ -94,7 +92,6 @@ export type ToolPanelProps = {
 	onToggleFullscreen: () => void;
 	layout: LayoutType;
 	onSetLayout: (layout: LayoutType) => void;
-	// ビューア未準備時の全体無効化
 	viewerReady?: boolean;
 };
 
@@ -102,11 +99,39 @@ export type ToolPanelProps = {
 
 const ICON = 18;
 
-const SectionHeader = ({ label }: { label: string }) => (
-	<div className="mb-1 mt-4 border-b border-white/5 px-3 pb-1.5 font-sans text-[10px] font-medium tracking-[0.14em] text-zinc-400 uppercase first:mt-1">
-		{label}
-	</div>
-);
+const SectionHeader = ({
+	label,
+	collapsible,
+	open,
+	onToggle,
+}: {
+	label: string;
+	collapsible?: boolean;
+	open?: boolean;
+	onToggle?: () => void;
+}) => {
+	if (collapsible && onToggle !== undefined) {
+		return (
+			<button
+				type="button"
+				onClick={onToggle}
+				className="mb-1 mt-4 flex w-full items-center justify-between border-b border-white/5 px-3 pb-1.5 text-left font-sans text-[10px] font-medium tracking-[0.14em] text-zinc-400 uppercase transition-colors first:mt-1 hover:text-zinc-300"
+			>
+				{label}
+				{open ? (
+					<ChevronDown size={10} className="shrink-0" />
+				) : (
+					<ChevronRight size={10} className="shrink-0" />
+				)}
+			</button>
+		);
+	}
+	return (
+		<div className="mb-1 mt-4 border-b border-white/5 px-3 pb-1.5 font-sans text-[10px] font-medium tracking-[0.14em] text-zinc-400 uppercase first:mt-1">
+			{label}
+		</div>
+	);
+};
 
 const ModeButton = ({
 	icon,
@@ -255,17 +280,21 @@ export const ToolPanel = ({
 	onSetLayout,
 	viewerReady = true,
 }: ToolPanelProps) => {
+	// 注釈: 使用中またはデータあり時は自動展開
+	const [annotationOpen, setAnnotationOpen] = useState(
+		() => activeAnnotationTool !== null || hasAnnotations,
+	);
+	const [transformOpen, setTransformOpen] = useState(false);
+	const [clinicalPresetOpen, setClinicalPresetOpen] = useState(false);
+	const [playbackOpen, setPlaybackOpen] = useState(true);
+
 	const handleClearMeasurements = () => {
-		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) {
-			return;
-		}
+		if (!window.confirm("すべての計測をクリアします。よろしいですか？")) return;
 		onClearMeasurements();
 	};
 
 	const handleClearAnnotations = () => {
-		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) {
-			return;
-		}
+		if (!window.confirm("すべての注釈をクリアします。よろしいですか？")) return;
 		onClearAnnotations();
 	};
 
@@ -289,7 +318,7 @@ export const ToolPanel = ({
 				<div className="flex flex-col gap-0.5 px-1">
 					<ModeButton
 						icon={<Contrast size={ICON} />}
-						label="WW/WC"
+						label="コントラスト"
 						shortcut="W"
 						active={activeMode === VIEWER_CONTROL_TYPE.WW_WC}
 						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.WW_WC)}
@@ -310,87 +339,18 @@ export const ToolPanel = ({
 					/>
 				</div>
 
-				{/* 計測 */}
-				<SectionHeader label="計測" />
-				<div className="flex flex-col gap-0.5 px-1">
-					<ModeButton
-						icon={<Ruler size={ICON} />}
-						label="距離"
-						shortcut="D"
-						active={activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE}
-						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.MEASURE_DISTANCE)}
-					/>
-					<ModeButton
-						icon={<Triangle size={ICON} />}
-						label="角度"
-						shortcut="A"
-						active={activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE}
-						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.MEASURE_ANGLE)}
-					/>
-					{hasMeasurements && (
-						<ActionButton
-							icon={<Trash2 size={ICON} />}
-							label="計測クリア"
-							shortcut="Del"
-							onClick={handleClearMeasurements}
-						/>
-					)}
-				</div>
-
-				{/* 注釈 */}
-				<SectionHeader label="注釈" />
-				<div className="flex flex-col gap-0.5 px-1">
-					<ModeButton
-						icon={<Type size={ICON} />}
-						label="テキスト"
-						active={activeAnnotationTool === "text"}
-						onClick={onStartTextTool}
-					/>
-					<ModeButton
-						icon={<ArrowUpRight size={ICON} />}
-						label="矢印"
-						active={activeAnnotationTool === "arrow"}
-						onClick={onStartArrowTool}
-					/>
-					<ModeButton
-						icon={<Square size={ICON} />}
-						label="矩形ROI"
-						active={activeAnnotationTool === "rect"}
-						onClick={onStartRectTool}
-					/>
-					<ModeButton
-						icon={<Circle size={ICON} />}
-						label="楕円ROI"
-						active={activeAnnotationTool === "ellipse"}
-						onClick={onStartEllipseTool}
-					/>
-					<ModeButton
-						icon={<PencilLine size={ICON} />}
-						label="フリーハンド"
-						active={activeAnnotationTool === "freehand"}
-						onClick={onStartFreehandTool}
-					/>
-					{hasAnnotations && (
-						<ActionButton
-							icon={<Trash2 size={ICON} />}
-							label="注釈クリア"
-							onClick={handleClearAnnotations}
-						/>
-					)}
-				</div>
-
-				{/* 表示 */}
-				<SectionHeader label="表示" />
+				{/* 表示調整 */}
+				<SectionHeader label="表示調整" />
 				<div className="flex flex-col gap-0.5 px-1">
 					<ActionButton
 						icon={<Maximize size={ICON} />}
-						label="フィット"
+						label="画面に合わせる"
 						shortcut="F"
 						onClick={onFitSize}
 					/>
 					<ActionButton
 						icon={<Scan size={ICON} />}
-						label="1:1 原寸大"
+						label="原寸大 1:1"
 						onClick={onOneToOne}
 					/>
 					<ToggleButton
@@ -408,74 +368,7 @@ export const ToolPanel = ({
 					/>
 				</div>
 
-				{/* 変形 */}
-				<SectionHeader label="変形" />
-				<div className="flex flex-col gap-0.5 px-1">
-					<ActionButton
-						icon={<RotateCw size={ICON} />}
-						label="右90°回転"
-						onClick={onRotateCW}
-					/>
-					<ActionButton
-						icon={<RotateCcw size={ICON} />}
-						label="左90°回転"
-						onClick={onRotateCCW}
-					/>
-					<ActionButton
-						icon={<FlipHorizontal2 size={ICON} />}
-						label="左右反転"
-						onClick={onFlipH}
-					/>
-					<ActionButton
-						icon={<FlipVertical2 size={ICON} />}
-						label="上下反転"
-						onClick={onFlipV}
-					/>
-				</div>
-
-				{/* オーバーレイ */}
-				<SectionHeader label="オーバーレイ" />
-				<div className="flex flex-col gap-0.5 px-1">
-					<ToggleButton
-						icon={showOverlay ? <Eye size={ICON} /> : <EyeOff size={ICON} />}
-						label="情報表示"
-						active={showOverlay}
-						onClick={onToggleOverlay}
-					/>
-					<ToggleButton
-						icon={<Compass size={ICON} />}
-						label="方向マーカー"
-						active={showDirection}
-						onClick={onToggleDirection}
-					/>
-					<ToggleButton
-						icon={<Bone size={ICON} />}
-						label={species === "equine" ? "馬" : "人"}
-						active={species === "equine"}
-						onClick={onToggleSpecies}
-					/>
-				</div>
-
-				{/* プリセット — 臨床 */}
-				<SectionHeader label="臨床プリセット" />
-				<div className="flex flex-col gap-0.5 px-1">
-					{CLINICAL_WW_WC_PRESETS.map((preset, i) => (
-						<button
-							key={preset.key}
-							type="button"
-							onClick={() => onSetWwWc(preset.ww, preset.wc)}
-							className="flex h-7 w-full items-center justify-between rounded-md px-3 text-[12px] text-zinc-400 transition-[background-color,color] duration-150 ease-out hover:bg-white/[0.04] hover:text-zinc-100"
-						>
-							<span>{preset.label}</span>
-							<span className="font-mono text-[10px] text-zinc-500">
-								{preset.ww}/{preset.wc}{" "}
-								<span className="text-zinc-600">[{i + 1}]</span>
-							</span>
-						</button>
-					))}
-				</div>
-
-				{/* プリセット — 馬用 */}
+				{/* 馬用プリセット */}
 				<SectionHeader label="馬用プリセット" />
 				<div className="flex flex-col gap-0.5 px-1">
 					{EQUINE_WW_WC_PRESETS.map((preset) => (
@@ -493,39 +386,203 @@ export const ToolPanel = ({
 					))}
 				</div>
 
-				{/* 再生 */}
-				<SectionHeader label="再生" />
+				{/* 計測 */}
+				<SectionHeader label="計測" />
 				<div className="flex flex-col gap-0.5 px-1">
-					<ActionButton
-						icon={isPlaying ? <Pause size={ICON} /> : <Play size={ICON} />}
-						label={isPlaying ? "停止" : "再生"}
-						shortcut="Space"
-						onClick={onTogglePlay}
+					<ModeButton
+						icon={<Ruler size={ICON} />}
+						label="距離を測る"
+						shortcut="D"
+						active={activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE}
+						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.MEASURE_DISTANCE)}
 					/>
-					<div className="flex items-center gap-1 px-3">
-						<button
-							type="button"
-							aria-label="再生速度を下げる"
-							onClick={onDecreaseFps}
-							disabled={fps <= 5}
-							className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
-						>
-							<Minus size={14} />
-						</button>
-						<span className="min-w-[3rem] text-center font-mono tabular-nums text-[11px] text-zinc-400">
-							{fps} fps
-						</span>
-						<button
-							type="button"
-							aria-label="再生速度を上げる"
-							onClick={onIncreaseFps}
-							disabled={fps >= 30}
-							className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
-						>
-							<Plus size={14} />
-						</button>
-					</div>
+					<ModeButton
+						icon={<Triangle size={ICON} />}
+						label="角度を測る"
+						shortcut="A"
+						active={activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE}
+						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.MEASURE_ANGLE)}
+					/>
+					{hasMeasurements && (
+						<ActionButton
+							icon={<Trash2 size={ICON} />}
+							label="計測クリア"
+							shortcut="Del"
+							onClick={handleClearMeasurements}
+						/>
+					)}
 				</div>
+
+				{/* 注釈（折りたたみ） */}
+				<SectionHeader
+					label="注釈"
+					collapsible
+					open={annotationOpen}
+					onToggle={() => setAnnotationOpen((v) => !v)}
+				/>
+				{annotationOpen && (
+					<div className="flex flex-col gap-0.5 px-1">
+						<ModeButton
+							icon={<Type size={ICON} />}
+							label="テキスト"
+							active={activeAnnotationTool === "text"}
+							onClick={onStartTextTool}
+						/>
+						<ModeButton
+							icon={<ArrowUpRight size={ICON} />}
+							label="矢印"
+							active={activeAnnotationTool === "arrow"}
+							onClick={onStartArrowTool}
+						/>
+						<ModeButton
+							icon={<Square size={ICON} />}
+							label="四角形"
+							active={activeAnnotationTool === "rect"}
+							onClick={onStartRectTool}
+						/>
+						<ModeButton
+							icon={<Circle size={ICON} />}
+							label="楕円"
+							active={activeAnnotationTool === "ellipse"}
+							onClick={onStartEllipseTool}
+						/>
+						<ModeButton
+							icon={<PencilLine size={ICON} />}
+							label="フリーハンド"
+							active={activeAnnotationTool === "freehand"}
+							onClick={onStartFreehandTool}
+						/>
+						{hasAnnotations && (
+							<ActionButton
+								icon={<Trash2 size={ICON} />}
+								label="注釈クリア"
+								onClick={handleClearAnnotations}
+							/>
+						)}
+					</div>
+				)}
+
+				{/* 情報表示 */}
+				<SectionHeader label="情報表示" />
+				<div className="flex flex-col gap-0.5 px-1">
+					<ToggleButton
+						icon={showOverlay ? <Eye size={ICON} /> : <EyeOff size={ICON} />}
+						label="撮影情報"
+						active={showOverlay}
+						onClick={onToggleOverlay}
+					/>
+					<ToggleButton
+						icon={<Compass size={ICON} />}
+						label="方向マーカー"
+						active={showDirection}
+						onClick={onToggleDirection}
+					/>
+					<ToggleButton
+						icon={<Bone size={ICON} />}
+						label={species === "equine" ? "馬モード" : "人体モード"}
+						active={species === "equine"}
+						onClick={onToggleSpecies}
+					/>
+				</div>
+
+				{/* 変形（折りたたみ） */}
+				<SectionHeader
+					label="変形"
+					collapsible
+					open={transformOpen}
+					onToggle={() => setTransformOpen((v) => !v)}
+				/>
+				{transformOpen && (
+					<div className="flex flex-col gap-0.5 px-1">
+						<ActionButton
+							icon={<RotateCw size={ICON} />}
+							label="右90°回転"
+							onClick={onRotateCW}
+						/>
+						<ActionButton
+							icon={<RotateCcw size={ICON} />}
+							label="左90°回転"
+							onClick={onRotateCCW}
+						/>
+						<ActionButton
+							icon={<FlipHorizontal2 size={ICON} />}
+							label="左右反転"
+							onClick={onFlipH}
+						/>
+						<ActionButton
+							icon={<FlipVertical2 size={ICON} />}
+							label="上下反転"
+							onClick={onFlipV}
+						/>
+					</div>
+				)}
+
+				{/* 標準プリセット（折りたたみ） */}
+				<SectionHeader
+					label="標準プリセット"
+					collapsible
+					open={clinicalPresetOpen}
+					onToggle={() => setClinicalPresetOpen((v) => !v)}
+				/>
+				{clinicalPresetOpen && (
+					<div className="flex flex-col gap-0.5 px-1">
+						{CLINICAL_WW_WC_PRESETS.map((preset, i) => (
+							<button
+								key={preset.key}
+								type="button"
+								onClick={() => onSetWwWc(preset.ww, preset.wc)}
+								className="flex h-7 w-full items-center justify-between rounded-md px-3 text-[12px] text-zinc-400 transition-[background-color,color] duration-150 ease-out hover:bg-white/[0.04] hover:text-zinc-100"
+							>
+								<span>{preset.label}</span>
+								<span className="font-mono text-[10px] text-zinc-500">
+									{preset.ww}/{preset.wc}{" "}
+									<span className="text-zinc-600">[{i + 1}]</span>
+								</span>
+							</button>
+						))}
+					</div>
+				)}
+
+				{/* シリーズ再生（折りたたみ） */}
+				<SectionHeader
+					label="シリーズ再生"
+					collapsible
+					open={playbackOpen}
+					onToggle={() => setPlaybackOpen((v) => !v)}
+				/>
+				{playbackOpen && (
+					<div className="flex flex-col gap-0.5 px-1">
+						<ActionButton
+							icon={isPlaying ? <Pause size={ICON} /> : <Play size={ICON} />}
+							label={isPlaying ? "停止" : "再生"}
+							shortcut="Space"
+							onClick={onTogglePlay}
+						/>
+						<div className="flex items-center gap-1 px-3">
+							<button
+								type="button"
+								aria-label="再生速度を下げる"
+								onClick={onDecreaseFps}
+								disabled={fps <= 5}
+								className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
+							>
+								<Minus size={14} />
+							</button>
+							<span className="min-w-[3rem] text-center font-mono tabular-nums text-[11px] text-zinc-400">
+								{fps} fps
+							</span>
+							<button
+								type="button"
+								aria-label="再生速度を上げる"
+								onClick={onIncreaseFps}
+								disabled={fps >= 30}
+								className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
+							>
+								<Plus size={14} />
+							</button>
+						</div>
+					</div>
+				)}
 
 				{/* ツール */}
 				<SectionHeader label="ツール" />
@@ -543,7 +600,7 @@ export const ToolPanel = ({
 					/>
 					<ToggleButton
 						icon={<Maximize2 size={ICON} />}
-						label="フルスクリーン"
+						label="全画面"
 						shortcut="F11"
 						active={isFullscreen}
 						onClick={onToggleFullscreen}

@@ -9,7 +9,7 @@ describe("FileDropZone", () => {
 
 		expect(screen.getByText("対応形式: .dcm / .dicom / DICOMDIR")).toBeTruthy();
 		expect(screen.getByText("単体ファイル")).toBeTruthy();
-		expect(screen.getByText("検査フォルダ")).toBeTruthy();
+		expect(screen.getByText("フォルダ一括")).toBeTruthy();
 		expect(screen.getByText("Drive同期")).toBeTruthy();
 	});
 });

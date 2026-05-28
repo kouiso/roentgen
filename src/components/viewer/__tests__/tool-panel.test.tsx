@@ -159,6 +159,8 @@ describe("ToolPanel", () => {
 		const onStartFreehandTool = vi.fn();
 		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);
 
+		// 注釈セクションは初期折りたたみ → ヘッダーをクリックして展開
+		fireEvent.click(screen.getByRole("button", { name: /^注釈$/ }));
 		fireEvent.click(screen.getByRole("button", { name: "フリーハンド" }));
 
 		expect(onStartFreehandTool).toHaveBeenCalledOnce();
