@@ -10,6 +10,7 @@ import {
 } from "@/hooks/use-cornerstone";
 import {
 	createDicomParseWorkerPool,
+	getPrimaryLoadErrorMessage,
 	useDicomLoader,
 } from "@/hooks/use-dicom-loader";
 import { useMeasurement } from "@/hooks/use-measurement";
@@ -191,6 +192,17 @@ afterEach(() => {
 });
 
 describe("DICOM parser adversarial", () => {
+	it("missing referenced file is surfaced with a user-facing load message", () => {
+		const message = getPrimaryLoadErrorMessage([
+			{
+				filePath: "/tmp/missing.dcm",
+				reason: "read-error",
+				detail: "DICOMDIR参照ファイルが見つかりません",
+			},
+		]);
+
+		expect(message).toBe("参照ファイルが見つからないため読込できませんでした");
+	});
 	it("zero-byte file is rejected as not-dicom by the loader", async () => {
 		const { result } = renderHook(() => useDicomLoader());
 

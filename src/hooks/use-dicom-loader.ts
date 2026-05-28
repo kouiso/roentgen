@@ -153,8 +153,13 @@ const classifyParseError = (
 	};
 };
 
-const getPrimaryLoadErrorMessage = (skipped: DicomFileError[]): string => {
+export const getPrimaryLoadErrorMessage = (
+	skipped: DicomFileError[],
+): string => {
 	if (skipped.length === 0) return "有効なDICOMファイルが見つかりませんでした";
+	if (skipped.some((s) => s.reason === "read-error")) {
+		return "参照ファイルが見つからないため読込できませんでした";
+	}
 	if (skipped.some((s) => s.reason === "not-dicom")) {
 		return "DICOMファイルではありません";
 	}
