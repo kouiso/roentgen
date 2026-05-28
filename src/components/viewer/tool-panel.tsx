@@ -270,10 +270,10 @@ export const ToolPanel = ({
 	};
 
 	const handleClearSelected = () => {
-		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？")) return;
+		if (!window.confirm("選択中の DICOM をクリアします。よろしいですか？"))
+			return;
 		onClearSelected();
 	};
-
 
 	const handleClearAll = () => {
 		if (!window.confirm("全 DICOM をクリアします。よろしいですか？")) return;
