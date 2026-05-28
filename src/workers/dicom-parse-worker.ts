@@ -67,7 +67,7 @@ const toErrorEnvelope = (error: unknown): DicomParseWorkerError["error"] => {
 	}
 	return {
 		name: "Error",
-		message: "不明なDICOMパースエラー",
+		message: "画像の読み込みに失敗しました",
 	};
 };
 

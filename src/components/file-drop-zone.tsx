@@ -102,7 +102,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					return;
 				}
 				setReadErrors(
-					errors.length > 0 ? errors : ["DICOMファイルが見つかりません"],
+					errors.length > 0 ? errors : ["読み込める画像が見つかりません"],
 				);
 			} finally {
 				setIsLoading(false);
@@ -155,7 +155,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 				loadFiles(paths);
 			}
 		} catch (err) {
-			setReadErrors([toDirectoryReadErrorMessage("DICOMフォルダ", err)]);
+			setReadErrors([toDirectoryReadErrorMessage("フォルダ", err)]);
 		}
 	}, [isLoading, loadFiles]);
 
@@ -180,7 +180,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 				{/* biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない） */}
 				<div
 					role="button"
-					aria-label="DICOMファイルを選択"
+					aria-label="レントゲン画像を選択"
 					aria-disabled={isLoading}
 					tabIndex={0}
 					onClick={handleFileClick}
@@ -211,7 +211,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 								クリックしてファイルを選択
 							</p>
 							<p className="font-sans text-[11px] text-zinc-500">
-								対応形式: .dcm / .dicom / DICOMDIR
+								病院でもらったレントゲンファイル（.dcm）に対応
 							</p>
 						</div>
 					)}

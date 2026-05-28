@@ -122,10 +122,12 @@ describe("App Wave 4 polish", () => {
 
 		render(<App />);
 
-		fireEvent.click(screen.getByRole("button", { name: "全 DICOM をクリア" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "すべての画像をクリア" }),
+		);
 
 		expect(window.confirm).toHaveBeenCalledWith(
-			"全 DICOM をクリアします。よろしいですか？",
+			"すべての画像をクリアします。よろしいですか？",
 		);
 		expect(clearFilesMock).not.toHaveBeenCalled();
 	});
@@ -138,7 +140,9 @@ describe("App Wave 4 polish", () => {
 
 		render(<App />);
 
-		fireEvent.click(screen.getByRole("button", { name: "全 DICOM をクリア" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "すべての画像をクリア" }),
+		);
 
 		expect(clearFilesMock).toHaveBeenCalledTimes(1);
 	});

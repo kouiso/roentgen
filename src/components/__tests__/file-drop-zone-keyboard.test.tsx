@@ -33,7 +33,7 @@ describe("FileDropZone keyboard access", () => {
 		render(<FileDropZone onFilesLoaded={onFilesLoaded} />);
 
 		fireEvent.keyDown(
-			screen.getByRole("button", { name: "DICOMファイルを選択" }),
+			screen.getByRole("button", { name: "レントゲン画像を選択" }),
 			{
 				key: "Enter",
 			},
@@ -51,7 +51,7 @@ describe("FileDropZone keyboard access", () => {
 		render(<FileDropZone onFilesLoaded={vi.fn()} />);
 
 		const dropZone = screen.getByRole("button", {
-			name: "DICOMファイルを選択",
+			name: "レントゲン画像を選択",
 		});
 		const event = new KeyboardEvent("keydown", {
 			key: " ",
@@ -75,7 +75,7 @@ describe("FileDropZone keyboard access", () => {
 		);
 		render(<FileDropZone onFilesLoaded={vi.fn()} />);
 		const dropZone = screen.getByRole("button", {
-			name: "DICOMファイルを選択",
+			name: "レントゲン画像を選択",
 		});
 
 		fireEvent.click(dropZone);

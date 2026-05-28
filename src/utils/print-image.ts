@@ -176,7 +176,7 @@ export const createPrintImageHtml = (
 		</dl>
 	</header>
 	<main>
-		<img src="${escapeHtml(imageDataUrl)}" alt="DICOM画像" />
+		<img src="${escapeHtml(imageDataUrl)}" alt="レントゲン画像" />
 	</main>
 </body>
 </html>`;
