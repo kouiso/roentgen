@@ -1,4 +1,11 @@
-import { CircleDot, Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
+import {
+	AlertTriangle,
+	CircleDot,
+	Cloud,
+	CloudOff,
+	Loader2,
+	LogOut,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CrashReporterToggle } from "./components/crash-reporter-toggle";
 import { ErrorBoundary } from "./components/error-boundary";
@@ -6,6 +13,66 @@ import { FileDropZone } from "./components/file-drop-zone";
 import { DicomViewer } from "./components/viewer/dicom-viewer";
 import { useDicomLoader } from "./hooks/use-dicom-loader";
 import { useGoogleDrive } from "./hooks/use-google-drive";
+import type { DicomFileError } from "./types/dicom";
+
+const getDisplayFileName = (filePath: string) => {
+	const parts = filePath.split(/[\\/]/).filter(Boolean);
+	return parts[parts.length - 1] ?? filePath;
+};
+
+const LoadFeedbackBanner = ({
+	message,
+	skipped,
+	variant,
+}: {
+	message: string;
+	skipped: DicomFileError[];
+	variant: "error" | "warning";
+}) => {
+	const shownSkipped = skipped.slice(0, 3);
+	const hiddenCount = skipped.length - shownSkipped.length;
+	const colorClass =
+		variant === "error"
+			? "border-rose-500/25 bg-rose-950/30 text-rose-100"
+			: "border-amber-400/25 bg-amber-950/25 text-amber-100";
+
+	return (
+		<section
+			className={`shrink-0 border-b px-5 py-2 ${colorClass}`}
+			aria-live="polite"
+		>
+			<div className="flex items-start gap-2 text-xs">
+				<AlertTriangle
+					size={15}
+					className={
+						variant === "error"
+							? "mt-0.5 text-rose-300"
+							: "mt-0.5 text-amber-300"
+					}
+				/>
+				<div className="min-w-0">
+					<p className="font-semibold">{message}</p>
+					{shownSkipped.length > 0 && (
+						<ul className="mt-1 space-y-0.5 text-[11px] text-zinc-300">
+							{shownSkipped.map((item) => (
+								<li key={`${item.filePath}:${item.reason}`}>
+									<span className="font-medium text-zinc-100">
+										{getDisplayFileName(item.filePath)}
+									</span>
+									<span className="text-zinc-500"> — </span>
+									{item.detail}
+								</li>
+							))}
+							{hiddenCount > 0 && (
+								<li className="text-zinc-400">ほか {hiddenCount} 件</li>
+							)}
+						</ul>
+					)}
+				</div>
+			</div>
+		</section>
+	);
+};
 
 export const App = () => {
 	const {
@@ -118,6 +185,21 @@ export const App = () => {
 		clearFiles();
 	}, [clearFiles]);
 
+	const loadFeedback =
+		loadState.status === "error"
+			? {
+					message: loadState.message,
+					skipped: loadState.skipped ?? [],
+					variant: "error" as const,
+				}
+			: loadState.status === "loaded" && skippedCount > 0
+				? {
+						message: `${skippedCount}件のファイルをスキップしました`,
+						skipped: loadState.skipped,
+						variant: "warning" as const,
+					}
+				: null;
+
 	return (
 		<div className="relative flex h-screen w-screen flex-col overflow-hidden">
 			<header className="flex h-11 shrink-0 items-center gap-3 border-b border-white/[0.06] px-5 panel-surface">
@@ -212,6 +294,14 @@ export const App = () => {
 					</button>
 				)}
 			</header>
+
+			{loadFeedback && (
+				<LoadFeedbackBanner
+					message={loadFeedback.message}
+					skipped={loadFeedback.skipped}
+					variant={loadFeedback.variant}
+				/>
+			)}
 
 			<main className="flex min-h-0 flex-1">
 				{dicomFiles.length === 0 ? (
