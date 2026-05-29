@@ -115,8 +115,8 @@ describe("print-image utilities", () => {
 		expect(html).toContain("data:image/png;base64,AAAA");
 		expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
 		expect(html).toContain("ID&lt;&amp;&gt;");
-		expect(html).toContain("受付番号");
-		expect(html).toContain("インスタンス");
+		expect(html).toContain("整理番号");
+		expect(html).toContain("画像番号");
 		expect(html).toContain("A&amp;B &quot;test&quot;");
 		expect(html).not.toContain("<script>alert(1)</script>");
 	});
