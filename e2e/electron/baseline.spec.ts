@@ -60,7 +60,7 @@ const canvasAverageChannel = async (page: Page) => {
 
 const waitForAutoloadedFixture = async (page: Page) => {
 	await expect(page.locator("header")).toBeVisible({ timeout: 30_000 });
-	await expect(page.getByText(/\d+ ファイル/)).toBeVisible({
+	await expect(page.getByText(/\d+ 枚/)).toBeVisible({
 		timeout: 30_000,
 	});
 	await expect
@@ -154,9 +154,9 @@ test.describe("real Electron baseline regression", () => {
 				/bg-sky-400/,
 			);
 			await page.keyboard.press("W");
-			await expect(page.getByRole("button", { name: /WW\/WC/ })).toHaveClass(
-				/bg-sky-400/,
-			);
+			await expect(
+				page.getByRole("button", { name: /コントラスト/ }),
+			).toHaveClass(/bg-sky-400/);
 
 			const beforeDrag = await canvasAverageChannel(page);
 			const canvasBox = await page

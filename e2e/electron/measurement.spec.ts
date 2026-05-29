@@ -39,7 +39,7 @@ const canvasNonBlackRatio = async (page: Page) => {
 
 const waitForAutoloadedFixture = async (page: Page) => {
 	await expect(page.locator("header")).toBeVisible({ timeout: 30_000 });
-	await expect(page.getByText(/\d+ ファイル/)).toBeVisible({
+	await expect(page.getByText(/\d+ 枚/)).toBeVisible({
 		timeout: 30_000,
 	});
 	await expect
@@ -55,29 +55,19 @@ const filterBugConsoleErrors = (errors: string[]) =>
 	);
 
 const clickViewerPoint = async (page: Page, xRatio: number, yRatio: number) => {
-	const canvas = page.locator(".openseadragon-canvas canvas");
-	await expect(canvas).toBeVisible();
-	const canvasBox = await canvas.boundingBox();
-	expect(canvasBox, "viewer canvas should have a bounding box").not.toBeNull();
-	if (!canvasBox) throw new Error("viewer canvas should have a bounding box");
+	const viewer = page.locator("#osd-pane-0");
+	await expect(viewer).toBeVisible();
+	const viewerBox = await viewer.boundingBox();
+	expect(
+		viewerBox,
+		"viewer container should have a bounding box",
+	).not.toBeNull();
+	if (!viewerBox)
+		throw new Error("viewer container should have a bounding box");
 
-	await page.evaluate(
-		({ clientX, clientY }) => {
-			const container = document.getElementById("osd-pane-0");
-			if (!container) throw new Error("viewer container not found");
-			container.dispatchEvent(
-				new MouseEvent("click", {
-					bubbles: true,
-					cancelable: true,
-					clientX,
-					clientY,
-				}),
-			);
-		},
-		{
-			clientX: canvasBox.x + canvasBox.width * xRatio,
-			clientY: canvasBox.y + canvasBox.height * yRatio,
-		},
+	await page.mouse.click(
+		viewerBox.x + viewerBox.width * xRatio,
+		viewerBox.y + viewerBox.height * yRatio,
 	);
 };
 
@@ -116,6 +106,7 @@ test.describe("real Electron measurement overlay", () => {
 			page.on("pageerror", (error) => {
 				pageErrors.push(error);
 			});
+			page.on("dialog", (dialog) => dialog.accept());
 
 			await waitForAutoloadedFixture(page);
 
@@ -138,11 +129,14 @@ test.describe("real Electron measurement overlay", () => {
 				).toBeHidden();
 			}
 
-			const distanceButton = page.getByRole("button", { name: "距離" });
+			const distanceButton = page.getByRole("button", { name: "距離を測る" });
 			await distanceButton.click();
 			await expect(distanceButton).toHaveAttribute("aria-pressed", "true");
-			await clickViewerPoint(page, 0.25, 0.65);
-			await clickViewerPoint(page, 0.65, 0.78);
+			// React useEffect registers the click listener after browser paint; wait for it
+			await page.waitForTimeout(400);
+			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
+			await clickViewerPoint(page, 0.38, 0.35);
+			await clickViewerPoint(page, 0.55, 0.6);
 
 			const overlay = page.getByRole("img", { name: "計測オーバーレイ" });
 			await expect(overlay).toBeVisible({ timeout: 10_000 });
@@ -174,12 +168,15 @@ test.describe("real Electron measurement overlay", () => {
 			await page.getByRole("button", { name: "計測クリア" }).click();
 			await expect(overlay).toBeHidden();
 
-			const angleButton = page.getByRole("button", { name: "角度" });
+			const angleButton = page.getByRole("button", { name: "角度を測る" });
 			await angleButton.click();
 			await expect(angleButton).toHaveAttribute("aria-pressed", "true");
-			await clickViewerPoint(page, 0.25, 0.4);
-			await clickViewerPoint(page, 0.45, 0.65);
-			await clickViewerPoint(page, 0.75, 0.35);
+			// React useEffect registers the click listener after browser paint; wait for it
+			await page.waitForTimeout(400);
+			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
+			await clickViewerPoint(page, 0.4, 0.35);
+			await clickViewerPoint(page, 0.48, 0.55);
+			await clickViewerPoint(page, 0.6, 0.4);
 
 			await expect(overlay.locator("line")).toHaveCount(2, {
 				timeout: 10_000,

@@ -39,7 +39,7 @@ const canvasNonBlackRatio = async (page: Page) => {
 
 const waitForAutoloadedFixture = async (page: Page) => {
 	await expect(page.locator("header")).toBeVisible({ timeout: 30_000 });
-	await expect(page.getByText(/\d+ ファイル/)).toBeVisible({
+	await expect(page.getByText(/\d+ 枚/)).toBeVisible({
 		timeout: 30_000,
 	});
 	await expect

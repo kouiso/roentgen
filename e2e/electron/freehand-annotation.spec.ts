@@ -39,7 +39,7 @@ const canvasNonBlackRatio = async (page: Page) => {
 
 const waitForAutoloadedFixture = async (page: Page) => {
 	await expect(page.locator("header")).toBeVisible({ timeout: 30_000 });
-	await expect(page.getByText(/\d+ ファイル/)).toBeVisible({
+	await expect(page.getByText(/\d+ 枚/)).toBeVisible({
 		timeout: 30_000,
 	});
 	await expect
@@ -91,6 +91,19 @@ test.describe("real Electron freehand annotation", () => {
 			});
 
 			await waitForAutoloadedFixture(page);
+
+			// "注釈" section is collapsible and starts collapsed — expand it first
+			const annotationSectionHeader = page.getByRole("button", {
+				name: "注釈",
+			});
+			if (
+				!(await page
+					.getByRole("button", { name: "フリーハンド" })
+					.isVisible()
+					.catch(() => false))
+			) {
+				await annotationSectionHeader.click();
+			}
 
 			const clearAnnotationsButton = page.getByRole("button", {
 				name: "注釈クリア",
