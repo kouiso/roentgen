@@ -15,14 +15,14 @@ const formatTime = (value: string): string => {
 };
 
 export const OVERLAY_ITEMS: OverlayItemDefinition[] = [
-	// === 左上: 患者情報 ===
+	// === 左上: 対象情報 ===
 	{
 		id: "patientName",
 		tag: "PatientName",
-		label: "患者名",
+		label: "名前",
 		position: "topLeft",
 	},
-	{ id: "patientId", tag: "PatientID", label: "患者ID", position: "topLeft" },
+	{ id: "patientId", tag: "PatientID", label: "ID", position: "topLeft" },
 	{
 		id: "patientBirthDate",
 		tag: "PatientBirthDate",
@@ -57,7 +57,7 @@ export const OVERLAY_ITEMS: OverlayItemDefinition[] = [
 	{
 		id: "modality",
 		tag: "Modality",
-		label: "モダリティ",
+		label: "撮影種別",
 		position: "topRight",
 	},
 	{
@@ -75,13 +75,13 @@ export const OVERLAY_ITEMS: OverlayItemDefinition[] = [
 	{
 		id: "accessionNumber",
 		tag: "AccessionNumber",
-		label: "受付番号",
+		label: "整理番号",
 		position: "topRight",
 	},
 	{
 		id: "referringPhysician",
 		tag: "ReferringPhysicianName",
-		label: "主治医",
+		label: "担当医師",
 		position: "topRight",
 	},
 

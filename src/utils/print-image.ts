@@ -70,13 +70,13 @@ export const createPrintImageHtml = (
 	metadata: PrintImageMetadata,
 ): string => {
 	const items: { label: string; value: string }[] = [
-		{ label: "患者名", value: metadata.patientName },
-		{ label: "患者ID", value: metadata.patientId },
+		{ label: "名前", value: metadata.patientName },
+		{ label: "ID", value: metadata.patientId },
 		{ label: "検査日", value: metadata.studyDate },
-		{ label: "受付番号", value: metadata.accessionNumber },
-		{ label: "モダリティ", value: metadata.modality },
+		{ label: "整理番号", value: metadata.accessionNumber },
+		{ label: "撮影種別", value: metadata.modality },
 		{ label: "説明", value: metadata.description },
-		{ label: "インスタンス", value: metadata.instanceNumber },
+		{ label: "画像番号", value: metadata.instanceNumber },
 	];
 	const metadataHtml = items
 		.map(
