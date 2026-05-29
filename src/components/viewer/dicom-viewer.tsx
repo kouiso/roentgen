@@ -17,6 +17,7 @@ import {
 	deserializeAnnotationStorage,
 	getDicomFileSopInstanceUid,
 } from "@/utils/annotation-storage";
+import { compositeCanvasWithOverlays } from "@/utils/composite-canvas";
 import { runBooleanExportWithFallback } from "@/utils/export-fallback";
 import {
 	buildPrintImageMetadata,
@@ -369,42 +370,45 @@ export const DicomViewer = ({
 		}
 	}, []);
 
-	// スクリーンショット（アクティブペインのcanvasから取得）
+	// スクリーンショット（アクティブペインのcanvas + SVG注釈を合成）
 	const handleScreenshot = useCallback(() => {
 		const canvas = activePane.tileCanvasRef?.current;
 		if (!canvas) return;
-		const dataUrl = canvas.toDataURL("image/png");
-		const api = (
-			window as {
-				electronAPI?: {
-					saveScreenshot?: (dataUrl: string) => Promise<boolean>;
-				};
+		void compositeCanvasWithOverlays(canvas).then((dataUrl) => {
+			const api = (
+				window as {
+					electronAPI?: {
+						saveScreenshot?: (dataUrl: string) => Promise<boolean>;
+					};
+				}
+			).electronAPI;
+			if (api?.saveScreenshot) {
+				void runBooleanExportWithFallback(api.saveScreenshot(dataUrl), () =>
+					saveScreenshotInBrowser(dataUrl),
+				);
+			} else {
+				saveScreenshotInBrowser(dataUrl);
 			}
-		).electronAPI;
-		if (api?.saveScreenshot) {
-			void runBooleanExportWithFallback(api.saveScreenshot(dataUrl), () =>
-				saveScreenshotInBrowser(dataUrl),
-			);
-		} else {
-			saveScreenshotInBrowser(dataUrl);
-		}
+		});
 	}, [activePane.tileCanvasRef]);
 
-	// 印刷（アクティブペインのcanvasとDICOMメタデータから印刷ページを生成）
+	// 印刷（アクティブペインのcanvas + SVG注釈を合成してDICOMメタデータ付き印刷）
 	const handlePrint = useCallback(() => {
 		const canvas = activePane.tileCanvasRef?.current;
 		if (!canvas || !activePane.currentFile) return;
-		const dataUrl = canvas.toDataURL("image/png");
-		const metadata = buildPrintImageMetadata(activePane.currentFile);
-		const html = createPrintImageHtml(dataUrl, metadata);
-		if (window.electronAPI?.printImage) {
-			void runBooleanExportWithFallback(
-				window.electronAPI.printImage(dataUrl, metadata),
-				() => openBrowserPrintWindow(html),
-			);
-			return;
-		}
-		openBrowserPrintWindow(html);
+		const currentFile = activePane.currentFile;
+		void compositeCanvasWithOverlays(canvas).then((dataUrl) => {
+			const metadata = buildPrintImageMetadata(currentFile);
+			const html = createPrintImageHtml(dataUrl, metadata);
+			if (window.electronAPI?.printImage) {
+				void runBooleanExportWithFallback(
+					window.electronAPI.printImage(dataUrl, metadata),
+					() => openBrowserPrintWindow(html),
+				);
+				return;
+			}
+			openBrowserPrintWindow(html);
+		});
 	}, [activePane.currentFile, activePane.tileCanvasRef]);
 
 	// WW/WCプリセット適用（アクティブペイン）
