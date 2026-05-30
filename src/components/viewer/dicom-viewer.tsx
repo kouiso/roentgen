@@ -17,7 +17,7 @@ import {
 	deserializeAnnotationStorage,
 	getDicomFileSopInstanceUid,
 } from "@/utils/annotation-storage";
-import { compositeCanvasWithOverlays } from "@/utils/composite-canvas";
+import { compositeCanvasById } from "@/utils/composite-canvas";
 import { runBooleanExportWithFallback } from "@/utils/export-fallback";
 import {
 	buildPrintImageMetadata,
@@ -373,8 +373,9 @@ export const DicomViewer = ({
 	// スクリーンショット（アクティブペインのcanvas + SVG注釈を合成）
 	const handleScreenshot = useCallback(() => {
 		const canvas = activePane.tileCanvasRef?.current;
-		if (!canvas) return;
-		void compositeCanvasWithOverlays(canvas).then((dataUrl) => {
+		const container = document.getElementById(activePane.containerId);
+		if (!canvas || !container) return;
+		void compositeCanvasById(canvas, container).then((dataUrl) => {
 			const api = (
 				window as {
 					electronAPI?: {
@@ -390,14 +391,15 @@ export const DicomViewer = ({
 				saveScreenshotInBrowser(dataUrl);
 			}
 		});
-	}, [activePane.tileCanvasRef]);
+	}, [activePane.tileCanvasRef, activePane.containerId]);
 
 	// 印刷（アクティブペインのcanvas + SVG注釈を合成してDICOMメタデータ付き印刷）
 	const handlePrint = useCallback(() => {
 		const canvas = activePane.tileCanvasRef?.current;
-		if (!canvas || !activePane.currentFile) return;
+		const container = document.getElementById(activePane.containerId);
+		if (!canvas || !activePane.currentFile || !container) return;
 		const currentFile = activePane.currentFile;
-		void compositeCanvasWithOverlays(canvas).then((dataUrl) => {
+		void compositeCanvasById(canvas, container).then((dataUrl) => {
 			const metadata = buildPrintImageMetadata(currentFile);
 			const html = createPrintImageHtml(dataUrl, metadata);
 			if (window.electronAPI?.printImage) {
@@ -409,7 +411,11 @@ export const DicomViewer = ({
 			}
 			openBrowserPrintWindow(html);
 		});
-	}, [activePane.currentFile, activePane.tileCanvasRef]);
+	}, [
+		activePane.currentFile,
+		activePane.tileCanvasRef,
+		activePane.containerId,
+	]);
 
 	// WW/WCプリセット適用（アクティブペイン）
 	const handleSetWwWcPreset = useCallback(
