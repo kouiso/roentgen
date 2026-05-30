@@ -1,11 +1,3 @@
-/**
- * Composites the OSD canvas with SVG annotation/measurement overlays
- * into a single PNG data URL for print and screenshot export.
- *
- * DOM traversal: canvas → OSD id-div → black-bg-div → relative-wrapper
- * Queries aria-label SVG siblings within the relative wrapper.
- */
-
 const SVG_ARIA_LABELS = ["注釈オーバーレイ", "計測オーバーレイ"];
 
 const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
@@ -26,18 +18,10 @@ const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
 		img.src = url;
 	});
 
-/**
- * Returns a composite PNG data URL of the canvas + all visible SVG overlays.
- * Falls back to canvas-only data URL if overlay lookup or drawing fails.
- */
-export const compositeCanvasWithOverlays = async (
+const compositeWithRelativeWrapper = async (
 	canvas: HTMLCanvasElement,
+	relativeWrapper: Element,
 ): Promise<string> => {
-	// Navigate to the relative wrapper that contains OSD + SVG siblings
-	// canvas → OSD id-div → black-bg-div → relative-wrapper
-	const relativeWrapper = canvas.parentElement?.parentElement?.parentElement;
-	if (!relativeWrapper) return canvas.toDataURL("image/png");
-
 	const svgElements = SVG_ARIA_LABELS.flatMap((label) => {
 		const el = relativeWrapper.querySelector<SVGSVGElement>(
 			`svg[aria-label="${label}"]`,
@@ -65,4 +49,19 @@ export const compositeCanvasWithOverlays = async (
 	}
 
 	return offscreen.toDataURL("image/png");
+};
+
+/**
+ * Returns a composite PNG data URL of the canvas + all visible SVG overlays.
+ * osdContainer is the #osd-pane-N element (in-DOM OSD container).
+ * DOM path: osdContainer → div.absolute.inset-0 → div.relative (has SVG siblings).
+ * Falls back to canvas-only data URL if overlay lookup or drawing fails.
+ */
+export const compositeCanvasById = async (
+	canvas: HTMLCanvasElement,
+	osdContainer: HTMLElement,
+): Promise<string> => {
+	const relativeWrapper = osdContainer.parentElement?.parentElement;
+	if (!relativeWrapper) return canvas.toDataURL("image/png");
+	return compositeWithRelativeWrapper(canvas, relativeWrapper);
 };
