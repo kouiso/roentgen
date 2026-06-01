@@ -1,0 +1,15 @@
+version: "3"
+
+tasks:
+  ci:fast:
+    desc: Run the local equivalent of CI verification.
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm lint
+      - pnpm build
+      - pnpm test
+
+  ci:
+    desc: Run the full local CI verification.
+    cmds:
+      - task: ci:fast
