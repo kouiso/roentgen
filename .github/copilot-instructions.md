@@ -2,21 +2,6 @@
 <!-- DO NOT HAND-EDIT — changes will be overwritten on next sync -->
 <!-- To update: edit AGENTS.md, then run: bash scripts/sync-ai-rules.sh -->
 
-# roentgen — Gemini Code Assist Style Guide
-
-## Review Language
-
-- Write all review comments in **Japanese**
-- Internal thinking may be in English, but output must be Japanese
-
-## PR Summary
-
-- Write PR summaries in a poetic, readable format (CodeRabbit style)
-
----
-
-<!-- ===== AGENTS.md CONTENT (auto-synced) ===== -->
-
 # roentgen
 
 DICOM image desktop viewer (ルバーノ用レントゲンビューア). Built with Electron + Vite + TypeScript.
