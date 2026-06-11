@@ -157,12 +157,7 @@ jobs:
         run: pnpm dist --linux --publish never
 
       - name: Generate checksums
-        run: |
-          pnpm release:checksums
-          cp release/SHA256SUMS.txt release/SHA256SUMS-linux.txt
-
-      - name: Release gate
-        run: pnpm release:gate
+        run: node scripts/generate-release-checksums.mjs --output release/SHA256SUMS-linux.txt
 
       - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
