@@ -5,7 +5,7 @@ test.describe("Roentgen — App Launch & Empty State", () => {
 		await page.goto("/");
 		const header = page.locator("header");
 		await expect(header).toBeVisible();
-		await expect(header).toContainText("Roentgen");
+		await expect(header).toContainText("ROENTGEN");
 	});
 
 	test("shows DICOM drop zone with instructions", async ({ page }) => {
