@@ -162,6 +162,11 @@ test.describe("real Electron measurement overlay", () => {
 			).toBeVisible({ timeout: 5_000 });
 			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
 			await clickViewerPoint(page, 0.38, 0.35);
+			// Wait for first pending point to appear before 2nd click — React re-renders after
+			// setActivePoints([p1]) which briefly tears down and re-attaches the listener.
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.55, 0.6);
 
 			// Log DOM state and console output immediately after clicks for diagnostics
@@ -226,7 +231,13 @@ test.describe("real Electron measurement overlay", () => {
 			).toBeVisible({ timeout: 5_000 });
 			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
 			await clickViewerPoint(page, 0.4, 0.35);
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.48, 0.55);
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(2, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.6, 0.4);
 
 			await expect(overlay.locator("line")).toHaveCount(2, {
