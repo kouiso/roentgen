@@ -37,7 +37,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm test:e2e -- --project=renderer
+        run: pnpm exec playwright test --project=renderer
 
   build-mac:
     name: Build (macOS)
@@ -140,7 +140,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm test:e2e -- --project=renderer
+        run: pnpm exec playwright test --project=renderer
 
       - name: Build
         run: pnpm build
