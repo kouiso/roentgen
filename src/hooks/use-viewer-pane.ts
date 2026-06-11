@@ -169,6 +169,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				imageHeight,
 				viewport,
 			);
+			const vp = viewport;
 			console.log(
 				"[measurement-click]",
 				JSON.stringify({
@@ -177,8 +178,14 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 					rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
 					imageWidth,
 					imageHeight,
-					hasViewport: !!viewport,
 					imageCoord,
+					vp: vp
+						? {
+								zoom: vp.getZoom(),
+								center: vp.getCenter(),
+								homeBounds: vp.getHomeBounds(),
+							}
+						: null,
 				}),
 			);
 			if (imageCoord) {
