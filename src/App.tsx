@@ -257,7 +257,7 @@ export const App = () => {
 	const studyDesc = firstFile?.tags?.StudyDescription?.trim() || null;
 	const rawStudyDate = firstFile?.tags?.StudyDate ?? null;
 	const formattedStudyDate =
-		rawStudyDate?.length === 8
+		typeof rawStudyDate === "string" && rawStudyDate.length === 8
 			? `${rawStudyDate.slice(0, 4)}/${rawStudyDate.slice(4, 6)}/${rawStudyDate.slice(6, 8)}`
 			: rawStudyDate;
 
@@ -289,12 +289,14 @@ export const App = () => {
 				<div className="h-4 w-px shrink-0 bg-white/[0.075]" />
 
 				{/* Patient info (when images are loaded) */}
-				{patientName && (
+				{(patientName || studyDesc || formattedStudyDate) && (
 					<div className="flex min-w-0 items-center gap-2">
-						<span className="chip max-w-[10rem]">
-							<User size={9} className="shrink-0" />
-							<span className="min-w-0 truncate">{patientName}</span>
-						</span>
+						{patientName && (
+							<span className="chip max-w-[10rem]">
+								<User size={9} className="shrink-0" />
+								<span className="min-w-0 truncate">{patientName}</span>
+							</span>
+						)}
 						{studyDesc && (
 							<span className="max-w-[12rem] truncate text-[11px] text-ink-3">
 								{studyDesc}

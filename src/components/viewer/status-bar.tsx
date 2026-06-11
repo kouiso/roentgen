@@ -47,23 +47,27 @@ export const StatusBar = ({
 				<span className="text-ink-3">{MODE_LABEL[activeMode]}</span>
 			</div>
 
-			{viewerReady && currentWW != null && currentWC != null && (
-				<>
-					<div className="h-3 w-px bg-white/[0.075]" />
-					<span className="font-mono text-ink-2">
-						{"WW "}
-						<span className="text-ink">{Math.round(currentWW)}</span>
-						<span className="mx-1 text-ink-3">·</span>
-						{"WC "}
-						<span className="text-ink">{Math.round(currentWC)}</span>
-					</span>
-					{isInverted && (
-						<span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-ink-3">
-							反転
+			{viewerReady &&
+				currentWW != null &&
+				!Number.isNaN(currentWW) &&
+				currentWC != null &&
+				!Number.isNaN(currentWC) && (
+					<>
+						<div className="h-3 w-px bg-white/[0.075]" />
+						<span className="font-mono text-ink-2">
+							{"WW "}
+							<span className="text-ink">{Math.round(currentWW)}</span>
+							<span className="mx-1 text-ink-3">·</span>
+							{"WC "}
+							<span className="text-ink">{Math.round(currentWC)}</span>
 						</span>
-					)}
-				</>
-			)}
+						{isInverted && (
+							<span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-ink-3">
+								反転
+							</span>
+						)}
+					</>
+				)}
 
 			<div className="flex-1" />
 
