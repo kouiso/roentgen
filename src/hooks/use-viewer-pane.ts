@@ -211,17 +211,17 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 計測・注釈クリックイベント登録
 	useEffect(() => {
 		if (!isOsdReady) return;
+		const isMeasurementMode =
+			activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE ||
+			activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE;
 		const isAnnotationMode =
 			!!annotation.activeAnnotationTool || !!annotation.pendingTextPosition;
-		if (
-			!isAnnotationMode &&
-			activeMode !== VIEWER_CONTROL_TYPE.MEASURE_DISTANCE &&
-			activeMode !== VIEWER_CONTROL_TYPE.MEASURE_ANGLE
-		) {
-			return;
-		}
+		if (!isAnnotationMode && !isMeasurementMode) return;
+		// For measurement mode, wait until activeTool is propagated — addPoint returns
+		// early if activeTool is null, so setting data-measurement-ready before that
+		// causes the first E2E click to silently drop the point.
+		if (isMeasurementMode && !measurement.activeTool) return;
 		// Wait for image dimensions — containerToImageCoord returns null when either is 0.
-		// data-measurement-ready is only set once a valid image is loaded.
 		if (imageWidth === 0 || imageHeight === 0) return;
 		const container = document.getElementById(containerId);
 		if (!container) return;
@@ -240,6 +240,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		addImagePointFromClick,
 		imageWidth,
 		imageHeight,
+		measurement.activeTool,
 	]);
 
 	// フリーハンド注釈はクリックではなくドラッグ中の pointer 座標を連続記録する。
