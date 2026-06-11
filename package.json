@@ -94,7 +94,8 @@
 		"publish": {
 			"provider": "github",
 			"owner": "kouiso",
-			"repo": "roentgen"
+			"repo": "roentgen",
+			"draft": false
 		}
 	},
 	"pnpm": {
