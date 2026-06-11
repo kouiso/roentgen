@@ -24,6 +24,7 @@ import {
 	createPrintImageHtml,
 } from "@/utils/print-image";
 import { getAllSeries, groupByStudySeries } from "@/utils/study-grouper";
+import { StatusBar } from "./status-bar";
 import { ToolPanel } from "./tool-panel";
 import { ViewerLayout } from "./viewer-layout";
 import { ViewerPane } from "./viewer-pane";
@@ -533,41 +534,53 @@ export const DicomViewer = ({
 	]);
 
 	return (
-		<div className="relative flex flex-1">
-			<AnnotationSaveStatusBadge status={annotationSaveStatus} />
-			<ViewerLayout layout={layout}>
-				{allPanes.slice(0, paneCount).map((pane, i) => (
-					<ViewerPane
-						key={pane.containerId}
-						pane={pane}
-						files={paneFiles[i] ?? []}
-						isActive={i === activePaneIndex}
-						onFocus={() => setActivePaneIndex(i)}
-					/>
-				))}
-			</ViewerLayout>
+		<>
+			<div className="relative flex min-h-0 flex-1">
+				<AnnotationSaveStatusBadge status={annotationSaveStatus} />
+				<ViewerLayout layout={layout}>
+					{allPanes.slice(0, paneCount).map((pane, i) => (
+						<ViewerPane
+							key={pane.containerId}
+							pane={pane}
+							files={paneFiles[i] ?? []}
+							isActive={i === activePaneIndex}
+							onFocus={() => setActivePaneIndex(i)}
+						/>
+					))}
+				</ViewerLayout>
 
-			<ToolPanel
-				{...activePane.controlPanelProps}
-				onFitAllPanes={paneCount > 1 ? handleFitAllPanes : undefined}
-				syncWwWc={syncWwWc}
-				onToggleSyncWwWc={
-					paneCount > 1 ? () => setSyncWwWc((v) => !v) : undefined
-				}
-				syncZoom={syncZoom}
-				onToggleSyncZoom={
-					paneCount > 1 ? () => setSyncZoom((v) => !v) : undefined
-				}
-				onClearSelected={handleClearSelected}
-				onClearAll={handleClearAll}
-				onScreenshot={handleScreenshot}
-				onPrint={handlePrint}
-				isFullscreen={isFullscreen}
-				onToggleFullscreen={toggleFullscreen}
+				<ToolPanel
+					{...activePane.controlPanelProps}
+					onFitAllPanes={paneCount > 1 ? handleFitAllPanes : undefined}
+					syncWwWc={syncWwWc}
+					onToggleSyncWwWc={
+						paneCount > 1 ? () => setSyncWwWc((v) => !v) : undefined
+					}
+					syncZoom={syncZoom}
+					onToggleSyncZoom={
+						paneCount > 1 ? () => setSyncZoom((v) => !v) : undefined
+					}
+					onClearSelected={handleClearSelected}
+					onClearAll={handleClearAll}
+					onScreenshot={handleScreenshot}
+					onPrint={handlePrint}
+					isFullscreen={isFullscreen}
+					onToggleFullscreen={toggleFullscreen}
+					layout={layout}
+					onSetLayout={setLayout}
+					viewerReady={activePane.isOsdReady && !!activePane.currentFile}
+				/>
+			</div>
+			<StatusBar
+				activeMode={activePane.activeMode}
+				currentWW={activePane.worldInfo.windowWidth}
+				currentWC={activePane.worldInfo.windowCenter}
+				isInverted={activePane.worldInfo.invert}
 				layout={layout}
-				onSetLayout={setLayout}
+				activePaneIndex={activePaneIndex}
+				paneCount={paneCount}
 				viewerReady={activePane.isOsdReady && !!activePane.currentFile}
 			/>
-		</div>
+		</>
 	);
 };

@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 // F12-F15 異常系エラーハンドリング検証
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";

@@ -65,9 +65,26 @@ const clickViewerPoint = async (page: Page, xRatio: number, yRatio: number) => {
 	if (!viewerBox)
 		throw new Error("viewer container should have a bounding box");
 
-	await page.mouse.click(
-		viewerBox.x + viewerBox.width * xRatio,
-		viewerBox.y + viewerBox.height * yRatio,
+	const clientX = viewerBox.x + viewerBox.width * xRatio;
+	const clientY = viewerBox.y + viewerBox.height * yRatio;
+
+	// Dispatch directly on #osd-pane-0 to bypass OSD canvas interception.
+	// page.mouse.click() targets the topmost element at the coordinate (OSD canvas),
+	// which may stop propagation before our listener on the container fires.
+	await page.evaluate(
+		({ clientX, clientY }) => {
+			const container = document.getElementById("osd-pane-0");
+			if (!container) throw new Error("#osd-pane-0 not found");
+			container.dispatchEvent(
+				new MouseEvent("click", {
+					clientX,
+					clientY,
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		},
+		{ clientX, clientY },
 	);
 };
 
@@ -132,10 +149,17 @@ test.describe("real Electron measurement overlay", () => {
 			const distanceButton = page.getByRole("button", { name: "距離を測る" });
 			await distanceButton.click();
 			await expect(distanceButton).toHaveAttribute("aria-pressed", "true");
-			// React useEffect registers the click listener after browser paint; wait for it
-			await page.waitForTimeout(400);
+			// Wait until the click listener is actually attached (signalled by data-measurement-ready)
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible({ timeout: 5_000 });
 			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
 			await clickViewerPoint(page, 0.38, 0.35);
+			// Wait for first pending point to appear before 2nd click — React re-renders after
+			// setActivePoints([p1]) which briefly tears down and re-attaches the listener.
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.55, 0.6);
 
 			const overlay = page.getByRole("img", { name: "計測オーバーレイ" });
@@ -171,11 +195,19 @@ test.describe("real Electron measurement overlay", () => {
 			const angleButton = page.getByRole("button", { name: "角度を測る" });
 			await angleButton.click();
 			await expect(angleButton).toHaveAttribute("aria-pressed", "true");
-			// React useEffect registers the click listener after browser paint; wait for it
-			await page.waitForTimeout(400);
+			// Wait until the click listener is actually attached (signalled by data-measurement-ready)
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible({ timeout: 5_000 });
 			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
 			await clickViewerPoint(page, 0.4, 0.35);
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.48, 0.55);
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(2, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.6, 0.4);
 
 			await expect(overlay.locator("line")).toHaveCount(2, {

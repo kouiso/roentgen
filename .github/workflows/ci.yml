@@ -89,10 +89,6 @@ jobs:
             libasound2t64 \
             libgtk-3-0t64
 
-      # Chromium install is mostly insurance for future renderer specs.
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
-
       - name: Build
         run: pnpm build
 

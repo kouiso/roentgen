@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
