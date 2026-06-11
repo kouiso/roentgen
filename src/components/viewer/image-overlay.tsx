@@ -31,7 +31,7 @@ export const ImageOverlay = ({ overlayInfo, visible }: ImageOverlayProps) => {
 					{items.map((item) => (
 						<div
 							key={item.id}
-							className="overlay-text-shadow-strong font-mono text-[11px] leading-[1.35] text-amber-200/85"
+							className="overlay-text-shadow-strong font-mono text-[11px] leading-[1.35] text-ink/85"
 						>
 							{item.value}
 						</div>
