@@ -534,8 +534,8 @@ export const DicomViewer = ({
 	]);
 
 	return (
-		<div className="relative flex flex-1 flex-col">
-			<div className="flex min-h-0 flex-1">
+		<>
+			<div className="relative flex min-h-0 flex-1">
 				<AnnotationSaveStatusBadge status={annotationSaveStatus} />
 				<ViewerLayout layout={layout}>
 					{allPanes.slice(0, paneCount).map((pane, i) => (
@@ -581,6 +581,6 @@ export const DicomViewer = ({
 				paneCount={paneCount}
 				viewerReady={activePane.isOsdReady && !!activePane.currentFile}
 			/>
-		</div>
+		</>
 	);
 };
