@@ -11,7 +11,7 @@ type ImageDirectionProps = {
 };
 
 const BASE =
-	"pointer-events-none absolute z-10 font-mono text-sm font-semibold text-sky-300/85 overlay-text-shadow";
+	"pointer-events-none absolute z-10 font-mono text-sm font-semibold text-accent/85 overlay-text-shadow";
 
 export const ImageDirection = ({
 	directionInfo,
