@@ -149,8 +149,8 @@ export const containerToImageCoord = (
 	const center = viewport.getCenter();
 	const homeBounds = viewport.getHomeBounds();
 
-	// ビューポート座標
-	const vpWidth = homeBounds.width / zoom;
+	// ビューポート座標 (OSD 6.x: image normalized width = 1.0, NOT homeBounds.width)
+	const vpWidth = 1.0 / zoom;
 	const vpHeight = homeBounds.height / zoom;
 
 	const vpX =
@@ -164,8 +164,8 @@ export const containerToImageCoord = (
 		viewport.getFlip?.() ?? false,
 	);
 
-	// 画像座標に変換
-	const imgX = (transformed.x / homeBounds.width) * imageWidth;
+	// 画像座標に変換 (OSD 6.x: image x ∈ [0, 1.0], not [0, homeBounds.width])
+	const imgX = transformed.x * imageWidth;
 	const imgY = (transformed.y / homeBounds.height) * imageHeight;
 
 	if (imgX < 0 || imgX >= imageWidth || imgY < 0 || imgY >= imageHeight) {
@@ -226,11 +226,10 @@ export function imageToContainerCoord(
 	const homeBounds = viewport.getHomeBounds();
 	const zoom = viewport.getZoom();
 	const center = viewport.getCenter();
-	const imageHeight =
-		explicitImageHeight ?? (imageWidth * homeBounds.height) / homeBounds.width;
+	const imageHeight = explicitImageHeight ?? imageWidth * homeBounds.height;
 
-	// 画像座標 → ビューポート座標
-	const vpX = (imagePoint.x / imageWidth) * homeBounds.width;
+	// 画像座標 → ビューポート座標 (OSD 6.x: image x ∈ [0, 1.0])
+	const vpX = imagePoint.x / imageWidth;
 	const vpY = (imagePoint.y / imageHeight) * homeBounds.height;
 	const transformed = applyViewportTransform(
 		{ x: vpX, y: vpY },
@@ -240,7 +239,7 @@ export function imageToContainerCoord(
 	);
 
 	// ビューポート座標 → コンテナ座標
-	const vpWidth = homeBounds.width / zoom;
+	const vpWidth = 1.0 / zoom;
 	const vpHeight = homeBounds.height / zoom;
 
 	const containerX =
