@@ -61,18 +61,17 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Package and publish (dmg)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dist --mac --publish onTag
+      - name: Package (dmg)
+        run: pnpm dist --mac
 
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-macos.txt"
 
-      - name: Upload checksums
+      - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            release/*.dmg
             release/SHA256SUMS-macos.txt
 
   build-win:
@@ -97,18 +96,17 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Package and publish (nsis)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dist --win --publish onTag
+      - name: Package (nsis)
+        run: pnpm dist --win
 
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-windows.txt"
 
-      - name: Upload checksums
+      - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            release/*.exe
             release/SHA256SUMS-windows.txt
 
   build-linux:
@@ -145,16 +143,15 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Package and publish (AppImage)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dist --linux --publish onTag
+      - name: Package (AppImage)
+        run: pnpm dist --linux
 
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output release/SHA256SUMS-linux.txt
 
-      - name: Upload checksums
+      - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            release/*.AppImage
             release/SHA256SUMS-linux.txt

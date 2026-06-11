@@ -40,10 +40,5 @@ linux:
       arch:
         - x64
 
-publish:
-  provider: github
-  owner: kouiso
-  repo: roentgen
-
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
