@@ -59,12 +59,13 @@ const canvasAverageChannel = async (page: Page) => {
 };
 
 const waitForAutoloadedFixture = async (page: Page) => {
-	await expect(page.locator("header")).toBeVisible({ timeout: 30_000 });
+	// First-run Vite compilation (Tailwind + React) can be slow in CI; use 60s.
+	await expect(page.locator("header")).toBeVisible({ timeout: 60_000 });
 	await expect(page.getByText(/\d+ 枚/)).toBeVisible({
-		timeout: 30_000,
+		timeout: 60_000,
 	});
 	await expect
-		.poll(() => canvasNonBlackRatio(page), { timeout: 30_000 })
+		.poll(() => canvasNonBlackRatio(page), { timeout: 60_000 })
 		.toBeGreaterThan(0.3);
 };
 

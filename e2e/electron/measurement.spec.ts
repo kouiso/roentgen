@@ -65,9 +65,26 @@ const clickViewerPoint = async (page: Page, xRatio: number, yRatio: number) => {
 	if (!viewerBox)
 		throw new Error("viewer container should have a bounding box");
 
-	await page.mouse.click(
-		viewerBox.x + viewerBox.width * xRatio,
-		viewerBox.y + viewerBox.height * yRatio,
+	const clientX = viewerBox.x + viewerBox.width * xRatio;
+	const clientY = viewerBox.y + viewerBox.height * yRatio;
+
+	// Dispatch directly on #osd-pane-0 to bypass OSD canvas interception.
+	// page.mouse.click() targets the topmost element at the coordinate (OSD canvas),
+	// which may stop propagation before our listener on the container fires.
+	await page.evaluate(
+		({ clientX, clientY }) => {
+			const container = document.getElementById("osd-pane-0");
+			if (!container) throw new Error("#osd-pane-0 not found");
+			container.dispatchEvent(
+				new MouseEvent("click", {
+					clientX,
+					clientY,
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		},
+		{ clientX, clientY },
 	);
 };
 
