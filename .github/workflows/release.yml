@@ -9,9 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  verify:
-    name: Verify
-    runs-on: ubuntu-latest
+  quality-gates:
+    name: Quality gates
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -27,18 +27,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Verify headless gates
+        run: |
+          pnpm lint
+          pnpm typecheck
+          pnpm test
 
-      - name: Lint
-        run: pnpm lint
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
 
-      - name: Test
-        run: pnpm test --run
+      - name: Renderer headless E2E
+        run: pnpm exec playwright test --project=renderer
 
   build-mac:
     name: Build (macOS)
-    needs: verify
+    needs: quality-gates
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,14 +61,23 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Package (dmg)
+      - name: Package and publish (dmg)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dist --mac
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm dist --mac --publish onTag
+
+      - name: Generate checksums
+        run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-macos.txt"
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/SHA256SUMS-macos.txt
 
   build-win:
     name: Build (Windows)
-    needs: verify
+    needs: quality-gates
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,15 +97,24 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Package (nsis)
+      - name: Package and publish (nsis)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dist --win
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm dist --win --publish onTag
 
-  release-linux:
+      - name: Generate checksums
+        run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-windows.txt"
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/SHA256SUMS-windows.txt
+
+  build-linux:
     name: Build (Linux)
-    needs: verify
-    runs-on: ubuntu-latest
+    needs: quality-gates
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -109,10 +130,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify headless gates
+        run: |
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Renderer headless E2E
+        run: pnpm exec playwright test --project=renderer
+
       - name: Build
         run: pnpm build
 
-      - name: Package (linux)
+      - name: Package and publish (AppImage)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm dist:linux
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm dist --linux --publish onTag
+
+      - name: Generate checksums
+        run: node scripts/generate-release-checksums.mjs --output release/SHA256SUMS-linux.txt
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/SHA256SUMS-linux.txt
