@@ -220,6 +220,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		) {
 			return;
 		}
+		// Wait for image dimensions — containerToImageCoord returns null when either is 0.
+		// data-measurement-ready is only set once a valid image is loaded.
+		if (imageWidth === 0 || imageHeight === 0) return;
 		const container = document.getElementById(containerId);
 		if (!container) return;
 		container.addEventListener("click", addImagePointFromClick);
@@ -235,6 +238,8 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		annotation.pendingTextPosition,
 		containerId,
 		addImagePointFromClick,
+		imageWidth,
+		imageHeight,
 	]);
 
 	// フリーハンド注釈はクリックではなくドラッグ中の pointer 座標を連続記録する。
