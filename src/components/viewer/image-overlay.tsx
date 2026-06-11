@@ -32,9 +32,10 @@ export const ImageOverlay = ({ overlayInfo, visible }: ImageOverlayProps) => {
 						<div
 							key={item.id}
 							className={
-								item.bold
-									? "overlay-text-shadow-strong font-sans text-[11px] font-bold leading-[1.35] text-ink"
-									: "overlay-text-shadow-strong font-mono text-[11px] leading-[1.35] text-ink/85"
+								"overlay-text-shadow-strong text-[11px] leading-[1.35] " +
+								(item.bold
+									? "font-sans font-bold text-ink"
+									: "font-mono text-ink/85")
 							}
 						>
 							{item.value}
