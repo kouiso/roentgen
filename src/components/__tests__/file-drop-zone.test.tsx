@@ -10,8 +10,8 @@ describe("FileDropZone", () => {
 		expect(
 			screen.getByText("病院でもらったレントゲンファイル（.dcm）に対応"),
 		).toBeTruthy();
-		expect(screen.getByText("単体ファイル")).toBeTruthy();
-		expect(screen.getByText("フォルダ一括")).toBeTruthy();
+		expect(screen.getByText("骨格解析")).toBeTruthy();
+		expect(screen.getByText("精密計測")).toBeTruthy();
 		expect(screen.getByText("Drive同期")).toBeTruthy();
 	});
 });

@@ -5,6 +5,8 @@ import {
 	CloudOff,
 	Loader2,
 	LogOut,
+	Plus,
+	User,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CrashReporterToggle } from "./components/crash-reporter-toggle";
@@ -196,15 +198,15 @@ export const App = () => {
 	const statusDotColor = (() => {
 		switch (loadState.status) {
 			case "idle":
-				return "text-zinc-500";
+				return "text-ink-3";
 			case "loading":
-				return "text-sky-400 animate-pulse";
+				return "text-accent animate-pulse";
 			case "loaded":
-				return skippedCount > 0 ? "text-amber-400" : "text-sky-400";
+				return skippedCount > 0 ? "text-amber-400" : "text-accent";
 			case "error":
 				return "text-rose-400";
 			case "cancelled":
-				return "text-zinc-500";
+				return "text-ink-3";
 		}
 	})();
 
@@ -214,11 +216,11 @@ export const App = () => {
 			case "cancelled":
 				return "chip max-w-[min(18rem,45vw)]";
 			case "loading":
-				return "chip max-w-[min(18rem,45vw)] border-sky-400/20 bg-sky-400/[0.06] text-sky-200";
+				return "chip max-w-[min(18rem,45vw)] border-accent/20 bg-accent/[0.06] text-ink";
 			case "loaded":
 				return skippedCount > 0
 					? "chip max-w-[min(18rem,45vw)] border-amber-400/25 bg-amber-400/[0.06] text-amber-200"
-					: "chip max-w-[min(18rem,45vw)] border-sky-400/20 bg-sky-400/[0.04] text-sky-200";
+					: "chip max-w-[min(18rem,45vw)] border-accent/20 bg-accent/[0.04] text-ink";
 			case "error":
 				return "chip max-w-[min(18rem,45vw)] border-rose-400/25 bg-rose-400/[0.08] font-medium text-rose-200";
 		}
@@ -227,6 +229,7 @@ export const App = () => {
 	const driveError =
 		auth.status === "authenticated" ? (auth.error?.trim() ?? "") : "";
 	const isSyncing = sync.status !== "idle";
+
 	const handleClearFiles = useCallback(() => {
 		if (!window.confirm("すべての画像をクリアします。よろしいですか？")) return;
 		clearFiles();
@@ -247,12 +250,66 @@ export const App = () => {
 					}
 				: null;
 
+	// Patient info derived from first loaded DICOM file
+	const firstFile = dicomFiles[0];
+	const patientName =
+		firstFile?.tags?.PatientName?.replace(/\^/g, " ").trim() || null;
+	const studyDesc = firstFile?.tags?.StudyDescription?.trim() || null;
+	const rawStudyDate = firstFile?.tags?.StudyDate ?? null;
+	const formattedStudyDate =
+		rawStudyDate?.length === 8
+			? `${rawStudyDate.slice(0, 4)}/${rawStudyDate.slice(4, 6)}/${rawStudyDate.slice(6, 8)}`
+			: rawStudyDate;
+
 	return (
 		<div className="relative flex h-screen w-screen flex-col overflow-hidden">
-			<header className="flex h-11 shrink-0 items-center gap-3 border-b border-white/[0.06] px-5 panel-surface">
-				<h1 className="text-[13px] font-semibold tracking-wide text-zinc-200">
-					Roentgen
-				</h1>
+			<header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-white/[0.075] bg-chrome px-4">
+				{/* Brand logo */}
+				<div className="flex shrink-0 items-center gap-2.5">
+					<div
+						className="flex h-7 w-7 items-center justify-center rounded"
+						style={{
+							background:
+								"linear-gradient(135deg, #1fbfa6, color-mix(in oklab, #1fbfa6 50%, #000))",
+						}}
+					>
+						<Plus size={13} strokeWidth={2.5} className="text-white" />
+					</div>
+					<div className="flex flex-col leading-none">
+						<span className="text-[12px] font-semibold tracking-[0.1em] text-ink">
+							ROENTGEN
+						</span>
+						<span className="mt-0.5 text-[9px] text-ink-3">
+							馬レントゲンビューア
+						</span>
+					</div>
+				</div>
+
+				{/* Separator */}
+				<div className="h-4 w-px shrink-0 bg-white/[0.075]" />
+
+				{/* Patient info (when images are loaded) */}
+				{patientName && (
+					<div className="flex min-w-0 items-center gap-2">
+						<span className="chip max-w-[10rem]">
+							<User size={9} className="shrink-0" />
+							<span className="min-w-0 truncate">{patientName}</span>
+						</span>
+						{studyDesc && (
+							<span className="max-w-[12rem] truncate text-[11px] text-ink-3">
+								{studyDesc}
+							</span>
+						)}
+						{formattedStudyDate && (
+							<span className="font-mono text-[10px] text-ink-3">
+								{formattedStudyDate}
+							</span>
+						)}
+					</div>
+				)}
+
+				{/* Spacer */}
+				<div className="flex-1" />
 
 				{/* Google Drive 連携 */}
 				{available && (
@@ -274,13 +331,13 @@ export const App = () => {
 									type="button"
 									onClick={syncToSeed}
 									disabled={isSyncing}
-									className="chip transition-colors hover:border-sky-400/30 hover:text-sky-300"
+									className="chip transition-colors hover:border-accent/30 hover:text-accent"
 									title={`${auth.email} — クリックして画像をDriveに保存`}
 								>
 									{isSyncing ? (
-										<Loader2 size={11} className="animate-spin text-sky-400" />
+										<Loader2 size={11} className="animate-spin text-accent" />
 									) : (
-										<Cloud size={11} className="text-sky-400" />
+										<Cloud size={11} className="text-accent" />
 									)}
 									<span className="font-sans">
 										{sync.status === "listing"
@@ -293,7 +350,7 @@ export const App = () => {
 								<button
 									type="button"
 									onClick={logout}
-									className="rounded p-1 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+									className="rounded p-1 text-ink-3 transition-colors hover:bg-white/[0.04] hover:text-ink-2"
 									title="Google Driveログアウト"
 								>
 									<LogOut size={12} />
@@ -301,30 +358,30 @@ export const App = () => {
 							</>
 						) : auth.status === "checking" ? (
 							<span className="chip">
-								<Loader2 size={11} className="animate-spin text-zinc-400" />
+								<Loader2 size={11} className="animate-spin text-ink-3" />
 								<span className="font-sans">確認中</span>
 							</span>
 						) : (
 							<button
 								type="button"
 								onClick={login}
-								className="chip transition-colors hover:border-white/10 hover:text-zinc-200"
+								className="chip transition-colors hover:border-white/10 hover:text-ink"
 								title="Google Driveに接続"
 							>
-								<CloudOff size={11} className="text-zinc-500" />
+								<CloudOff size={11} className="text-ink-3" />
 								<span className="font-sans">Drive接続</span>
 							</button>
 						)}
 						{credentialsAvailable === false && driveSetupOpen && (
 							<div
 								id="drive-setup-panel"
-								className="absolute left-0 top-8 z-50 w-[360px] rounded-md border border-amber-400/20 bg-zinc-950 p-3 text-xs text-zinc-300 shadow-xl"
+								className="absolute left-0 top-8 z-50 w-[360px] rounded-md border border-amber-400/20 bg-elev p-3 text-xs text-ink-2 shadow-xl"
 								role="status"
 							>
 								<p className="font-semibold text-amber-300">
 									Google Drive連携の準備が未完了です
 								</p>
-								<ol className="mt-2 list-decimal space-y-1 pl-4 text-zinc-400">
+								<ol className="mt-2 list-decimal space-y-1 pl-4 text-ink-3">
 									<li>GCPコンソールでOAuth2クライアントIDを作成</li>
 									<li>JSONをダウンロードしてファイル名を変更</li>
 									<li>
@@ -334,7 +391,7 @@ export const App = () => {
 										</code>
 									</li>
 								</ol>
-								<p className="mt-2 text-[11px] text-zinc-500">
+								<p className="mt-2 text-[11px] text-ink-3">
 									配置後にアプリを再起動するとDrive接続ボタンが有効になります。
 								</p>
 							</div>
@@ -357,10 +414,11 @@ export const App = () => {
 					</span>
 				)}
 
-				<span className={`ml-auto ${statusChipClassName}`} title={statusText}>
+				<span className={statusChipClassName} title={statusText}>
 					<CircleDot size={11} className={statusDotColor} />
 					<span className="min-w-0 truncate font-sans">{statusText}</span>
 				</span>
+
 				{loadState.status === "loading" && !loadState.cancelRequested && (
 					<button
 						type="button"
@@ -370,6 +428,7 @@ export const App = () => {
 						キャンセル
 					</button>
 				)}
+
 				{dicomFiles.length > 0 && (
 					<button
 						type="button"
@@ -380,6 +439,17 @@ export const App = () => {
 						全クリア
 					</button>
 				)}
+
+				{/* Avatar */}
+				<div
+					className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+					style={{
+						background: "color-mix(in oklab, #1fbfa6 18%, #1c1f23)",
+						color: "#1fbfa6",
+					}}
+				>
+					RT
+				</div>
 			</header>
 
 			{loadFeedback && (

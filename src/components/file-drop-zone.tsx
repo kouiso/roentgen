@@ -1,4 +1,11 @@
-import { FileUp, FolderOpen, UploadCloud } from "lucide-react";
+import {
+	Bone,
+	Cloud,
+	FileUp,
+	FolderOpen,
+	Ruler,
+	UploadCloud,
+} from "lucide-react";
 import {
 	type DragEvent,
 	type KeyboardEvent,
@@ -10,7 +17,6 @@ type FileDropZoneProps = {
 	onFilesLoaded: (files: { path: string; data: ArrayBuffer }[]) => void;
 };
 
-// ファイル読込エラーのユーザー向けメッセージ生成
 const toReadErrorMessage = (filePath: string, err: unknown): string => {
 	const msg = err instanceof Error ? err.message : String(err);
 	const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
@@ -176,7 +182,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
 		>
-			<div className="flex w-full max-w-md flex-col items-center gap-3">
+			<div className="flex w-full max-w-lg flex-col items-center gap-4">
 				{/* biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない） */}
 				<div
 					role="button"
@@ -185,50 +191,68 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					tabIndex={0}
 					onClick={handleFileClick}
 					onKeyDown={handleDropZoneKeyDown}
-					className={`group relative flex w-full cursor-pointer flex-col items-center gap-5 rounded-2xl panel-surface px-10 py-14 text-center transition-all duration-200 ${
+					className={`group relative flex w-full cursor-pointer flex-col items-center gap-5 rounded-2xl border-2 border-dashed px-10 py-14 text-center transition-all duration-200 ${
 						isDragging
-							? "ring-2 ring-sky-400/70 ring-offset-0"
-							: "hover:-translate-y-[1px]"
+							? "border-accent/60 bg-accent/[0.04]"
+							: "border-white/[0.1] hover:border-accent/30 hover:bg-white/[0.02]"
 					}`}
 				>
 					<div
-						className={`flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] transition-colors ${
+						className={`flex h-14 w-14 items-center justify-center rounded-full border transition-colors ${
 							isDragging
-								? "text-sky-300"
-								: "text-zinc-400 group-hover:text-zinc-200"
+								? "border-accent/30 bg-accent/[0.08] text-accent"
+								: "border-white/[0.08] bg-white/[0.03] text-ink-3 group-hover:text-ink-2"
 						}`}
 					>
 						<UploadCloud size={26} strokeWidth={1.5} />
 					</div>
 					{isLoading ? (
-						<p className="font-sans text-[13px] text-zinc-400">読込中...</p>
+						<p className="text-[13px] text-ink-3">読込中...</p>
 					) : (
 						<div className="flex flex-col gap-1.5">
-							<p className="font-sans text-[15px] font-medium text-zinc-100">
+							<p className="text-[15px] font-medium text-ink">
 								レントゲン画像をドロップ
 							</p>
-							<p className="font-sans text-[12px] text-zinc-400">
+							<p className="text-[12px] text-ink-2">
 								クリックしてファイルを選択
 							</p>
-							<p className="font-sans text-[11px] text-zinc-500">
+							<p className="text-[11px] text-ink-3">
 								病院でもらったレントゲンファイル（.dcm）に対応
 							</p>
 						</div>
 					)}
 				</div>
 
-				<div className="grid w-full grid-cols-3 gap-2 text-center font-sans text-[11px] text-zinc-500">
-					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
-						単体ファイル
+				{/* Feature cards */}
+				<div className="grid w-full grid-cols-3 gap-2">
+					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
+						<Bone size={18} className="text-ink-3" />
+						<div>
+							<p className="text-[11px] font-medium text-ink-2">骨格解析</p>
+							<p className="mt-0.5 text-[10px] text-ink-3">
+								馬用WW/WCプリセット
+							</p>
+						</div>
 					</div>
-					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
-						フォルダ一括
+					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
+						<Ruler size={18} className="text-ink-3" />
+						<div>
+							<p className="text-[11px] font-medium text-ink-2">精密計測</p>
+							<p className="mt-0.5 text-[10px] text-ink-3">距離・角度の計測</p>
+						</div>
 					</div>
-					<div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
-						Drive同期
+					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
+						<Cloud size={18} className="text-ink-3" />
+						<div>
+							<p className="text-[11px] font-medium text-ink-2">Drive同期</p>
+							<p className="mt-0.5 text-[10px] text-ink-3">
+								Google Driveから読込
+							</p>
+						</div>
 					</div>
 				</div>
 
+				{/* File / folder buttons */}
 				<div className="grid w-full grid-cols-2 gap-2">
 					<button
 						type="button"
@@ -257,12 +281,12 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					role="alert"
 					aria-live="assertive"
 				>
-					<p className="mb-1 font-sans text-[12px] font-medium text-rose-300">
+					<p className="mb-1 text-[12px] font-medium text-rose-300">
 						ファイル読込エラー
 					</p>
 					<ul className="space-y-0.5">
 						{readErrors.map((err) => (
-							<li key={err} className="font-sans text-[11px] text-rose-200/80">
+							<li key={err} className="text-[11px] text-rose-200/80">
 								{err}
 							</li>
 						))}

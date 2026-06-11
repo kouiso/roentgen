@@ -4,10 +4,26 @@
 @import "@fontsource/ibm-plex-mono/500.css";
 
 @theme {
-	--color-app: #09090b;
-	--color-panel: #18181b;
-	--color-panel-border: rgb(255 255 255 / 0.06);
-	--color-accent: #38bdf8;
+	/* Clinical dark theme tokens */
+	--color-bg: #0a0b0d;
+	--color-chrome: #121417;
+	--color-chrome-2: #15171a;
+	--color-elev: #1c1f23;
+	--color-line: rgb(255 255 255 / 0.075);
+	--color-line-2: rgb(255 255 255 / 0.045);
+	--color-accent: #1fbfa6;
+	--color-ink: #e8eaed;
+	--color-ink-2: #9aa1a9;
+	--color-ink-3: #666c75;
+	--color-viewport: #000000;
+	--color-cell: #050607;
+	--color-hover: rgb(255 255 255 / 0.045);
+	--color-press: rgb(255 255 255 / 0.07);
+
+	/* Legacy aliases for backward compat */
+	--color-app: #0a0b0d;
+	--color-panel: #121417;
+	--color-panel-border: rgb(255 255 255 / 0.075);
 
 	--font-sans:
 		-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI",
@@ -22,8 +38,8 @@
 		height: 100%;
 	}
 	body {
-		background-color: var(--color-app);
-		color: rgb(212 212 216);
+		background-color: var(--color-bg);
+		color: var(--color-ink);
 		margin: 0;
 		font-family: var(--font-sans);
 		letter-spacing: 0;
@@ -40,7 +56,7 @@
 }
 
 @utility panel-surface {
-	background-color: rgb(24 24 27 / 0.7);
+	background-color: rgb(18 20 23 / 0.85);
 	backdrop-filter: blur(20px) saturate(140%);
 	-webkit-backdrop-filter: blur(20px) saturate(140%);
 	box-shadow:
@@ -48,7 +64,6 @@
 		0 0 0 1px rgb(0 0 0 / 0.4);
 }
 
-/* DICOM画像上のオーバーレイ文字(暗/明問わず可読性確保) */
 @utility overlay-text-shadow {
 	text-shadow: 0 0 3px rgb(0 0 0 / 0.8);
 }
@@ -68,9 +83,9 @@
 		padding: 0.125rem 0.625rem;
 		font-size: 11px;
 		line-height: 1;
-		color: rgb(161 161 170);
+		color: var(--color-ink-2);
 		background-color: rgb(255 255 255 / 0.04);
-		border: 1px solid rgb(255 255 255 / 0.06);
+		border: 1px solid rgb(255 255 255 / 0.075);
 		transition:
 			background-color 150ms ease,
 			color 150ms ease,
@@ -78,6 +93,6 @@
 	}
 	.chip:hover {
 		background-color: rgb(255 255 255 / 0.08);
-		color: rgb(244 244 245);
+		color: var(--color-ink);
 	}
 }
