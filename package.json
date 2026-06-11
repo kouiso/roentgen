@@ -91,12 +91,6 @@
 			"target": [
 				"nsis"
 			]
-		},
-		"publish": {
-			"provider": "github",
-			"owner": "kouiso",
-			"repo": "roentgen",
-			"draft": false
 		}
 	},
 	"pnpm": {
