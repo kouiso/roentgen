@@ -1,4 +1,4 @@
-// オーバーレイ情報（renkeibox ImageOverlayInfo 参考）
+// オーバーレイ情報
 // 4隅に表示するDICOMタグ情報
 
 export type OverlayPosition =
@@ -22,7 +22,7 @@ export type ImageOverlayInfo = {
 	bottomRight: OverlayItem[];
 };
 
-// 画像方向情報（renkeibox ImageDirectionInfo 参考）
+// 画像方向情報
 // L/R/A/P/H/F の6軸方向マーカー
 export type ImageDirectionInfo = {
 	top: string;
@@ -31,7 +31,7 @@ export type ImageDirectionInfo = {
 	right: string;
 };
 
-// オーバーレイ項目定義（renkeibox ImageOverlay.ts の70+タグ定義 参考）
+// オーバーレイ項目定義
 export type OverlayItemDefinition = {
 	id: string;
 	tag: string;

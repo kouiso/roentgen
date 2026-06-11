@@ -1,4 +1,4 @@
-// メインビュー: OSD + cornerstone Canvas（renkeibox StackView.tsx 移植）
+// メインビュー: OSD + cornerstone Canvas
 // OSDがタイル管理・ビューポート制御、cornerstoneがDICOM固有処理を担当
 import { useEffect, useRef } from "react";
 

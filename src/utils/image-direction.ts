@@ -1,4 +1,4 @@
-// 画像方向計算（renkeibox ImageDirection.ts 移植）
+// 画像方向計算
 // direction cosinesから6軸方向マーカーを生成
 import type { ImageDirectionInfo } from "@/types/overlay";
 

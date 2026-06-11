@@ -1,4 +1,4 @@
-// オーバーレイ項目定義（renkeibox ImageOverlay.ts 移植）
+// オーバーレイ項目定義
 // 70+タグの4隅オーバーレイ配置
 import type { OverlayItemDefinition } from "@/types/overlay";
 

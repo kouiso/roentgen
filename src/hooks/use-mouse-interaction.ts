@@ -1,4 +1,4 @@
-// マウスインタラクション管理（renkeibox useDicom.ts + useShortcut.ts 参考）
+// マウスインタラクション管理
 // WW/WCドラッグ、モード切替（左+右同時押し）をOSD上で実現
 import { useCallback, useEffect, useRef } from "react";
 import type { ViewerControlType } from "@/types/viewer";
@@ -17,7 +17,7 @@ type UseMouseInteractionProps = {
 	enabled: boolean;
 };
 
-// マウスショートカット切替の順番（renkeibox useShortcut.ts 参考）
+// マウスショートカット切替の順番
 const MODE_CYCLE: ViewerControlType[] = [
 	VIEWER_CONTROL_TYPE.WW_WC,
 	VIEWER_CONTROL_TYPE.ZOOM,
@@ -107,7 +107,7 @@ export const useMouseInteraction = ({
 					break;
 				}
 				case VIEWER_CONTROL_TYPE.ZOOM:
-					// 縦ドラッグで拡大縮小（renkeibox doZoom参考: offset + d * 0.01）
+					// 縦ドラッグで拡大縮小
 					zoomByRef.current(1 - deltaY * 0.005);
 					break;
 				case VIEWER_CONTROL_TYPE.PAN: {
@@ -139,7 +139,7 @@ export const useMouseInteraction = ({
 
 	const handleMouseDown = useCallback(
 		(e: MouseEvent) => {
-			// 左+右同時押し検出（renkeibox useShortcut.ts: マウスショートカット切替）
+			// 左+右同時押し検出
 			if (
 				e.buttons === 3 ||
 				(e.shiftKey && e.button === 0 && e.buttons === 1)
@@ -178,7 +178,7 @@ export const useMouseInteraction = ({
 		onPrevFrameRef.current = onPrevFrame;
 	}, [onNextFrame, onPrevFrame]);
 
-	// ホイールでスタックフレーム切替（renkeibox useDicom.ts: doChangeFrame 参考）
+	// ホイールでスタックフレーム切替
 	const handleWheel = useCallback((e: WheelEvent) => {
 		e.preventDefault();
 		if (e.deltaY > 0) {

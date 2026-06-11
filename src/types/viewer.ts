@@ -1,4 +1,4 @@
-// ビューア操作モード（renkeibox ViewerControlType 参考）
+// ビューア操作モード
 export const VIEWER_CONTROL_TYPE = {
 	WW_WC: "WW_WC",
 	ZOOM: "ZOOM",
@@ -10,7 +10,7 @@ export const VIEWER_CONTROL_TYPE = {
 export type ViewerControlType =
 	(typeof VIEWER_CONTROL_TYPE)[keyof typeof VIEWER_CONTROL_TYPE];
 
-// ビューアのワールド情報（renkeibox ViewerWorldInfo 参考）
+// ビューアのワールド情報
 export type ViewerWorldInfo = {
 	windowWidth: number;
 	windowCenter: number;
@@ -23,7 +23,7 @@ export type ViewerWorldInfo = {
 	flipVertical: boolean;
 };
 
-// スライダー状態（renkeibox ViewerSliderState 参考）
+// スライダー状態
 export type ViewerSliderAction =
 	| { type: "ENTER"; frameIndex: number }
 	| { type: "CHANGING"; frameIndex: number }

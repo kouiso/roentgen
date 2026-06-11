@@ -30,3 +30,6 @@ Thumbs.db
 *.swp
 *.swo
 .playwright-mcp/
+
+# Local-only reference docs (never push — contains internal project refs)
+REVIEW.md

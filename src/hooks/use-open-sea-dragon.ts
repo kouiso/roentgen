@@ -1,4 +1,4 @@
-// OpenSeadragon初期化・ビューア作成（renkeibox useRender.createViewer 参考）
+// OpenSeadragon初期化・ビューア作成
 // DICOM画像を単一タイルとしてOSDに表示し、ズーム/パン/ビューポート制御をOSDに委譲
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { OSDViewer } from "./use-cornerstone";

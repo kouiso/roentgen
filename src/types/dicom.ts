@@ -1,4 +1,4 @@
-// DICOMファイル情報（renkeibox models/Viewer/DicomFileInfo 参考）
+// DICOMファイル情報
 export type DicomFileInfo = {
 	imageId: string;
 	filePath: string;

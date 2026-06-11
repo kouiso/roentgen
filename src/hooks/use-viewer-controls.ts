@@ -1,4 +1,4 @@
-// ビューア操作機能（renkeibox useDicom.ts + useRender.ts 参考）
+// ビューア操作機能
 // WW/WC: cornerstone側で処理 → worldInfo useEffectで自動再描画
 // ズーム/パン: OSD.viewportに委譲
 import { useCallback } from "react";

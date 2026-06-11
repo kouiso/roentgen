@@ -1,4 +1,4 @@
-// DICOMタグからオーバーレイ情報生成（renkeibox useOverlay.ts 参考）
+// DICOMタグからオーバーレイ情報生成
 import { useMemo } from "react";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ImageOverlayInfo, OverlayItem } from "@/types/overlay";

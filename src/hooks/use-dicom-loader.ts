@@ -1,4 +1,4 @@
-// DICOMファイル読込フック（renkeibox useDicomLoader.ts 参考）
+// DICOMファイル読込フック
 // ローカルファイル専用に簡略化（サーバー依存コード不要）
 import { useCallback, useEffect, useRef, useState } from "react";
 import { releaseImage } from "@/hooks/use-cornerstone";

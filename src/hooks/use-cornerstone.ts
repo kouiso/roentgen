@@ -1,4 +1,4 @@
-// cornerstone初期化 + OSD tileDrawingブリッジ（renkeibox useRender.ts 参考）
+// cornerstone初期化 + OSD tileDrawingブリッジ
 // OSDのtileDrawingイベント内でcornerstone.renderToCanvasを呼び出す
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DicomFileInfo } from "@/types/dicom";

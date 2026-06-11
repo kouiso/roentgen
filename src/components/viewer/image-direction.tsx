@@ -1,4 +1,4 @@
-// L/R/A/P/H/F 6軸方向マーカー表示（renkeibox ViewerImageDirection.tsx 移植）
+// L/R/A/P/H/F 6軸方向マーカー表示
 // equineモード時は Lat/Med/Do/Pa/Pr/Di を表示
 
 import type { ImageDirectionInfo } from "@/types/overlay";

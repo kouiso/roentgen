@@ -1,4 +1,4 @@
-// DICOMタグパースユーティリティ（renkeibox Parser.ts 参考）
+// DICOMタグパースユーティリティ
 import type {
 	DicomFileInfo,
 	ModalityLutData,
@@ -253,7 +253,7 @@ export const extractDicomTags = (
 ): Record<string, string> => {
 	const tags: Record<string, string> = {};
 
-	// 主要タグの一覧（renkeibox ImageOverlay.ts の70+タグ対応）
+	// 主要タグの一覧
 	const tagMap: Record<string, string> = {
 		// インスタンス識別子
 		x00080018: "SOPInstanceUID",

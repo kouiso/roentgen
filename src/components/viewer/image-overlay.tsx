@@ -1,4 +1,4 @@
-// 4隅DICOMタグオーバーレイ表示（renkeibox ViewerImageOverlay.tsx 移植）
+// 4隅DICOMタグオーバーレイ表示
 import type { ImageOverlayInfo, OverlayPosition } from "@/types/overlay";
 
 type ImageOverlayProps = {

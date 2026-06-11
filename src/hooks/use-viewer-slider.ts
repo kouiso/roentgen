@@ -1,4 +1,4 @@
-// スタックスライダー状態管理（renkeibox useViewerSlider.ts 移植）
+// スタックスライダー状態管理
 import { useCallback, useReducer } from "react";
 import type { ViewerSliderAction, ViewerSliderState } from "@/types/viewer";
 
