@@ -119,6 +119,13 @@ test.describe("real Electron measurement overlay", () => {
 				const text = message.text();
 				consoleMessages.push(`[${message.type()}] ${text}`);
 				if (message.type() === "error") consoleErrors.push(text);
+				// Always print measurement-click debug logs immediately
+				if (
+					text.includes("[measurement-click]") ||
+					text.includes("[click-diagnostics]")
+				) {
+					console.log("[browser]", text);
+				}
 			});
 			page.on("pageerror", (error) => {
 				pageErrors.push(error);
