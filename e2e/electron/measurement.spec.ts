@@ -132,8 +132,10 @@ test.describe("real Electron measurement overlay", () => {
 			const distanceButton = page.getByRole("button", { name: "距離を測る" });
 			await distanceButton.click();
 			await expect(distanceButton).toHaveAttribute("aria-pressed", "true");
-			// React useEffect registers the click listener after browser paint; wait for it
-			await page.waitForTimeout(400);
+			// Wait until the click listener is actually attached (signalled by data-measurement-ready)
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible({ timeout: 5_000 });
 			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
 			await clickViewerPoint(page, 0.38, 0.35);
 			await clickViewerPoint(page, 0.55, 0.6);
@@ -171,8 +173,10 @@ test.describe("real Electron measurement overlay", () => {
 			const angleButton = page.getByRole("button", { name: "角度を測る" });
 			await angleButton.click();
 			await expect(angleButton).toHaveAttribute("aria-pressed", "true");
-			// React useEffect registers the click listener after browser paint; wait for it
-			await page.waitForTimeout(400);
+			// Wait until the click listener is actually attached (signalled by data-measurement-ready)
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible({ timeout: 5_000 });
 			// x-ratios must land within the image area (pillarbox: ~28% on each side for 40x40 fixture in landscape container)
 			await clickViewerPoint(page, 0.4, 0.35);
 			await clickViewerPoint(page, 0.48, 0.55);

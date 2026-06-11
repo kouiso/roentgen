@@ -223,7 +223,11 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		const container = document.getElementById(containerId);
 		if (!container) return;
 		container.addEventListener("click", addImagePointFromClick);
-		return () => container.removeEventListener("click", addImagePointFromClick);
+		container.setAttribute("data-measurement-ready", "true");
+		return () => {
+			container.removeEventListener("click", addImagePointFromClick);
+			container.removeAttribute("data-measurement-ready");
+		};
 	}, [
 		isOsdReady,
 		activeMode,
