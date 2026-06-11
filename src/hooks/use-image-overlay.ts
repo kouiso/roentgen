@@ -59,6 +59,7 @@ export const useImageOverlay = (
 				label: item.label,
 				value,
 				position: item.position,
+				bold: item.bold,
 			};
 
 			result[item.position].push(overlayItem);
