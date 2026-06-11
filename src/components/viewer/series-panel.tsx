@@ -133,7 +133,7 @@ export const SeriesPanel = ({
 	currentIndex,
 	onSelect,
 }: SeriesPanelProps) => {
-	if (files.length === 0) return null;
+	if (!files || files.length <= 1) return null;
 
 	const groups = groupBySeries(files);
 	const multiSeries = groups.length > 1;
