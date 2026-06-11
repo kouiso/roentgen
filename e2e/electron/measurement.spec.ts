@@ -119,13 +119,6 @@ test.describe("real Electron measurement overlay", () => {
 				const text = message.text();
 				consoleMessages.push(`[${message.type()}] ${text}`);
 				if (message.type() === "error") consoleErrors.push(text);
-				// Always print measurement-click debug logs immediately
-				if (
-					text.includes("[measurement-click]") ||
-					text.includes("[click-diagnostics]")
-				) {
-					console.log("[browser]", text);
-				}
 			});
 			page.on("pageerror", (error) => {
 				pageErrors.push(error);
@@ -168,29 +161,6 @@ test.describe("real Electron measurement overlay", () => {
 				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
 			).toHaveCount(1, { timeout: 5_000 });
 			await clickViewerPoint(page, 0.55, 0.6);
-
-			// Log DOM state and console output immediately after clicks for diagnostics
-			const clickDiagnostics = await page.evaluate(() => {
-				const svg = document.querySelector(
-					"svg[aria-label='計測オーバーレイ']",
-				);
-				const container = document.getElementById("osd-pane-0");
-				return {
-					svgExists: !!svg,
-					svgLineCount: svg?.querySelectorAll("line").length ?? -1,
-					svgCircleCount: svg?.querySelectorAll("circle").length ?? -1,
-					containerReady: container?.getAttribute("data-measurement-ready"),
-					containerRect: container
-						? {
-								x: container.getBoundingClientRect().x,
-								y: container.getBoundingClientRect().y,
-								w: container.getBoundingClientRect().width,
-								h: container.getBoundingClientRect().height,
-							}
-						: null,
-				};
-			});
-			console.log("[click-diagnostics]", JSON.stringify(clickDiagnostics));
 
 			const overlay = page.getByRole("img", { name: "計測オーバーレイ" });
 			await expect(overlay).toBeVisible({ timeout: 10_000 });

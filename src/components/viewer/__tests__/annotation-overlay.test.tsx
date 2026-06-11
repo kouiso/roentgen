@@ -7,8 +7,8 @@ import { AnnotationOverlay } from "../annotation-overlay";
 
 const makeViewport = () => ({
 	getZoom: () => 1,
-	getCenter: () => ({ x: 50, y: 50 }),
-	getHomeBounds: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+	getCenter: () => ({ x: 0.5, y: 0.5 }),
+	getHomeBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
 	addHandler: vi.fn(),
 	removeHandler: vi.fn(),
 });

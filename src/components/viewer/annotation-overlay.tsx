@@ -250,7 +250,12 @@ const FreehandAnnotationView = ({
 	return (
 		<g className="group">
 			<polyline
-				points={points.map((p) => `${p.x},${p.y}`).join(" ")}
+				points={points
+					.map(
+						(p) =>
+							`${Math.round(p.x * 100) / 100},${Math.round(p.y * 100) / 100}`,
+					)
+					.join(" ")}
 				fill="none"
 				stroke={color}
 				strokeWidth={annotation.strokeWidth ?? 2}
@@ -282,7 +287,12 @@ const ActivePointsOverlay = ({
 		<g>
 			{converted.length >= 2 && (
 				<polyline
-					points={converted.map((p) => `${p.x},${p.y}`).join(" ")}
+					points={converted
+						.map(
+							(p) =>
+								`${Math.round(p.x * 100) / 100},${Math.round(p.y * 100) / 100}`,
+						)
+						.join(" ")}
 					fill="none"
 					stroke={ANNOTATION_COLOR}
 					strokeWidth={2}
