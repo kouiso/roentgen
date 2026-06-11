@@ -104,6 +104,15 @@ export type ToolPanelProps = {
 
 // --- Sub-components ---
 
+const EQUINE_PRESET_TINT: Record<string, string> = {
+	equine_bone: "#c8975a",
+	equine_soft: "#1fbfa6",
+	equine_hoof: "#e07b3a",
+	equine_navicular: "#8b7fd4",
+	equine_lung: "#5b9bd5",
+	equine_abdomen: "#c45c5c",
+};
+
 const ICON = 18;
 
 const SectionHeader = ({
@@ -122,7 +131,7 @@ const SectionHeader = ({
 			<button
 				type="button"
 				onClick={onToggle}
-				className="mb-1 mt-4 flex w-full items-center justify-between border-b border-white/5 px-3 pb-1.5 text-left font-sans text-[10px] font-medium tracking-[0.14em] text-zinc-400 uppercase transition-colors first:mt-1 hover:text-zinc-300"
+				className="mb-1 mt-4 flex w-full items-center justify-between border-b border-line-2 px-3 pb-1.5 text-left font-sans text-[10px] font-medium tracking-[0.14em] text-ink-3 uppercase transition-colors first:mt-1 hover:text-ink-2"
 			>
 				{label}
 				{open ? (
@@ -134,7 +143,7 @@ const SectionHeader = ({
 		);
 	}
 	return (
-		<div className="mb-1 mt-4 border-b border-white/5 px-3 pb-1.5 font-sans text-[10px] font-medium tracking-[0.14em] text-zinc-400 uppercase first:mt-1">
+		<div className="mb-1 mt-4 border-b border-line-2 px-3 pb-1.5 font-sans text-[10px] font-medium tracking-[0.14em] text-ink-3 uppercase first:mt-1">
 			{label}
 		</div>
 	);
@@ -158,16 +167,16 @@ const ModeButton = ({
 		aria-label={label}
 		aria-pressed={active}
 		onClick={onClick}
-		className={`relative flex h-8 w-full items-center gap-2 rounded-md pl-3 pr-2 text-[12px] transition-[background-color,color,transform,box-shadow] duration-150 ease-out before:absolute before:left-0.5 before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-gradient-to-b before:from-sky-400 before:to-sky-400/30 before:transition-opacity ${
+		className={`relative flex h-8 w-full items-center gap-2 rounded-md pl-3 pr-2 text-[12px] transition-[background-color,color,transform,box-shadow] duration-150 ease-out before:absolute before:left-0.5 before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-gradient-to-b before:from-accent before:to-accent/30 before:transition-opacity ${
 			active
-				? "bg-sky-400/[0.08] text-sky-300 before:opacity-100"
-				: "text-zinc-400 before:opacity-0 hover:translate-x-[1px] hover:bg-white/[0.04] hover:text-zinc-100"
+				? "bg-accent/[0.08] text-accent before:opacity-100"
+				: "text-ink-2 before:opacity-0 hover:translate-x-[1px] hover:bg-hover hover:text-ink"
 		}`}
 	>
 		{icon}
 		<span className="flex-1 text-left">{label}</span>
 		{shortcut && (
-			<span className="font-mono text-[10px] text-zinc-500">{shortcut}</span>
+			<span className="font-mono text-[10px] text-ink-3">{shortcut}</span>
 		)}
 	</button>
 );
@@ -192,19 +201,17 @@ const ToggleButton = ({
 		onClick={onClick}
 		className={`flex h-8 w-full items-center gap-2 rounded-md px-3 text-[12px] transition-[background-color,color] duration-150 ease-out ${
 			active
-				? "bg-sky-400/[0.08] text-sky-300"
-				: "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
+				? "bg-accent/[0.08] text-accent"
+				: "text-ink-2 hover:bg-hover hover:text-ink"
 		}`}
 	>
 		{icon}
 		<span className="flex-1 text-left">{label}</span>
 		{shortcut && (
-			<span className="mr-1 font-mono text-[10px] text-zinc-500">
-				{shortcut}
-			</span>
+			<span className="mr-1 font-mono text-[10px] text-ink-3">{shortcut}</span>
 		)}
 		<span
-			className={`h-1.5 w-3 rounded-full transition-colors ${active ? "bg-sky-400" : "bg-white/10"}`}
+			className={`h-1.5 w-3 rounded-full transition-colors ${active ? "bg-accent" : "bg-line"}`}
 		/>
 	</button>
 );
@@ -229,14 +236,14 @@ const ActionButton = ({
 		disabled={disabled}
 		className={`flex h-8 w-full items-center gap-2 rounded-md px-3 text-[12px] transition-[background-color,color] duration-150 ease-out ${
 			disabled
-				? "cursor-not-allowed text-zinc-700"
-				: "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100 active:bg-white/[0.06]"
+				? "cursor-not-allowed text-ink-3/50"
+				: "text-ink-2 hover:bg-hover hover:text-ink active:bg-press"
 		}`}
 	>
 		{icon}
 		<span className="flex-1 text-left">{label}</span>
 		{shortcut && (
-			<span className="font-mono text-[10px] text-zinc-500">{shortcut}</span>
+			<span className="font-mono text-[10px] text-ink-3">{shortcut}</span>
 		)}
 	</button>
 );
@@ -323,7 +330,7 @@ export const ToolPanel = ({
 	};
 
 	return (
-		<aside className="flex w-[200px] shrink-0 flex-col overflow-y-auto py-2 panel-surface">
+		<aside className="flex w-[236px] shrink-0 flex-col overflow-y-auto py-2 panel-surface">
 			{/* ビューア未準備時はレイアウト以外を無効化 */}
 			<div className={!viewerReady ? "pointer-events-none opacity-40" : ""}>
 				{/* 操作モード */}
@@ -337,7 +344,7 @@ export const ToolPanel = ({
 						onClick={() => onModeChange(VIEWER_CONTROL_TYPE.WW_WC)}
 					/>
 					{currentWW !== undefined && currentWC !== undefined && (
-						<div className="mx-3 mb-0.5 flex items-center justify-between font-mono text-[10px] text-zinc-500 tabular-nums">
+						<div className="mx-3 mb-0.5 flex items-center justify-between font-mono text-[10px] text-ink-3 tabular-nums">
 							<span>WW {Math.round(currentWW)}</span>
 							<span>WC {Math.round(currentWC)}</span>
 						</div>
@@ -418,10 +425,16 @@ export const ToolPanel = ({
 							key={preset.key}
 							type="button"
 							onClick={() => onSetWwWc(preset.ww, preset.wc)}
-							className="flex h-7 w-full items-center justify-between rounded-md px-3 text-[12px] text-zinc-400 transition-[background-color,color] duration-150 ease-out hover:bg-white/[0.04] hover:text-zinc-100"
+							className="group relative flex h-8 w-full items-center gap-2 overflow-hidden rounded-md pr-3 text-[12px] text-ink-2 transition-[background-color,color] duration-150 ease-out hover:bg-hover hover:text-ink"
 						>
-							<span>{preset.label}</span>
-							<span className="font-mono text-[10px] text-zinc-500">
+							<span
+								className="h-full w-[3px] shrink-0 rounded-full"
+								style={{
+									backgroundColor: EQUINE_PRESET_TINT[preset.key] ?? "#1fbfa6",
+								}}
+							/>
+							<span className="flex-1 pl-1 text-left">{preset.label}</span>
+							<span className="font-mono text-[10px] text-ink-3">
 								{preset.ww}/{preset.wc}
 							</span>
 						</button>
@@ -573,12 +586,12 @@ export const ToolPanel = ({
 								key={preset.key}
 								type="button"
 								onClick={() => onSetWwWc(preset.ww, preset.wc)}
-								className="flex h-7 w-full items-center justify-between rounded-md px-3 text-[12px] text-zinc-400 transition-[background-color,color] duration-150 ease-out hover:bg-white/[0.04] hover:text-zinc-100"
+								className="flex h-7 w-full items-center justify-between rounded-md px-3 text-[12px] text-ink-2 transition-[background-color,color] duration-150 ease-out hover:bg-hover hover:text-ink"
 							>
 								<span>{preset.label}</span>
-								<span className="font-mono text-[10px] text-zinc-500">
+								<span className="font-mono text-[10px] text-ink-3">
 									{preset.ww}/{preset.wc}{" "}
-									<span className="text-zinc-600">[{i + 1}]</span>
+									<span className="text-ink-3/60">[{i + 1}]</span>
 								</span>
 							</button>
 						))}
@@ -606,11 +619,11 @@ export const ToolPanel = ({
 								aria-label="再生速度を下げる"
 								onClick={onDecreaseFps}
 								disabled={fps <= 5}
-								className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
+								className="rounded p-0.5 text-ink-3 transition-colors hover:bg-hover hover:text-ink-2 disabled:cursor-not-allowed disabled:text-ink-3/40"
 							>
 								<Minus size={14} />
 							</button>
-							<span className="min-w-[3rem] text-center font-mono tabular-nums text-[11px] text-zinc-400">
+							<span className="min-w-[3rem] text-center font-mono tabular-nums text-[11px] text-ink-2">
 								{fps} fps
 							</span>
 							<button
@@ -618,7 +631,7 @@ export const ToolPanel = ({
 								aria-label="再生速度を上げる"
 								onClick={onIncreaseFps}
 								disabled={fps >= 30}
-								className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700"
+								className="rounded p-0.5 text-ink-3 transition-colors hover:bg-hover hover:text-ink-2 disabled:cursor-not-allowed disabled:text-ink-3/40"
 							>
 								<Plus size={14} />
 							</button>
@@ -684,8 +697,8 @@ export const ToolPanel = ({
 						title={tip}
 						className={`flex h-8 items-center justify-center rounded-md transition-[background-color,color] duration-150 ease-out ${
 							layout === type
-								? "bg-sky-400/[0.12] text-sky-300"
-								: "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
+								? "bg-accent/[0.12] text-accent"
+								: "text-ink-3 hover:bg-hover hover:text-ink-2"
 						}`}
 					>
 						<Icon size={ICON} />
