@@ -12,6 +12,7 @@ export type OverlayItem = {
 	label: string;
 	value: string;
 	position: OverlayPosition;
+	bold?: boolean;
 };
 
 export type ImageOverlayInfo = {
@@ -37,4 +38,5 @@ export type OverlayItemDefinition = {
 	label: string;
 	position: OverlayPosition;
 	format?: (value: string) => string;
+	bold?: boolean;
 };

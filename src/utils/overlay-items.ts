@@ -21,6 +21,7 @@ export const OVERLAY_ITEMS: OverlayItemDefinition[] = [
 		tag: "PatientName",
 		label: "名前",
 		position: "topLeft",
+		bold: true,
 	},
 	{ id: "patientId", tag: "PatientID", label: "ID", position: "topLeft" },
 	{
