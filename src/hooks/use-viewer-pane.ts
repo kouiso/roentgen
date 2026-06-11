@@ -169,15 +169,18 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				imageHeight,
 				viewport,
 			);
-			console.log("[measurement-click]", {
-				clientX: e.clientX,
-				clientY: e.clientY,
-				rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
-				imageWidth,
-				imageHeight,
-				hasViewport: !!viewport,
-				imageCoord,
-			});
+			console.log(
+				"[measurement-click]",
+				JSON.stringify({
+					clientX: e.clientX,
+					clientY: e.clientY,
+					rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+					imageWidth,
+					imageHeight,
+					hasViewport: !!viewport,
+					imageCoord,
+				}),
+			);
 			if (imageCoord) {
 				if (isClickAnnotationMode || annotation.pendingTextPosition) {
 					annotation.addPoint(imageCoord);
