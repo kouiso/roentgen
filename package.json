@@ -1,6 +1,6 @@
 {
 	"name": "roentgen",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "ルバーノのレントゲンビューア — DICOM画像デスクトップアプリ",
 	"main": "dist-electron/main.js",
 	"scripts": {
