@@ -62,7 +62,7 @@ jobs:
         run: pnpm build
 
       - name: Package (dmg)
-        run: pnpm dist --mac
+        run: pnpm dist --mac --publish never
 
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-macos.txt"
@@ -97,7 +97,7 @@ jobs:
         run: pnpm build
 
       - name: Package (nsis)
-        run: pnpm dist --win
+        run: pnpm dist --win --publish never
 
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-windows.txt"
@@ -144,7 +144,7 @@ jobs:
         run: pnpm build
 
       - name: Package (AppImage)
-        run: pnpm dist --linux
+        run: pnpm dist --linux --publish never
 
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output release/SHA256SUMS-linux.txt

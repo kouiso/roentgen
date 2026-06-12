@@ -40,5 +40,3 @@ linux:
       arch:
         - x64
 
-electronDownload:
-  mirror: https://npmmirror.com/mirrors/electron/
