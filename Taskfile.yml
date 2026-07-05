@@ -13,3 +13,4 @@ tasks:
     desc: Run the full local CI verification.
     cmds:
       - task: ci:fast
+      - pnpm exec playwright test --project=electron
