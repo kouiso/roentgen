@@ -12,6 +12,7 @@ jobs:
     name: Trigger Devin via Slack
     runs-on: ${{ vars.RUNNER_LINUX || 'ubuntu-latest' }}
     if: github.event.label.name == 'devin'
+    timeout-minutes: 5
     concurrency:
       group: devin-trigger-${{ github.event.issue.number }}
       cancel-in-progress: false
