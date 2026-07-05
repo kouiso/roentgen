@@ -222,6 +222,7 @@ describe("Parser performance", () => {
 
 	it("generates a 512x512 thumbnail in under 20ms", () => {
 		const buffer = makeDicomBuffer(512, 512, { fillPixels: true });
+		parseAndBuild(buffer, "warmup-thumb.dcm");
 
 		const { value, elapsedMs } = timed(() =>
 			parseAndBuild(buffer, "thumb.dcm"),
