@@ -1,0 +1,8 @@
+# pre-push: lefthook から husky へ一本化した際に pre-push 意図を引き継ぐ。
+# ローカルで CI 相当（lint/build/test）を回し、壊れた変更の push を防ぐ。
+# task 未導入の環境では検証をスキップし、CI 側で最終担保する。
+if command -v task >/dev/null 2>&1; then
+	task ci:fast
+else
+	echo "task 未インストールのため pre-push 検証をスキップ（CI で検証されます）"
+fi

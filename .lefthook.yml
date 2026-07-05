@@ -1,4 +1,0 @@
-pre-push:
-  commands:
-    ci-fast:
-      run: task ci:fast
