@@ -20,8 +20,10 @@ jobs:
   semgrep:
     name: Code Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
-      image: semgrep/semgrep
+      # :latest だとスキャン結果が再現しないためバージョン固定
+      image: semgrep/semgrep:1.168.0
     if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v4
