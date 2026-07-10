@@ -1,0 +1,17 @@
+# pre-push: lefthook から husky へ一本化した際に pre-push 意図を引き継ぐ。
+# ローカルで CI 相当（lint/build/test）を回し、壊れた変更の push を防ぐ。
+# task 未導入の環境では検証をスキップし、CI 側で最終担保する。
+# Debian/Ubuntu では Go Task が go-task 名で入り、task は別ツール(Taskwarrior)の
+# 場合がある。go-task を優先し、task は Go Task 実体か --version で検証してから使う。
+TASK_CMD=""
+if command -v go-task >/dev/null 2>&1; then
+	TASK_CMD="go-task"
+elif command -v task >/dev/null 2>&1 && task --version 2>&1 | grep -q "Task version"; then
+	TASK_CMD="task"
+fi
+
+if [ -n "$TASK_CMD" ]; then
+	$TASK_CMD ci:fast
+else
+	echo "task (go-task) 未インストールのため pre-push 検証をスキップ（CI で検証されます）"
+fi

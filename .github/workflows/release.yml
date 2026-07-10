@@ -8,10 +8,16 @@ on:
 permissions:
   contents: write
 
+# リリースは途中中断させない（cancel-in-progress: false）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   quality-gates:
     name: Quality gates
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +49,7 @@ jobs:
     name: Build (macOS)
     needs: quality-gates
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -78,6 +85,7 @@ jobs:
     name: Build (Windows)
     needs: quality-gates
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -113,6 +121,7 @@ jobs:
     name: Build (Linux)
     needs: quality-gates
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 

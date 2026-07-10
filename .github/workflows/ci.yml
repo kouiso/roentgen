@@ -17,6 +17,7 @@ jobs:
     name: Node (${{ matrix.check-type }})
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +39,9 @@ jobs:
 
       - name: Biome check (format + lint)
         if: matrix.check-type == 'lint'
-        run: pnpm exec biome check src/ electron/
+        # リリース時(biome check .)と同一スコープに統一し、e2e/設定ファイルの
+        # lint 崩れが tag 時まで検出されない事故を防ぐ
+        run: pnpm lint
 
       - name: TypeScript typecheck
         if: matrix.check-type == 'typecheck'
