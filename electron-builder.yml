@@ -9,6 +9,10 @@ directories:
 files:
   - dist/**/*
   - dist-electron/**/*
+  - '!**/*.map'
+  - '!dist/**/*.dcm'
+  - '!dist/**/*.dicom'
+  - '!node_modules/**/*.map'
 
 mac:
   category: public.app-category.medical
@@ -35,6 +39,9 @@ nsis:
   artifactName: ${productName}-${version}-setup.exe
 
 linux:
+  category: Science;MedicalSoftware
+  icon: icons
+  artifactName: ${productName}-${version}.${ext}
   target:
     - target: AppImage
       arch:

@@ -43,7 +43,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm exec playwright test --project=renderer
+        run: pnpm test:e2e -- --project=renderer
 
   build-mac:
     name: Build (macOS)
@@ -74,9 +74,10 @@ jobs:
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-macos.txt"
 
-      - name: Upload artifacts
+      - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             release/*.dmg
             release/SHA256SUMS-macos.txt
@@ -110,9 +111,10 @@ jobs:
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-windows.txt"
 
-      - name: Upload artifacts
+      - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             release/*.exe
             release/SHA256SUMS-windows.txt
@@ -147,7 +149,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm exec playwright test --project=renderer
+        run: pnpm test:e2e -- --project=renderer
 
       - name: Build
         run: pnpm build
@@ -156,11 +158,18 @@ jobs:
         run: pnpm dist --linux --publish never
 
       - name: Generate checksums
-        run: node scripts/generate-release-checksums.mjs --output release/SHA256SUMS-linux.txt
+        run: |
+          pnpm release:checksums
+          cp release/SHA256SUMS.txt release/SHA256SUMS-linux.txt
 
-      - name: Upload artifacts
+      - name: Release gate
+        run: pnpm release:gate
+
+      - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             release/*.AppImage
+            release/latest-linux.yml
             release/SHA256SUMS-linux.txt
