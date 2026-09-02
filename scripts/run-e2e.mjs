@@ -39,23 +39,39 @@ const WSL_ELECTRON_REFUSAL_MESSAGE =
 const run = async () => {
 	const args = process.argv.slice(2);
 	if (args[0] === "--") args.shift();
-	const selectedProjects = args.flatMap((arg, index) => {
-		if (arg === "--project" && args[index + 1]) return [args[index + 1]];
-		if (arg.startsWith("--project=")) return [arg.slice("--project=".length)];
-		return [];
-	});
+	// --project は複数値・globパターン（例: --project renderer electron / --project 'e*'）
+	// を受け付けるため、次のフラグまでの全トークンを拾う。glob側は "electron" に一致するか
+	// 判定できないので、判定不能なら安全側（Electronが走る可能性あり）に倒す。
+	const selectedProjects = [];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "--project") {
+			for (let j = i + 1; j < args.length && !args[j].startsWith("--"); j++) {
+				selectedProjects.push(args[j]);
+			}
+		} else if (arg.startsWith("--project=")) {
+			selectedProjects.push(arg.slice("--project=".length));
+		}
+	}
+	const mayMatchElectron = (project) =>
+		project === "electron" || /[*?]/.test(project);
 	const likelyRunsElectron =
-		selectedProjects.includes("electron") ||
+		selectedProjects.some(mayMatchElectron) ||
 		args.some((arg) => arg.includes("e2e/electron/")) ||
 		selectedProjects.length === 0;
-	const shouldUseXvfb = !isWsl() && likelyRunsElectron && !process.env.DISPLAY;
+	const shouldUseXvfb =
+		process.platform === "linux" &&
+		!isWsl() &&
+		likelyRunsElectron &&
+		!process.env.DISPLAY;
 	if (isWsl() && likelyRunsElectron) {
 		throw new Error(WSL_ELECTRON_REFUSAL_MESSAGE);
 	}
 	if (shouldUseXvfb && !hasCommand("xvfb-run")) {
 		throw new Error("xvfb-run is required for Electron desktop tests without DISPLAY.");
 	}
-	const port = process.env.ROENTGEN_E2E_PORT || String(await findOpenPort());
+	const port =
+		process.env.PLAYWRIGHT_RENDERER_PORT || String(await findOpenPort());
 	console.log(`Roentgen e2e: using renderer port ${port}`);
 	const command = shouldUseXvfb ? "xvfb-run" : "pnpm";
 	const childArgs = shouldUseXvfb
@@ -65,7 +81,7 @@ const run = async () => {
 		env: {
 			...process.env,
 			ELECTRON_RUN_AS_NODE: "",
-			ROENTGEN_E2E_PORT: port,
+			PLAYWRIGHT_RENDERER_PORT: port,
 		},
 		shell: process.platform === "win32",
 		stdio: "inherit",

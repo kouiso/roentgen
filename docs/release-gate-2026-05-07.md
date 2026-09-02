@@ -24,7 +24,7 @@
 - Linux AppImageの配布証跡をMarkdown化した。ただし現行差分を含むartifact再生成はCIまたはMac mini側で未実施。
 - 署名/notarizationに必要な外部入力を切り分けた。
 - release workflowにLinux AppImage jobとOS別SHA256SUMS公開を追加した。
-- release workflowは各OSのartifactを `--publish never` で生成し、checksum / release gate後に `softprops/action-gh-release` で公開する。
+- release workflowは各OSのartifactを `--publish never` で生成し、checksum生成後に `softprops/action-gh-release` で公開する。`pnpm release:gate` はLinux jobでのみ実行し、その公開もchecksum / release gate後にする。macOS/Windows jobはchecksum生成後に公開し、release:gateの結果には依存しない（既存main workflowの構成を踏襲）。
 - Linux release jobは AppImage を公開する前に `pnpm release:checksums` と `pnpm release:gate` を実行する。
 - release workflowは全OS package jobを共通 `quality-gates` jobの後段にし、macOS/Windowsもlocal/headless gate未通過のままpackageしない。
 - Linux release jobはAppImage公開前に `lint` / `typecheck` / `unit` / renderer headless E2E を実行する。

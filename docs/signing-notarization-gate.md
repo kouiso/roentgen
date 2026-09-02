@@ -8,7 +8,7 @@
 
 | 対象 | 必要物 | 完了条件 |
 |---|---|---|
-| macOS署名 | Apple Developer Program、Developer ID Application証明書、Team ID | `codesign --verify --deep --strict` が成功 |
+| macOS署名 | Apple Developer Program、Developer ID Application証明書、Team ID | `codesign --verify --deep --strict` が成功し、`codesign -dv --verbose=4` の `Authority` / `TeamIdentifier` が設定済みのDeveloper ID / Team IDと一致し、`spctl --assess -vv --type execute` が成功 |
 | macOS notarization | App Store Connect API keyまたはnotarytool用認証情報 | `xcrun notarytool submit --wait` 成功、`xcrun stapler validate` 成功 |
 | Windows署名 | OV/EV code signing certificate、timestamp server | `signtool verify /pa` が成功 |
 | GitHub Release公開 | タグ、release権限、必要secret | dmg / exe / AppImageとchecksumをGitHub Releaseに添付 |

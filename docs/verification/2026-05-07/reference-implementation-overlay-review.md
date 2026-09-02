@@ -15,14 +15,14 @@
 
 ## 実施方法
 
-WSLローカルには `/Users/kouiso/ghq/reference-impl-*` が存在しないため、`ssh -o BatchMode=yes macmini-lan` で対象ファイルを読み取り確認した。Electron、AppImage、デスクトップGUI、ブラウザGUIはWSL側で起動していない。秘密値や `.env` は参照していない。
+WSLローカルには参考実装のリポジトリが存在しないため、`ssh -o BatchMode=yes macmini-lan` で対象ファイルを読み取り確認した。Electron、AppImage、デスクトップGUI、ブラウザGUIはWSL側で起動していない。秘密値や `.env` は参照していない。
 
 参照対象:
 
 | repo | path |
 |---|---|
-| 参考実装A | `/Users/kouiso/ghq/reference-impl-a` |
-| 参考実装B | `/Users/kouiso/ghq/reference-impl-b` |
+| 参考実装A | `<reference-impl-a repo>` |
+| 参考実装B | `<reference-impl-b repo>` |
 
 ## 参考実装A
 

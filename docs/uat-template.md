@@ -9,7 +9,7 @@
 | 実施日 | YYYY-MM-DD |
 | 実施場所 |  |
 | 評価者 | 獣医師: / 補助: |
-| Roentgen version | 0.1.0 |
+| Roentgen version | 例: 0.1.0 |
 | 対象artifact | 例: `Roentgen-0.1.0.AppImage` |
 | artifact sha256 |  |
 | OS / CPU |  |

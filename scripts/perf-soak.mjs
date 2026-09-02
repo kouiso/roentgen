@@ -140,6 +140,11 @@ const isDicomFileName = (filePath) => {
 	return extension === ".dcm" || extension === ".dicom";
 };
 
+// public/corrupt-fixture はDICOMマジックバイトを意図的に欠いた回帰テスト用データ
+// なので、性能計測のデフォルトスキャン対象からは除外する（含めると assertDicomMagic が
+// 必ず例外を投げ、pnpm perf:soak がデフォルト引数のままでは完走できなくなる）。
+const EXCLUDED_DIR_NAMES = new Set(["corrupt-fixture"]);
+
 const listDicomFiles = async (rootDir) => {
 	const found = [];
 
@@ -148,6 +153,7 @@ const listDicomFiles = async (rootDir) => {
 		entries.sort((a, b) => a.name.localeCompare(b.name));
 
 		for (const entry of entries) {
+			if (entry.isDirectory() && EXCLUDED_DIR_NAMES.has(entry.name)) continue;
 			const entryPath = join(dir, entry.name);
 			if (entry.isDirectory()) {
 				await walk(entryPath);
@@ -288,10 +294,12 @@ const run = async () => {
 		repoRoot,
 		options.output || `docs/verification/${date}/perf-soak.md`,
 	);
+	// ファイルパス（ファイル名に患者名等が含まれ得る）はPHIとして扱い、公開リポジトリに
+	// コミットされるこのレポートには残さない。代わりにパスのハッシュで匿名化した識別子を使う。
 	const artifactRows = files
 		.map(
 			(file) =>
-				`| \`${file.relativePath}\` | ${file.sizeBytes} | \`${file.sha256}\` | ${file.rows}x${file.columns} | ${file.frames} | ${file.transferSyntax} |`,
+				`| \`dicom-${sha256(Buffer.from(file.relativePath)).slice(0, 12)}\` | ${file.sizeBytes} | \`${file.sha256}\` | ${file.rows}x${file.columns} | ${file.frames} | ${file.transferSyntax} |`,
 		)
 		.join("\n");
 

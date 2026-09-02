@@ -205,18 +205,20 @@ const EllipseAnnotationView = ({
 	});
 	if (!center || !radiusXPoint || !radiusYPoint) return null;
 
-	// 軸ごとの座標差分ではなくユークリッド距離で測る。回転がかかると
-	// 「+X方向のサンプル点」はスクリーン上でX軸からずれるため、座標差分だと
-	// 90度回転で半径が0に潰れてしまう（SVG ellipseは傾けられないため、
-	// 描画自体は軸並行のままだが、半径の大きさは回転後も保つ）。
-	const radiusX = Math.hypot(
-		radiusXPoint.x - center.x,
-		radiusXPoint.y - center.y,
-	);
-	const radiusY = Math.hypot(
-		radiusYPoint.x - center.x,
-		radiusYPoint.y - center.y,
-	);
+	// radiusXPoint/radiusYPointは元画像で直交する半径ベクトル（共役半径）。
+	// 回転すると各ベクトルの向きがスクリーンX/Y軸からずれるが、SVG ellipseは
+	// 傾けられず常に軸並行描画になるため、2ベクトルのX成分/Y成分それぞれの
+	// 合成長を rx/ry とする（90度回転なら長辺・短辺が入れ替わるのが正しい）。
+	const radiusXVector = {
+		x: radiusXPoint.x - center.x,
+		y: radiusXPoint.y - center.y,
+	};
+	const radiusYVector = {
+		x: radiusYPoint.x - center.x,
+		y: radiusYPoint.y - center.y,
+	};
+	const radiusX = Math.hypot(radiusXVector.x, radiusYVector.x);
+	const radiusY = Math.hypot(radiusXVector.y, radiusYVector.y);
 	const color = annotation.color ?? ANNOTATION_COLOR;
 
 	return (

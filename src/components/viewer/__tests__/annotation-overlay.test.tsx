@@ -507,7 +507,8 @@ describe("AnnotationOverlay", () => {
 			mockRect(200, 200),
 		);
 		// 画像中心にあるROI。SVG ellipseは傾けられないため描画自体は軸並行のまま
-		// だが、回転してもrx/ryの大きさは0に潰れず保たれるべき。
+		// だが、90度回転すれば長辺・短辺はスクリーン上で入れ替わるべき
+		// （非対称楕円 radiusX=20 / radiusY=10 で検証する）。
 		const annotations: Annotation[] = [
 			{
 				id: "a-ellipse",
@@ -533,10 +534,11 @@ describe("AnnotationOverlay", () => {
 
 		const rotated = renderWithRotation(90);
 		const rotatedEllipse = rotated.container.querySelector("ellipse");
-		expect(numAttr(rotatedEllipse, "rx")).toBeCloseTo(rx0, 4);
-		expect(numAttr(rotatedEllipse, "ry")).toBeCloseTo(ry0, 4);
+		expect(numAttr(rotatedEllipse, "rx")).toBeCloseTo(ry0, 4);
+		expect(numAttr(rotatedEllipse, "ry")).toBeCloseTo(rx0, 4);
 		expect(rx0).toBeGreaterThan(0);
 		expect(ry0).toBeGreaterThan(0);
+		expect(rx0).not.toBeCloseTo(ry0, 4);
 		rotated.unmount();
 		rotated.container.remove();
 	});

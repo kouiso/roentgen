@@ -168,8 +168,8 @@ describe("release packaging static gates", () => {
 		expect(releaseGate).toContain("Mac mini residual process / port cleanup");
 		expect(releaseGate).toContain("Mac mini UI色確認");
 		expect(releaseGate).toContain("SHORT-RUNTIME after test/runtime failure");
-		expect(macminiProcedure).toContain("/Users/kouiso/ghq/reference-impl-a");
-		expect(macminiProcedure).toContain("/Users/kouiso/ghq/reference-impl-b");
+		expect(macminiProcedure).toContain("<reference-impl-a repo>");
+		expect(macminiProcedure).toContain("<reference-impl-b repo>");
 		expect(macminiProcedure).toContain("pnpm smoke:runtime");
 		expect(macminiProcedure).toContain("pnpm test:e2e -- --project=electron");
 		expect(macminiProcedure).toContain("pgrep -fl");

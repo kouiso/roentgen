@@ -23,7 +23,7 @@
 		"test:e2e": "node scripts/run-e2e.mjs",
 		"release:gate": "node scripts/release-gate-check.mjs",
 		"release:checksums": "node scripts/generate-release-checksums.mjs",
-		"smoke:runtime": "node scripts/runtime-smoke.mjs --preflight && node scripts/runtime-smoke.mjs",
+		"smoke:runtime": "node scripts/runtime-smoke.mjs --preflight && pnpm build && node scripts/runtime-smoke.mjs",
 		"perf:soak": "node --expose-gc scripts/perf-soak.mjs"
 	},
 	"dependencies": {

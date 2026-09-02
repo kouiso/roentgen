@@ -82,7 +82,7 @@ const waitForHttp = async (url, timeoutMs) => {
 			const response = await fetch(url);
 			if (response.ok) return;
 		} catch {
-			// server still starting
+			// 起動途中はfetch失敗が正常に起きるため無視してポーリングを続ける
 		}
 		await sleep(250);
 	}
@@ -108,7 +108,8 @@ const assertElectronDesktopAllowed = () => {
 	if (isWsl()) throw new Error(WSL_REFUSAL_MESSAGE);
 };
 
-const shouldUseXvfb = () => !process.env.DISPLAY;
+const shouldUseXvfb = () =>
+	process.platform === "linux" && !process.env.DISPLAY;
 
 const spawnManaged = (command, args, options) =>
 	spawn(command, args, {
@@ -131,7 +132,7 @@ const signalProcessTree = (child, signal) => {
 		try {
 			child.kill(signal);
 		} catch {
-			// already stopped
+			// killシグナル送信直前にプロセスが既に終了している場合はkillが失敗するので無視する
 		}
 	}
 };

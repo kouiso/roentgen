@@ -43,11 +43,11 @@ pnpm release:gate
 2026-05-07時点の照合証跡は `docs/verification/2026-05-07/reference-implementation-overlay-review.md` に記録済み。参考実装またはROENTGENのoverlay/座標変換を変更した場合は、以下を再実行して証跡を更新する。
 
 ```bash
-cd /Users/kouiso/ghq/reference-impl-a
+cd <reference-impl-a repo>
 git status --short
 rg -n "OpenSeadragon|overlay|svg|viewport|imageTo|world|annotation|measurement|markup|resize" .
 
-cd /Users/kouiso/ghq/reference-impl-b
+cd <reference-impl-b repo>
 git status --short
 rg -n "OpenSeadragon|overlay|svg|viewport|imageTo|world|annotation|measurement|markup|resize" .
 ```
