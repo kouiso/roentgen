@@ -146,6 +146,14 @@ export const useOpenSeaDragon = ({
 			springStiffness: 10,
 			immediateRender: true,
 			loadTilesWithAjax: false,
+			// OSD標準のキーボード操作（r/Shift+R回転、矢印キーpan、F反転等）は
+			// アプリ独自の状態（use-keyboard-shortcutsの矢印キー=フレーム送り、
+			// rotateはCornerstone側のpixel回転でOSD viewportを使わない）と無関係に
+			// viewport.rotation/centerを直接書き換えてしまう。結果、注釈/計測の
+			// 再投影計算（measurement-math.ts）が前提とするpivotとOSD実描画の
+			// pivotがズレ、オーバーレイが実画像からずれる（P0: 位置ズレ事故）。
+			// アプリはOSDのキーボード操作を一切使わない設計のため無効化する。
+			keyboardNavEnabled: false,
 			gestureSettingsMouse: {
 				scrollToZoom: false,
 				clickToZoom: false,

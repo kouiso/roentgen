@@ -11,10 +11,12 @@ type MockViewer = OSDViewer & {
 
 const osdState = vi.hoisted(() => ({
 	viewers: [] as MockViewer[],
+	constructorArgs: [] as Record<string, unknown>[],
 }));
 
 vi.mock("openseadragon", () => ({
-	default: vi.fn(() => {
+	default: vi.fn((options: Record<string, unknown>) => {
+		osdState.constructorArgs.push(options);
 		const handlers = new Map<string, () => void>();
 		const viewer: MockViewer = {
 			handlers,
@@ -48,6 +50,7 @@ vi.mock("openseadragon", () => ({
 describe("useOpenSeaDragon Wave 4 polish", () => {
 	beforeEach(() => {
 		osdState.viewers = [];
+		osdState.constructorArgs = [];
 		const container = document.createElement("div");
 		container.id = "osd-test";
 		document.body.appendChild(container);
@@ -158,5 +161,23 @@ describe("useOpenSeaDragon Wave 4 polish", () => {
 
 		expect(result.current.tileReady).toBe(true);
 		expect(onViewerCreated).toHaveBeenLastCalledWith(secondViewer);
+	});
+
+	it("disables OSD's own keyboard navigation so its default shortcuts (r/Shift+R rotate, arrow-key pan, F flip) cannot desync viewport rotation/center from the app's own state and drift annotation overlays off the image", async () => {
+		const { result } = renderHook(() =>
+			useOpenSeaDragon({
+				containerId: "osd-test",
+				imageWidth: 10,
+				imageHeight: 10,
+			}),
+		);
+
+		await act(async () => {
+			await result.current.initViewer();
+		});
+
+		const args = osdState.constructorArgs[0];
+		if (!args) throw new Error("OSD constructor was not called");
+		expect(args.keyboardNavEnabled).toBe(false);
 	});
 });
