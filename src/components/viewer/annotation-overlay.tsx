@@ -205,8 +205,18 @@ const EllipseAnnotationView = ({
 	});
 	if (!center || !radiusXPoint || !radiusYPoint) return null;
 
-	const radiusX = Math.abs(radiusXPoint.x - center.x);
-	const radiusY = Math.abs(radiusYPoint.y - center.y);
+	// 軸ごとの座標差分ではなくユークリッド距離で測る。回転がかかると
+	// 「+X方向のサンプル点」はスクリーン上でX軸からずれるため、座標差分だと
+	// 90度回転で半径が0に潰れてしまう（SVG ellipseは傾けられないため、
+	// 描画自体は軸並行のままだが、半径の大きさは回転後も保つ）。
+	const radiusX = Math.hypot(
+		radiusXPoint.x - center.x,
+		radiusXPoint.y - center.y,
+	);
+	const radiusY = Math.hypot(
+		radiusYPoint.x - center.x,
+		radiusYPoint.y - center.y,
+	);
 	const color = annotation.color ?? ANNOTATION_COLOR;
 
 	return (
@@ -439,6 +449,33 @@ export const AnnotationOverlay = ({
 		activePoints.length,
 		pendingTextPosition,
 		viewport,
+	]);
+
+	// コンテナのリサイズ（ウィンドウリサイズ・パネル開閉等）に合わせてSVGを再描画。
+	// OSDのビューポートイベントはズーム/パン専用で、コンテナ自体のサイズ変化は拾わない。
+	useEffect(() => {
+		if (
+			!visible ||
+			(annotations.length === 0 &&
+				activePoints.length === 0 &&
+				!pendingTextPosition)
+		) {
+			return;
+		}
+		const container = document.getElementById(containerId);
+		if (!container || typeof ResizeObserver === "undefined") return;
+
+		const observer = new ResizeObserver(() => {
+			setRedrawCount((c) => c + 1);
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [
+		visible,
+		containerId,
+		annotations.length,
+		activePoints.length,
+		pendingTextPosition,
 	]);
 
 	useEffect(() => {

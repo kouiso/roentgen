@@ -380,7 +380,7 @@ const run = async () => {
 				"projects stored measurements through rotation around the image center while panned",
 			) &&
 			measurementOverlayTest.includes(
-				"projects stored measurements through vertical flip",
+				"projects stored measurements through horizontal flip",
 			) &&
 			measurementOverlayTest.includes(
 				"配置中の計測点とプレビュー線をresize後も画像座標から再投影する",
@@ -394,7 +394,7 @@ const run = async () => {
 			"uses the image center, not the panned viewport center, for rotation projection",
 		) &&
 			measurementMathTest.includes(
-				"round-trips vertical flip using image-coordinate storage",
+				"round-trips horizontal flip using image-coordinate storage",
 		),
 		"src/utils/measurement-math.test.ts",
 	);

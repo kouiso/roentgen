@@ -436,4 +436,71 @@ describe("imageToContainerCoord", () => {
 		expect(roundTripped.x).toBeCloseTo(imagePoint.x, 6);
 		expect(roundTripped.y).toBeCloseTo(imagePoint.y, 6);
 	});
+
+	it("uses the image center, not the panned viewport center, for rotation projection", () => {
+		const rect = makeContainerRect(0, 0, 800, 400);
+		const imageWidth = 2048;
+		const imageHeight = 1024;
+		// パンで画像中心から離れたビューポート。回転の基準点が画像中心なら、
+		// ちょうど画像中心にある点は回転させても動かないはず。
+		const pannedViewport = (rotation: number) =>
+			makeViewport(1, 0.8, 0.1, 1, 0.5, rotation, false);
+		const imageCenterPoint = { x: imageWidth / 2, y: imageHeight / 2 };
+
+		const unrotated = imageToContainerCoord(
+			imageCenterPoint,
+			imageWidth,
+			imageHeight,
+			rect,
+			pannedViewport(0),
+		);
+		const rotated90 = imageToContainerCoord(
+			imageCenterPoint,
+			imageWidth,
+			imageHeight,
+			rect,
+			pannedViewport(90),
+		);
+
+		expect(unrotated).not.toBeNull();
+		expect(rotated90).not.toBeNull();
+		if (!unrotated || !rotated90) {
+			throw new Error("container coordinate should be present");
+		}
+		expect(rotated90.x).toBeCloseTo(unrotated.x, 6);
+		expect(rotated90.y).toBeCloseTo(unrotated.y, 6);
+	});
+
+	it("round-trips horizontal flip using image-coordinate storage", () => {
+		// OSD viewport.getFlip() は左右反転のみを表す（垂直反転はOSDにはない概念）。
+		const rect = makeContainerRect(0, 0, 800, 800);
+		const imageWidth = 512;
+		const imageHeight = 512;
+		const viewport = makeViewport(1, 0.5, 0.5, 1, 1, 0, true);
+		const imagePoint = { x: 120, y: 340 };
+
+		const containerCoord = imageToContainerCoord(
+			imagePoint,
+			imageWidth,
+			imageHeight,
+			rect,
+			viewport,
+		);
+		expect(containerCoord).not.toBeNull();
+		if (!containerCoord)
+			throw new Error("container coordinate should be present");
+
+		const roundTripped = containerToImageCoord(
+			containerCoord.x,
+			containerCoord.y,
+			rect,
+			imageWidth,
+			imageHeight,
+			viewport,
+		);
+		expect(roundTripped).not.toBeNull();
+		if (!roundTripped) throw new Error("image coordinate should be present");
+		expect(roundTripped.x).toBeCloseTo(imagePoint.x, 6);
+		expect(roundTripped.y).toBeCloseTo(imagePoint.y, 6);
+	});
 });

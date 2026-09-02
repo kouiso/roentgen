@@ -1,17 +1,70 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Annotation } from "@/types/annotation";
 import { AnnotationOverlay } from "../annotation-overlay";
 
-const makeViewport = () => ({
-	getZoom: () => 1,
-	getCenter: () => ({ x: 0.5, y: 0.5 }),
-	getHomeBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
-	addHandler: vi.fn(),
-	removeHandler: vi.fn(),
-});
+const makeViewport = (
+	overrides: {
+		zoom?: number;
+		center?: { x: number; y: number };
+		homeBounds?: { x: number; y: number; width: number; height: number };
+		rotation?: number;
+		flip?: boolean;
+	} = {},
+) => {
+	const handlers = new Map<string, Set<() => void>>();
+	return {
+		getZoom: () => overrides.zoom ?? 1,
+		getCenter: () => overrides.center ?? { x: 0.5, y: 0.5 },
+		getHomeBounds: () =>
+			overrides.homeBounds ?? { x: 0, y: 0, width: 1, height: 1 },
+		getRotation: () => overrides.rotation ?? 0,
+		getFlip: () => overrides.flip ?? false,
+		addHandler: vi.fn((eventName: string, handler: () => void) => {
+			if (!handlers.has(eventName)) handlers.set(eventName, new Set());
+			handlers.get(eventName)?.add(handler);
+		}),
+		removeHandler: vi.fn((eventName: string, handler: () => void) => {
+			handlers.get(eventName)?.delete(handler);
+		}),
+		fireHandlers: (eventName: string) => {
+			for (const handler of handlers.get(eventName) ?? []) handler();
+		},
+	};
+};
+
+class MockResizeObserver {
+	static instances: MockResizeObserver[] = [];
+	callback: ResizeObserverCallback;
+	constructor(callback: ResizeObserverCallback) {
+		this.callback = callback;
+		MockResizeObserver.instances.push(this);
+	}
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+	trigger() {
+		this.callback([], this as unknown as ResizeObserver);
+	}
+}
+
+const numAttr = (el: Element | null, name: string): number =>
+	Number(el?.getAttribute(name));
+
+const mockRect = (width: number, height: number): DOMRect =>
+	({
+		left: 0,
+		top: 0,
+		width,
+		height,
+		right: width,
+		bottom: height,
+		x: 0,
+		y: 0,
+		toJSON: () => ({}),
+	}) as DOMRect;
 
 const baseProps = {
 	activePoints: [],
@@ -335,5 +388,193 @@ describe("AnnotationOverlay", () => {
 
 		expect(onRemoveAnnotation).toHaveBeenCalledWith("a-text");
 		expect(onRestoreAnnotation).toHaveBeenCalledWith(annotation);
+	});
+
+	it("reprojects annotation coordinates after the viewer container resizes", () => {
+		const originalResizeObserver = globalThis.ResizeObserver;
+		MockResizeObserver.instances = [];
+		globalThis.ResizeObserver =
+			MockResizeObserver as unknown as typeof ResizeObserver;
+
+		const rectSpy = vi
+			.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+			.mockReturnValue(mockRect(200, 200));
+
+		const annotations: Annotation[] = [
+			{
+				id: "a-arrow",
+				type: "arrow",
+				start: { x: 10, y: 10 },
+				end: { x: 20, y: 20 },
+			},
+		];
+		const { container } = renderOverlay({
+			annotations,
+			viewport: makeViewport(),
+		});
+
+		const line = () => container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line(), "x1")).toBeCloseTo(20, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(20, 6);
+
+		rectSpy.mockReturnValue(mockRect(400, 400));
+		const observer = MockResizeObserver.instances.at(-1);
+		act(() => observer?.trigger());
+
+		expect(numAttr(line(), "x1")).toBeCloseTo(40, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(40, 6);
+
+		rectSpy.mockRestore();
+		globalThis.ResizeObserver = originalResizeObserver;
+	});
+
+	it("reprojects stored image-coordinate annotations after OSD viewport changes", () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(200, 200),
+		);
+		const viewportCenter = { x: 0.5, y: 0.5 };
+		const viewport = makeViewport({ center: viewportCenter });
+		const annotations: Annotation[] = [
+			{
+				id: "a-arrow",
+				type: "arrow",
+				start: { x: 10, y: 10 },
+				end: { x: 20, y: 20 },
+			},
+		];
+		const { container } = renderOverlay({ annotations, viewport });
+
+		const line = () => container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line(), "x1")).toBeCloseTo(20, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(20, 6);
+
+		viewportCenter.x = 0.8;
+		viewportCenter.y = 0.2;
+		act(() => viewport.fireHandlers("viewport-change"));
+
+		expect(numAttr(line(), "x1")).toBeCloseTo(-40, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(80, 6);
+	});
+
+	it("projects rectangle ROI corners through viewport rotation", () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(200, 200),
+		);
+		// 画像中心を中心とした正方形ROI。回転の基準点が画像中心なら、
+		// 対角線上の2頂点を入れ替えるだけで矩形の範囲自体は変わらないはず。
+		const annotations: Annotation[] = [
+			{
+				id: "a-rect",
+				type: "rect",
+				topLeft: { x: 30, y: 30 },
+				bottomRight: { x: 70, y: 70 },
+			},
+		];
+
+		const renderWithRotation = (rotation: number) =>
+			renderOverlay({
+				annotations,
+				viewport: makeViewport({ center: { x: 0.8, y: 0.2 }, rotation }),
+			});
+
+		const unrotated = renderWithRotation(0);
+		const unrotatedRect = unrotated.container.querySelector(
+			"rect[stroke='#FFD700']",
+		);
+		const before = {
+			x: numAttr(unrotatedRect, "x"),
+			y: numAttr(unrotatedRect, "y"),
+			width: numAttr(unrotatedRect, "width"),
+			height: numAttr(unrotatedRect, "height"),
+		};
+		unrotated.unmount();
+		unrotated.container.remove();
+
+		const rotated = renderWithRotation(90);
+		const rotatedRect = rotated.container.querySelector(
+			"rect[stroke='#FFD700']",
+		);
+		expect(numAttr(rotatedRect, "x")).toBeCloseTo(before.x, 6);
+		expect(numAttr(rotatedRect, "y")).toBeCloseTo(before.y, 6);
+		expect(numAttr(rotatedRect, "width")).toBeCloseTo(before.width, 6);
+		expect(numAttr(rotatedRect, "height")).toBeCloseTo(before.height, 6);
+		rotated.unmount();
+		rotated.container.remove();
+	});
+
+	it("projects ellipse ROI through viewport rotation", () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(200, 200),
+		);
+		// 画像中心にあるROI。SVG ellipseは傾けられないため描画自体は軸並行のまま
+		// だが、回転してもrx/ryの大きさは0に潰れず保たれるべき。
+		const annotations: Annotation[] = [
+			{
+				id: "a-ellipse",
+				type: "ellipse",
+				center: { x: 50, y: 50 },
+				radiusX: 20,
+				radiusY: 10,
+			},
+		];
+
+		const renderWithRotation = (rotation: number) =>
+			renderOverlay({
+				annotations,
+				viewport: makeViewport({ center: { x: 0.8, y: 0.2 }, rotation }),
+			});
+
+		const unrotated = renderWithRotation(0);
+		const unrotatedEllipse = unrotated.container.querySelector("ellipse");
+		const rx0 = numAttr(unrotatedEllipse, "rx");
+		const ry0 = numAttr(unrotatedEllipse, "ry");
+		unrotated.unmount();
+		unrotated.container.remove();
+
+		const rotated = renderWithRotation(90);
+		const rotatedEllipse = rotated.container.querySelector("ellipse");
+		expect(numAttr(rotatedEllipse, "rx")).toBeCloseTo(rx0, 4);
+		expect(numAttr(rotatedEllipse, "ry")).toBeCloseTo(ry0, 4);
+		expect(rx0).toBeGreaterThan(0);
+		expect(ry0).toBeGreaterThan(0);
+		rotated.unmount();
+		rotated.container.remove();
+	});
+
+	it("配置中のフリーハンド点とテキスト入力をresize後も画像座標から再投影する", () => {
+		const originalResizeObserver = globalThis.ResizeObserver;
+		MockResizeObserver.instances = [];
+		globalThis.ResizeObserver =
+			MockResizeObserver as unknown as typeof ResizeObserver;
+
+		const rectSpy = vi
+			.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+			.mockReturnValue(mockRect(200, 200));
+
+		const { container } = renderOverlay({
+			annotations: [],
+			activePoints: [
+				{ x: 10, y: 10 },
+				{ x: 20, y: 30 },
+			],
+			pendingTextPosition: { x: 10, y: 10 },
+			viewport: makeViewport(),
+		});
+
+		const polyline = () => container.querySelector("polyline");
+		const textInput = () => container.querySelector("foreignObject");
+
+		expect(polyline()?.getAttribute("points")).toBe("20,20 40,60");
+		expect(numAttr(textInput(), "x")).toBeCloseTo(20, 6);
+
+		rectSpy.mockReturnValue(mockRect(400, 400));
+		const observer = MockResizeObserver.instances.at(-1);
+		act(() => observer?.trigger());
+
+		expect(polyline()?.getAttribute("points")).toBe("40,40 80,120");
+		expect(numAttr(textInput(), "x")).toBeCloseTo(40, 6);
+
+		rectSpy.mockRestore();
+		globalThis.ResizeObserver = originalResizeObserver;
 	});
 });

@@ -62,6 +62,20 @@ export const applyViewportTransform = (
 	);
 };
 
+// 回転の基準点は画像自体の中心（パン位置に依存させない）。
+// OSD viewport.setRotation() のデフォルトpivotは現在のパン中心だが、
+// 臨床ビューアでは「画像をその場で回す」挙動が期待されるため、
+// 再投影計算では常に画像中心を回転の基準点として扱う。
+const getImageCenter = (homeBounds: {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}): MeasurementPoint => ({
+	x: homeBounds.x + homeBounds.width / 2,
+	y: homeBounds.y + homeBounds.height / 2,
+});
+
 export const invertViewportTransform = (
 	point: MeasurementPoint,
 	center: MeasurementPoint,
@@ -159,7 +173,7 @@ export const containerToImageCoord = (
 		center.y - vpHeight / 2 + (containerY / containerRect.height) * vpHeight;
 	const transformed = invertViewportTransform(
 		{ x: vpX, y: vpY },
-		center,
+		getImageCenter(homeBounds),
 		viewport.getRotation?.() ?? 0,
 		viewport.getFlip?.() ?? false,
 	);
@@ -233,7 +247,7 @@ export function imageToContainerCoord(
 	const vpY = (imagePoint.y / imageHeight) * homeBounds.height;
 	const transformed = applyViewportTransform(
 		{ x: vpX, y: vpY },
-		center,
+		getImageCenter(homeBounds),
 		viewport.getRotation?.() ?? 0,
 		viewport.getFlip?.() ?? false,
 	);

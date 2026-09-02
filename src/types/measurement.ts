@@ -1,4 +1,6 @@
 // 計測ツール型定義
+// 全ての座標は画像ピクセル座標で保存する。表示時は imageToContainerCoord() で
+// OSDビューポート（ズーム・パン・回転・フリップ）に合わせてコンテナ座標へ再投影する。
 export type MeasurementPoint = { x: number; y: number };
 export type MeasurementUnit = "mm" | "px";
 
