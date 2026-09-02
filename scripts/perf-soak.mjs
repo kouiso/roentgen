@@ -296,6 +296,8 @@ const run = async () => {
 	);
 	// ファイルパス（ファイル名に患者名等が含まれ得る）はPHIとして扱い、公開リポジトリに
 	// コミットされるこのレポートには残さない。代わりにパスのハッシュで匿名化した識別子を使う。
+	// --dicom-dir 自体も患者/馬名を含むディレクトリ名を指し得るため、同様にハッシュ化する。
+	const dicomDirLabel = `<dicom-dir-${sha256(Buffer.from(options.dicomDir)).slice(0, 12)}>`;
 	const artifactRows = files
 		.map(
 			(file) =>
@@ -324,7 +326,7 @@ const run = async () => {
 | GC | ${global.gc ? "enabled (--expose-gc)" : "disabled"} |
 | コマンド | \`node${global.gc ? " --expose-gc" : ""} scripts/${basename(
 		fileURLToPath(import.meta.url),
-	)} --dicom-dir ${options.dicomDir} --iterations ${options.iterations} --warmup ${options.warmup} --max-p95-ms ${options.maxP95Ms} --max-rss-growth-mb ${options.maxRssGrowthMb} --output ${relative(
+	)} --dicom-dir ${dicomDirLabel} --iterations ${options.iterations} --warmup ${options.warmup} --max-p95-ms ${options.maxP95Ms} --max-rss-growth-mb ${options.maxRssGrowthMb} --output ${relative(
 		repoRoot,
 		outputPath,
 	)}\` |

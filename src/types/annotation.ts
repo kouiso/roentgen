@@ -1,6 +1,8 @@
 // 注釈ツール型定義
 // 全ての座標は画像ピクセル座標で保存する。表示時は imageToContainerCoord() で
 // OSDビューポート（ズーム・パン・回転・フリップ）に合わせてコンテナ座標へ再投影する。
+// コンテナ座標（表示ピクセル）で保存すると、保存後のズーム・パン・回転・リサイズで
+// 注釈が実画像から見た目上ズレる。本アプリではこれをP0事故クラスとして扱う。
 export type AnnotationPoint = { x: number; y: number };
 
 export type AnnotationToolType =

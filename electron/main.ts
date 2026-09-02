@@ -488,10 +488,14 @@ const createWindow = async () => {
 	});
 
 	if (isDev) {
-		mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+		// loadURL()はrendererのdid-finish-loadで解決/did-fail-loadで拒否するPromiseを返す。
+		// awaitしないとcreateWindow()がrenderer未完成のまま解決し、呼び出し元の
+		// smoke testが「Window created」ログだけを見て、renderer 404/CSPエラーを
+		// 見逃したまま成功判定してしまう。
+		await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
 		mainWindow.webContents.openDevTools({ mode: "bottom" });
 	} else {
-		mainWindow.loadFile(join(__dirname, "../dist/index.html"));
+		await mainWindow.loadFile(join(__dirname, "../dist/index.html"));
 	}
 
 	mainWindow.webContents.once("did-finish-load", flushPendingOpenDicomFiles);
@@ -572,25 +576,30 @@ const registerGdriveHandlers = async () => {
 	});
 };
 
-app.whenReady().then(async () => {
-	await initMainProcessSentry();
-	// Sentry — OPT-IN: only initializes if user previously consented
-	await initSentryIfConsented();
-	startCrashReporter();
+app
+	.whenReady()
+	.then(async () => {
+		await initMainProcessSentry();
+		// Sentry — OPT-IN: only initializes if user previously consented
+		await initSentryIfConsented();
+		startCrashReporter();
 
-	await createWindow();
-	log.info("Window created");
-	sendOpenDicomFiles(process.argv.slice(1));
-	registerGdriveHandlers().catch((err) =>
-		log.error("[gdrive] handler registration failed:", err),
-	);
+		await createWindow();
+		log.info("Window created");
+		sendOpenDicomFiles(process.argv.slice(1));
+		registerGdriveHandlers().catch((err) =>
+			log.error("[gdrive] handler registration failed:", err),
+		);
 
-	app.on("activate", () => {
-		if (BrowserWindow.getAllWindows().length === 0) {
-			createWindow();
-		}
+		app.on("activate", () => {
+			if (BrowserWindow.getAllWindows().length === 0) {
+				createWindow();
+			}
+		});
+	})
+	.catch((err) => {
+		log.error("[startup] window creation failed:", err);
 	});
-});
 
 app.on("window-all-closed", () => {
 	if (process.platform !== "darwin") {
