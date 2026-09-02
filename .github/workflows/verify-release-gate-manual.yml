@@ -38,3 +38,7 @@ jobs:
 
       - name: Release gate
         run: pnpm release:gate
+
+      - name: Show release gate report
+        if: always()
+        run: cat docs/verification/2026-05-07/release-gate-check.md
