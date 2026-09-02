@@ -33,3 +33,9 @@ Thumbs.db
 
 # Local-only reference docs (never push — contains internal project refs)
 REVIEW.md
+
+# ツール状態（マシンローカル）
+.omc/
+
+# Claude Code のプロジェクト設定（ディスクには残すが追跡しない）
+.claude/

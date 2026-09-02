@@ -11,7 +11,7 @@ export default defineConfig({
 	retries: 1,
 	workers: 1,
 	webServer: {
-		command: `pnpm exec vite --host 127.0.0.1 --port ${rendererPort} --strictPort`,
+		command: `pnpm exec vite --config e2e/vite-renderer.config.ts --host 127.0.0.1 --port ${rendererPort} --strictPort`,
 		url: rendererBaseUrl,
 		timeout: 30_000,
 		reuseExistingServer: false,
@@ -28,7 +28,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: "renderer",
-			testMatch: /app-launch\.spec\.ts/,
+			testMatch: /(app-launch|overlay-pixel)\.spec\.ts/,
 			use: {
 				baseURL: rendererBaseUrl,
 			},

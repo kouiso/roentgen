@@ -303,6 +303,21 @@ export const MeasurementOverlay = ({
 		};
 	}, [visible, measurements.length, activePoints.length, viewport]);
 
+	// コンテナのリサイズ（ウィンドウリサイズ・パネル開閉等）に合わせてSVGを再描画。
+	// OSDのビューポートイベントはズーム/パン専用で、コンテナ自体のサイズ変化は拾わない。
+	useEffect(() => {
+		if (!visible || (measurements.length === 0 && activePoints.length === 0))
+			return;
+		const container = document.getElementById(containerId);
+		if (!container || typeof ResizeObserver === "undefined") return;
+
+		const observer = new ResizeObserver(() => {
+			setRedrawCount((c) => c + 1);
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [visible, containerId, measurements.length, activePoints.length]);
+
 	useEffect(() => {
 		if (!onRestoreMeasurement) return;
 

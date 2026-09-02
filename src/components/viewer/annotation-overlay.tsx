@@ -205,8 +205,20 @@ const EllipseAnnotationView = ({
 	});
 	if (!center || !radiusXPoint || !radiusYPoint) return null;
 
-	const radiusX = Math.abs(radiusXPoint.x - center.x);
-	const radiusY = Math.abs(radiusYPoint.y - center.y);
+	// radiusXPoint/radiusYPointは元画像で直交する半径ベクトル（共役半径）。
+	// 回転すると各ベクトルの向きがスクリーンX/Y軸からずれるが、SVG ellipseは
+	// 傾けられず常に軸並行描画になるため、2ベクトルのX成分/Y成分それぞれの
+	// 合成長を rx/ry とする（90度回転なら長辺・短辺が入れ替わるのが正しい）。
+	const radiusXVector = {
+		x: radiusXPoint.x - center.x,
+		y: radiusXPoint.y - center.y,
+	};
+	const radiusYVector = {
+		x: radiusYPoint.x - center.x,
+		y: radiusYPoint.y - center.y,
+	};
+	const radiusX = Math.hypot(radiusXVector.x, radiusYVector.x);
+	const radiusY = Math.hypot(radiusXVector.y, radiusYVector.y);
 	const color = annotation.color ?? ANNOTATION_COLOR;
 
 	return (
@@ -439,6 +451,33 @@ export const AnnotationOverlay = ({
 		activePoints.length,
 		pendingTextPosition,
 		viewport,
+	]);
+
+	// コンテナのリサイズ（ウィンドウリサイズ・パネル開閉等）に合わせてSVGを再描画。
+	// OSDのビューポートイベントはズーム/パン専用で、コンテナ自体のサイズ変化は拾わない。
+	useEffect(() => {
+		if (
+			!visible ||
+			(annotations.length === 0 &&
+				activePoints.length === 0 &&
+				!pendingTextPosition)
+		) {
+			return;
+		}
+		const container = document.getElementById(containerId);
+		if (!container || typeof ResizeObserver === "undefined") return;
+
+		const observer = new ResizeObserver(() => {
+			setRedrawCount((c) => c + 1);
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [
+		visible,
+		containerId,
+		annotations.length,
+		activePoints.length,
+		pendingTextPosition,
 	]);
 
 	useEffect(() => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MeasurementOverlay } from "../measurement-overlay";
 
@@ -13,19 +13,70 @@ const makeMeasurement = () => ({
 	distanceMm: 12.3,
 });
 
-const makeViewport = () => ({
-	getBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
-	getZoom: () => 1,
-	getCenter: () => ({ x: 0.5, y: 0.5 }),
-	getHomeBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
-	getRotation: () => 0,
-	getFlip: () => false,
-	imageToViewportCoordinates: (x: number, y: number) => ({ x, y }),
-	viewportToViewerElementCoordinates: (point: { x: number; y: number }) =>
-		point,
-	addHandler: vi.fn(),
-	removeHandler: vi.fn(),
-});
+const makeViewport = (
+	overrides: {
+		zoom?: number;
+		center?: { x: number; y: number };
+		homeBounds?: { x: number; y: number; width: number; height: number };
+		rotation?: number;
+		flip?: boolean;
+	} = {},
+) => {
+	const handlers = new Map<string, Set<() => void>>();
+	return {
+		getBounds: () => ({ x: 0, y: 0, width: 1, height: 1 }),
+		getZoom: () => overrides.zoom ?? 1,
+		getCenter: () => overrides.center ?? { x: 0.5, y: 0.5 },
+		getHomeBounds: () =>
+			overrides.homeBounds ?? { x: 0, y: 0, width: 1, height: 1 },
+		getRotation: () => overrides.rotation ?? 0,
+		getFlip: () => overrides.flip ?? false,
+		imageToViewportCoordinates: (x: number, y: number) => ({ x, y }),
+		viewportToViewerElementCoordinates: (point: { x: number; y: number }) =>
+			point,
+		addHandler: vi.fn((eventName: string, handler: () => void) => {
+			if (!handlers.has(eventName)) handlers.set(eventName, new Set());
+			handlers.get(eventName)?.add(handler);
+		}),
+		removeHandler: vi.fn((eventName: string, handler: () => void) => {
+			handlers.get(eventName)?.delete(handler);
+		}),
+		fireHandlers: (eventName: string) => {
+			for (const handler of handlers.get(eventName) ?? []) handler();
+		},
+	};
+};
+
+class MockResizeObserver {
+	static instances: MockResizeObserver[] = [];
+	callback: ResizeObserverCallback;
+	constructor(callback: ResizeObserverCallback) {
+		this.callback = callback;
+		MockResizeObserver.instances.push(this);
+	}
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+	trigger() {
+		this.callback([], this as unknown as ResizeObserver);
+	}
+}
+
+const numAttr = (el: Element, name: string): number =>
+	Number(el.getAttribute(name));
+
+const mockRect = (width: number, height: number): DOMRect =>
+	({
+		left: 0,
+		top: 0,
+		width,
+		height,
+		right: width,
+		bottom: height,
+		x: 0,
+		y: 0,
+		toJSON: () => ({}),
+	}) as DOMRect;
 
 describe("MeasurementOverlay", () => {
 	beforeEach(() => {
@@ -267,5 +318,204 @@ describe("MeasurementOverlay", () => {
 
 		expect(onRemoveMeasurement).toHaveBeenCalledWith("m1");
 		expect(onRestoreMeasurement).toHaveBeenCalledWith(measurement);
+	});
+
+	it("reprojects measurement coordinates after the viewer container resizes", () => {
+		const originalResizeObserver = globalThis.ResizeObserver;
+		MockResizeObserver.instances = [];
+		globalThis.ResizeObserver =
+			MockResizeObserver as unknown as typeof ResizeObserver;
+
+		const rectSpy = vi
+			.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+			.mockReturnValue(mockRect(100, 100));
+
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { container, rerender } = render(renderOverlay());
+		rerender(renderOverlay());
+
+		const line = () => container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line(), "x1")).toBeCloseTo(10, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(10, 6);
+
+		rectSpy.mockReturnValue(mockRect(200, 200));
+		const observer = MockResizeObserver.instances.at(-1);
+		act(() => observer?.trigger());
+
+		expect(numAttr(line(), "x1")).toBeCloseTo(20, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(20, 6);
+
+		rectSpy.mockRestore();
+		globalThis.ResizeObserver = originalResizeObserver;
+	});
+
+	it("reprojects stored image-coordinate measurements after OSD viewport changes", () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(100, 100),
+		);
+		const viewportCenter = { x: 0.5, y: 0.5 };
+		const viewport = makeViewport({ center: viewportCenter });
+
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={viewport}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { container, rerender } = render(renderOverlay());
+		rerender(renderOverlay());
+
+		const line = () => container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line(), "x1")).toBeCloseTo(10, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(10, 6);
+
+		viewportCenter.x = 0.8;
+		viewportCenter.y = 0.2;
+		act(() => viewport.fireHandlers("viewport-change"));
+
+		expect(numAttr(line(), "x1")).toBeCloseTo(-20, 6);
+		expect(numAttr(line(), "y1")).toBeCloseTo(40, 6);
+	});
+
+	it("projects stored measurements through rotation around the image center while panned", () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(100, 100),
+		);
+		// パンで画像中心から離れたビューポート。画像中心ちょうどにある点は
+		// 回転しても動かないはず（回転の基準点が画像中心である場合）。
+		const measurement = {
+			...makeMeasurement(),
+			points: [
+				{ x: 50, y: 50 },
+				{ x: 80, y: 50 },
+			] as [{ x: number; y: number }, { x: number; y: number }],
+		};
+
+		const renderWithRotation = (rotation: number) => {
+			const renderOverlay = () => (
+				<div id="osd-test">
+					<MeasurementOverlay
+						measurements={[measurement]}
+						activePoints={[]}
+						imageWidth={100}
+						containerId="osd-test"
+						viewport={makeViewport({
+							center: { x: 0.8, y: 0.2 },
+							rotation,
+						})}
+						onRemoveMeasurement={vi.fn()}
+						visible={true}
+					/>
+				</div>
+			);
+			const result = render(renderOverlay());
+			result.rerender(renderOverlay());
+			return result;
+		};
+
+		const unrotated = renderWithRotation(0);
+		const unrotatedLine = unrotated.container.querySelector(
+			"line",
+		) as SVGLineElement;
+		expect(numAttr(unrotatedLine, "x1")).toBeCloseTo(20, 6);
+		expect(numAttr(unrotatedLine, "y1")).toBeCloseTo(80, 6);
+		unrotated.unmount();
+
+		const rotated = renderWithRotation(90);
+		const rotatedLine = rotated.container.querySelector(
+			"line",
+		) as SVGLineElement;
+		expect(numAttr(rotatedLine, "x1")).toBeCloseTo(20, 6);
+		expect(numAttr(rotatedLine, "y1")).toBeCloseTo(80, 6);
+		rotated.unmount();
+	});
+
+	it("projects stored measurements through horizontal flip", () => {
+		// OSD viewport.getFlip() は左右反転のみを表す（垂直反転はOSDにはない概念）。
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(100, 100),
+		);
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport({ flip: true })}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { container, rerender } = render(renderOverlay());
+		rerender(renderOverlay());
+
+		const line = container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line, "x1")).toBeCloseTo(90, 6);
+		expect(numAttr(line, "y1")).toBeCloseTo(10, 6);
+	});
+
+	it("配置中の計測点とプレビュー線をresize後も画像座標から再投影する", () => {
+		const originalResizeObserver = globalThis.ResizeObserver;
+		MockResizeObserver.instances = [];
+		globalThis.ResizeObserver =
+			MockResizeObserver as unknown as typeof ResizeObserver;
+
+		const rectSpy = vi
+			.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+			.mockReturnValue(mockRect(100, 100));
+
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[]}
+					activePoints={[
+						{ x: 10, y: 10 },
+						{ x: 30, y: 10 },
+					]}
+					imageWidth={100}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { container, rerender } = render(renderOverlay());
+		rerender(renderOverlay());
+
+		const previewLine = () => container.querySelector("line") as SVGLineElement;
+		expect(numAttr(previewLine(), "x1")).toBeCloseTo(10, 6);
+		expect(numAttr(previewLine(), "x2")).toBeCloseTo(30, 6);
+
+		rectSpy.mockReturnValue(mockRect(200, 200));
+		const observer = MockResizeObserver.instances.at(-1);
+		act(() => observer?.trigger());
+
+		expect(numAttr(previewLine(), "x1")).toBeCloseTo(20, 6);
+		expect(numAttr(previewLine(), "x2")).toBeCloseTo(60, 6);
+
+		rectSpy.mockRestore();
+		globalThis.ResizeObserver = originalResizeObserver;
 	});
 });

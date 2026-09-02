@@ -191,7 +191,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					tabIndex={0}
 					onClick={handleFileClick}
 					onKeyDown={handleDropZoneKeyDown}
-					className={`group relative flex w-full cursor-pointer flex-col items-center gap-5 rounded-2xl border-2 border-dashed px-10 py-14 text-center transition-all duration-200 ${
+					className={`dropzone-surface group relative flex w-full cursor-pointer flex-col items-center gap-5 rounded-2xl border-2 border-dashed px-10 py-14 text-center transition-all duration-200 ${
 						isDragging
 							? "border-accent/60 bg-accent/[0.04]"
 							: "border-white/[0.1] hover:border-accent/30 hover:bg-white/[0.02]"
@@ -226,7 +226,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 				{/* Feature cards */}
 				<div className="grid w-full grid-cols-3 gap-2">
 					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-						<Bone size={18} className="text-ink-3" />
+						<Bone size={18} className="text-accent-warm" />
 						<div>
 							<p className="text-[11px] font-medium text-ink-2">骨格解析</p>
 							<p className="mt-0.5 text-[10px] text-ink-3">
@@ -235,14 +235,14 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 						</div>
 					</div>
 					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-						<Ruler size={18} className="text-ink-3" />
+						<Ruler size={18} className="text-accent" />
 						<div>
 							<p className="text-[11px] font-medium text-ink-2">精密計測</p>
 							<p className="mt-0.5 text-[10px] text-ink-3">距離・角度の計測</p>
 						</div>
 					</div>
 					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-						<Cloud size={18} className="text-ink-3" />
+						<Cloud size={18} className="text-accent-berry" />
 						<div>
 							<p className="text-[11px] font-medium text-ink-2">Drive同期</p>
 							<p className="mt-0.5 text-[10px] text-ink-3">

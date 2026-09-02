@@ -43,11 +43,13 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm exec playwright test --project=renderer
+        run: pnpm test:e2e -- --project=renderer
 
   build-mac:
     name: Build (macOS)
-    needs: quality-gates
+    # build-linuxのrelease:gateが通るまで公開させない（macOS/Windowsの成果物だけ
+    # 先にリリースへ公開され、後からLinux側のゲート失敗が発覚する事故を防ぐ）。
+    needs: [quality-gates, build-linux]
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -74,16 +76,18 @@ jobs:
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-macos.txt"
 
-      - name: Upload artifacts
+      - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             release/*.dmg
             release/SHA256SUMS-macos.txt
 
   build-win:
     name: Build (Windows)
-    needs: quality-gates
+    # build-macと同様、build-linuxのrelease:gateを待ってから公開する。
+    needs: [quality-gates, build-linux]
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -110,11 +114,13 @@ jobs:
       - name: Generate checksums
         run: node scripts/generate-release-checksums.mjs --output "release/SHA256SUMS-windows.txt"
 
-      - name: Upload artifacts
+      - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             release/*.exe
+            release/*.blockmap
             release/SHA256SUMS-windows.txt
 
   build-linux:
@@ -147,7 +153,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm exec playwright test --project=renderer
+        run: pnpm test:e2e -- --project=renderer
 
       - name: Build
         run: pnpm build
@@ -156,11 +162,18 @@ jobs:
         run: pnpm dist --linux --publish never
 
       - name: Generate checksums
-        run: node scripts/generate-release-checksums.mjs --output release/SHA256SUMS-linux.txt
+        run: |
+          pnpm release:checksums
+          cp release/SHA256SUMS.txt release/SHA256SUMS-linux.txt
 
-      - name: Upload artifacts
+      - name: Release gate
+        run: pnpm release:gate
+
+      - name: Publish artifacts and checksums
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             release/*.AppImage
+            release/latest-linux.yml
             release/SHA256SUMS-linux.txt

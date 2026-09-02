@@ -6,9 +6,22 @@ directories:
   output: release
   buildResources: build
 
+# --publish neverでもlatest-*.ymlの自動更新メタデータ生成は
+# publishConfigの解決可否に依存する（.git/configからの自動検出に頼らない）。
+# CI環境で検出が失敗するとrelease:gateがlatest-linux.ymlを見つけられず落ちるため、
+# GitHub Releaseをプロバイダとして明示する。
+publish:
+  - provider: github
+    owner: kouiso
+    repo: roentgen
+
 files:
   - dist/**/*
   - dist-electron/**/*
+  - '!**/*.map'
+  - '!dist/**/*.dcm'
+  - '!dist/**/*.dicom'
+  - '!node_modules/**/*.map'
 
 mac:
   category: public.app-category.medical
@@ -35,6 +48,9 @@ nsis:
   artifactName: ${productName}-${version}-setup.exe
 
 linux:
+  category: Science;MedicalSoftware
+  icon: icons
+  artifactName: ${productName}-${version}.${ext}
   target:
     - target: AppImage
       arch:
