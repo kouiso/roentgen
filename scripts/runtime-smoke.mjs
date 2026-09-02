@@ -4,9 +4,17 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 
-const SMOKE_MS = Number(process.env.ROENTGEN_RUNTIME_SMOKE_MS ?? 30_000);
-const WINDOW_READY_MS = Number(
-	process.env.ROENTGEN_RUNTIME_WINDOW_READY_MS ?? 20_000,
+const positiveNumberEnv = (value, fallback) => {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+const SMOKE_MS = positiveNumberEnv(
+	process.env.ROENTGEN_RUNTIME_SMOKE_MS,
+	30_000,
+);
+const WINDOW_READY_MS = positiveNumberEnv(
+	process.env.ROENTGEN_RUNTIME_WINDOW_READY_MS,
+	20_000,
 );
 const WINDOW_READY_TEXT = "Window created";
 const require = createRequire(import.meta.url);

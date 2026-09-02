@@ -187,6 +187,9 @@ const metadataFromDataSet = (dataSet) => ({
 	modality: dataSet.string("x00080060")?.trim() || "unknown",
 });
 
+// Math.max(...values) はvaluesが大きいとエンジンの引数上限を超えて例外になるため使わない
+const maxOf = (values) => values.reduce((a, b) => (b > a ? b : a), -Infinity);
+
 const percentile = (values, percentileValue) => {
 	if (values.length === 0) return 0;
 	const sorted = [...values].sort((a, b) => a - b);
@@ -270,10 +273,10 @@ const run = async () => {
 	if (global.gc) global.gc();
 	const rssEndMb = rssMb();
 	const heapEndMb = heapMb();
-	const rssPeakMb = Math.max(...rssSamplesMb, rssEndMb);
+	const rssPeakMb = maxOf([...rssSamplesMb, rssEndMb]);
 	const p50Ms = percentile(parseSamplesMs, 50);
 	const p95Ms = percentile(parseSamplesMs, 95);
-	const maxMs = Math.max(...parseSamplesMs);
+	const maxMs = maxOf(parseSamplesMs);
 	const avgMs = mean(parseSamplesMs);
 	const rssPeakGrowthMb = Math.max(0, rssPeakMb - rssStartMb);
 	const rssEndGrowthMb = rssEndMb - rssStartMb;
