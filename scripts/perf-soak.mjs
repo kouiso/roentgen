@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -135,6 +135,13 @@ const mb = (bytes) => bytes / 1024 / 1024;
 const sha256 = (buffer) =>
 	createHash("sha256").update(buffer).digest("hex");
 
+// パス匿名化ラベルは実行ごとに使い捨てのランダム鍵でHMAC化する（レポートには鍵を残さない）。
+// 無塩のsha256だと、患者名/馬名の候補を総当たりしてハッシュを突き合わせれば元パスを
+// 復元できてしまう — これはPHI/馬名を公開レポートから隠す目的そのものを無効化する。
+const pathRedactionKey = randomBytes(32);
+const redactPath = (value) =>
+	createHmac("sha256", pathRedactionKey).update(Buffer.from(value)).digest("hex").slice(0, 12);
+
 const isDicomFileName = (filePath) => {
 	const extension = extname(filePath).toLowerCase();
 	return extension === ".dcm" || extension === ".dicom";
@@ -143,7 +150,10 @@ const isDicomFileName = (filePath) => {
 // public/corrupt-fixture はDICOMマジックバイトを意図的に欠いた回帰テスト用データ
 // なので、性能計測のデフォルトスキャン対象からは除外する（含めると assertDicomMagic が
 // 必ず例外を投げ、pnpm perf:soak がデフォルト引数のままでは完走できなくなる）。
-const EXCLUDED_DIR_NAMES = new Set(["corrupt-fixture"]);
+// ディレクトリ名ではなく絶対パスで照合する — 名前だけで除外すると、
+// 任意の --dicom-dir 配下にたまたま同名のディレクトリがあった場合、
+// そこに含まれる正当なDICOMデータまで計測対象から漏れてしまう。
+const EXCLUDED_DIR_PATHS = new Set([resolve(repoRoot, "public/corrupt-fixture")]);
 
 const listDicomFiles = async (rootDir) => {
 	const found = [];
@@ -153,8 +163,10 @@ const listDicomFiles = async (rootDir) => {
 		entries.sort((a, b) => a.name.localeCompare(b.name));
 
 		for (const entry of entries) {
-			if (entry.isDirectory() && EXCLUDED_DIR_NAMES.has(entry.name)) continue;
 			const entryPath = join(dir, entry.name);
+			if (entry.isDirectory() && EXCLUDED_DIR_PATHS.has(resolve(entryPath))) {
+				continue;
+			}
 			if (entry.isDirectory()) {
 				await walk(entryPath);
 				continue;
@@ -297,11 +309,11 @@ const run = async () => {
 	// ファイルパス（ファイル名に患者名等が含まれ得る）はPHIとして扱い、公開リポジトリに
 	// コミットされるこのレポートには残さない。代わりにパスのハッシュで匿名化した識別子を使う。
 	// --dicom-dir 自体も患者/馬名を含むディレクトリ名を指し得るため、同様にハッシュ化する。
-	const dicomDirLabel = `<dicom-dir-${sha256(Buffer.from(options.dicomDir)).slice(0, 12)}>`;
+	const dicomDirLabel = `<dicom-dir-${redactPath(options.dicomDir)}>`;
 	const artifactRows = files
 		.map(
 			(file) =>
-				`| \`dicom-${sha256(Buffer.from(file.relativePath)).slice(0, 12)}\` | ${file.sizeBytes} | \`${file.sha256}\` | ${file.rows}x${file.columns} | ${file.frames} | ${file.transferSyntax} |`,
+				`| \`dicom-${redactPath(file.relativePath)}\` | ${file.sizeBytes} | \`${file.sha256}\` | ${file.rows}x${file.columns} | ${file.frames} | ${file.transferSyntax} |`,
 		)
 		.join("\n");
 

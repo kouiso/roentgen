@@ -47,7 +47,9 @@ jobs:
 
   build-mac:
     name: Build (macOS)
-    needs: quality-gates
+    # build-linuxのrelease:gateが通るまで公開させない（macOS/Windowsの成果物だけ
+    # 先にリリースへ公開され、後からLinux側のゲート失敗が発覚する事故を防ぐ）。
+    needs: [quality-gates, build-linux]
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -84,7 +86,8 @@ jobs:
 
   build-win:
     name: Build (Windows)
-    needs: quality-gates
+    # build-macと同様、build-linuxのrelease:gateを待ってから公開する。
+    needs: [quality-gates, build-linux]
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -117,6 +120,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             release/*.exe
+            release/*.blockmap
             release/SHA256SUMS-windows.txt
 
   build-linux:

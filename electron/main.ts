@@ -487,6 +487,11 @@ const createWindow = async () => {
 		if (mainWindow) saveWindowStateSync(mainWindow, lastWwwc);
 	});
 
+	// loadURL()/loadFile()のPromiseはdid-finish-load発火後に解決するため、
+	// このリスナーはawaitの前に登録する必要がある。後に登録すると、初回起動時に
+	// macOSのopen-fileで先にキューされたファイルパスがrendererへ届かず消える。
+	mainWindow.webContents.once("did-finish-load", flushPendingOpenDicomFiles);
+
 	if (isDev) {
 		// loadURL()はrendererのdid-finish-loadで解決/did-fail-loadで拒否するPromiseを返す。
 		// awaitしないとcreateWindow()がrenderer未完成のまま解決し、呼び出し元の
@@ -497,8 +502,6 @@ const createWindow = async () => {
 	} else {
 		await mainWindow.loadFile(join(__dirname, "../dist/index.html"));
 	}
-
-	mainWindow.webContents.once("did-finish-load", flushPendingOpenDicomFiles);
 };
 
 // Google Drive — 遅延読込でIPC登録
@@ -593,7 +596,11 @@ app
 
 		app.on("activate", () => {
 			if (BrowserWindow.getAllWindows().length === 0) {
-				createWindow();
+				// createWindow()はloadURL/loadFileの失敗でrejectし得る。
+				// awaitせず呼ぶだけだとunhandled rejectionになるため捕捉する。
+				createWindow().catch((err) => {
+					log.error("[activate] window recreation failed:", err);
+				});
 			}
 		});
 	})
