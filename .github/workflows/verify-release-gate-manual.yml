@@ -1,7 +1,9 @@
 name: Verify release gate (manual, no publish)
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - chore/salvage-release-gate
 
 jobs:
   release-gate:
