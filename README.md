@@ -18,6 +18,10 @@ Vite と vite-plugin-electron により、renderer と Electron main process の
 pnpm dev
 ```
 
+- `pnpm dev` はターミナル出力のコピーを `.logs/dev-<timestamp>.log` に残す (scripts/dev-log.mjs)。
+- `pnpm dev:raw` はログを残さず vite を直接起動する。
+- `pnpm logs:digest [--since 2h]` は electron-log の main.log と `.logs/` の warn / error をまとめて表示する。
+
 ## 検証コマンド
 
 | コマンド | 内容 |
