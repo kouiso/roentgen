@@ -21,11 +21,16 @@ import {
 	ipcMain,
 	session,
 } from "electron";
+import type { LevelOption } from "electron-log";
 import log from "electron-log/main";
 import {
 	createPrintImageHtml,
 	type PrintImageMetadata,
 } from "../src/utils/print-image";
+import {
+	attachRendererConsoleForwarding,
+	attachWindowLifecycleLogging,
+} from "./renderer-log";
 import {
 	initSentryIfConsented,
 	isCrashReportingEnabled,
@@ -33,9 +38,34 @@ import {
 } from "./sentry";
 
 // ログ初期化 — PII除外のためDICOM患者タグはログしない
-log.initialize();
+// electron-log/renderer は使わないため preload 注入は行わない
+log.initialize({ preload: false });
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB
 log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}";
+const readLogLevel = (value: string | undefined): LevelOption => {
+	switch (value) {
+		case "error":
+		case "warn":
+		case "info":
+		case "verbose":
+		case "debug":
+		case "silly":
+			return value;
+		default:
+			return "info";
+	}
+};
+log.transports.file.level = readLogLevel(process.env.ROENTGEN_LOG_LEVEL);
+// dev では app.name が package.json の "roentgen"、直接起動なら "Electron" になり、
+// ログの置き場もその名前になる。userData は動かさず、ログだけ productName の
+// "Roentgen" 配下に固定する (scripts/log-digest.mjs の探索先と揃える)。
+log.transports.file.resolvePathFn = (variables) =>
+	join(
+		process.platform === "darwin"
+			? join(variables.home, "Library", "Logs", "Roentgen")
+			: join(variables.appData, "Roentgen", "logs"),
+		variables.fileName ?? "main.log",
+	);
 
 const initMainProcessSentry = async (): Promise<void> => {
 	const dsn = process.env.SENTRY_DSN;
@@ -461,6 +491,8 @@ const createWindow = async () => {
 			sandbox: true,
 		},
 	});
+	attachRendererConsoleForwarding(mainWindow.webContents);
+	attachWindowLifecycleLogging(mainWindow.webContents);
 
 	const isDev = !!process.env.VITE_DEV_SERVER_URL;
 	const scriptSrc = isDev
@@ -586,6 +618,7 @@ app
 		// Sentry — OPT-IN: only initializes if user previously consented
 		await initSentryIfConsented();
 		startCrashReporter();
+		log.info(`[main] log file: ${log.transports.file.getFile().path}`);
 
 		await createWindow();
 		log.info("Window created");
