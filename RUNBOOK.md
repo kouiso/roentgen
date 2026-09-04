@@ -9,6 +9,11 @@ pnpm dev
 
 Electron/Vite の開発サーバーが起動したら、DICOMファイルまたはフォルダをアプリから選択して読み込む。
 
+- `pnpm dev` はターミナル出力のコピーを `.logs/dev-<timestamp>.log` に残す。
+- `pnpm dev:raw` はログを残さず vite を直接起動する。
+- `pnpm logs:digest [--since 2h]` で流れて消えた warn / error をまとめて確認する。
+- ログの詳しさは `ROENTGEN_LOG_LEVEL` (既定 `info`、`debug` で詳細) で変えられる。
+
 ## Google Drive認証
 
 1. Google CloudでOAuthクライアントを作成する。

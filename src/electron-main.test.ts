@@ -47,11 +47,13 @@ vi.mock("@sentry/electron/main", () => ({
 
 vi.mock("electron-log/main", () => ({
 	default: {
-		initialize: vi.fn(),
+		initialize: vi.fn((_options?: { preload?: boolean }) => undefined),
 		transports: {
 			file: {
+				level: "info",
 				maxSize: 0,
 				format: "",
+				getFile: () => ({ path: "/tmp/main.log" }),
 			},
 		},
 		info: vi.fn(),

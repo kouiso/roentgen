@@ -1,5 +1,6 @@
 import { access } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
@@ -38,11 +39,13 @@ vi.mock("@sentry/electron/main", () => ({
 
 vi.mock("electron-log/main", () => ({
 	default: {
-		initialize: vi.fn(),
+		initialize: vi.fn((_options?: { preload?: boolean }) => undefined),
 		transports: {
 			file: {
+				level: "info",
 				maxSize: 0,
 				format: "",
+				getFile: () => ({ path: "/tmp/main.log" }),
 			},
 		},
 		info: vi.fn(),
@@ -70,6 +73,23 @@ const findExistingSystemPath = async (): Promise<string> => {
 };
 
 describe("read-directory-recursive allow-list", () => {
+	it("永続ログへ患者ディレクトリを残さん", async () => {
+		const { resolveAllowedReadPath } = await import("../main");
+		const log = (await import("electron-log/main")).default;
+		const requestedPath = join(tmpdir(), "患者A", "missing.dcm");
+		vi.mocked(log.warn).mockClear();
+
+		await expect(resolveAllowedReadPath(requestedPath, [])).rejects.toThrow(
+			"ファイルが見つかりません",
+		);
+		expect(log.warn).toHaveBeenCalledWith(
+			"Blocked missing file access: missing.dcm",
+		);
+		expect(vi.mocked(log.warn).mock.calls.flat().join(" ")).not.toContain(
+			"患者A",
+		);
+	});
+
 	it("rejects arbitrary paths outside dialog, userData, and tmp roots", async () => {
 		const { resolveAllowedRecursiveReadPath } = await import("../main");
 		const arbitraryPath = await findExistingSystemPath();

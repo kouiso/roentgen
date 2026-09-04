@@ -4,7 +4,8 @@
 	"description": "ルバーノのレントゲンビューア — DICOM画像デスクトップアプリ",
 	"main": "dist-electron/main.js",
 	"scripts": {
-		"dev": "unset ELECTRON_RUN_AS_NODE && vite",
+		"dev": "node scripts/dev-log.mjs -- vite",
+		"dev:raw": "unset ELECTRON_RUN_AS_NODE && vite",
 		"build": "tsc && vite build",
 		"preview": "vite preview",
 		"lint": "biome check .",
@@ -12,6 +13,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
+		"logs:digest": "node scripts/log-digest.mjs",
 		"typecheck": "tsc --noEmit",
 		"prepare": "husky",
 		"sync:drive": "tsx scripts/sync-dicom-from-drive.ts",

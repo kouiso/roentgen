@@ -6,6 +6,8 @@ dist-electron
 
 # Build artifacts
 coverage/
+# `pnpm dev` のターミナル出力 (scripts/dev-log.mjs が残す)
+.logs/
 release/
 test-results/
 

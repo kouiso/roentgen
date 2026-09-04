@@ -20,7 +20,12 @@
 			"electron/**",
 			"e2e/**",
 			"vite.config.ts",
+			"vitest.config.ts",
 			"playwright.config.ts",
+			"scripts/dev-log.mjs",
+			"scripts/log-digest.mjs",
+			"scripts/dev-log.test.mjs",
+			"scripts/log-digest.test.mjs",
 			"!!**/dist",
 			"!!**/dist-electron",
 			"!!**/node_modules"
