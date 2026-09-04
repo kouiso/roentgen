@@ -200,6 +200,9 @@ export const readEntries = (source) => {
 
 // --- 集計 ---------------------------------------------------------------------
 
+// 中間セグメントは空白を許す — "/Users/x/患者 太郎/img.dcm" のようなフォルダ名でも
+// パス全体を1つとして拾い、basename だけを残すため (renderer-log.ts と同じ考え方)。
+// 末尾は空白を許さない。許すと後続の語や次のパスまで飲み込み、行が壊れる。
 const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
 const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
 const ABSOLUTE_PATH_PATTERN = new RegExp(
@@ -209,6 +212,8 @@ const ABSOLUTE_PATH_PATTERN = new RegExp(
 	].join("|"),
 	"g",
 );
+// node:path の basename は POSIX 版だとバックスラッシュで切らないため使わない。
+// 両方の区切りで最後の要素だけを取る。
 const scrubPaths = (text) =>
 	text.replace(ABSOLUTE_PATH_PATTERN, (match) =>
 		match.split(/[\\/]/).filter(Boolean).at(-1),

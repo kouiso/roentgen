@@ -238,6 +238,16 @@ describe("log-digest", () => {
 		}
 	});
 
+	it("パスは空白入りでも Windows でも basename だけにする", () => {
+		const backslash = String.fromCharCode(92);
+		const windows = `open C:${backslash}Users${backslash}John Doe${backslash}x.dcm`;
+		expect(normalizeMessage("failed /Users/k/患者 太郎/img.dcm")).toBe(
+			"failed img.dcm",
+		);
+		expect(normalizeMessage(windows)).toBe("open x.dcm");
+		expect(normalizeMessage("plain 1/2 done")).toBe("plain #/# done");
+	});
+
 	it("日をまたいだ dev ログは翌日として扱う", () => {
 		const dir = mkdtempSync(join(tmpdir(), "roentgen-digest-"));
 		try {
