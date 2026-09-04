@@ -115,6 +115,13 @@ describe("scrubPaths", () => {
 		);
 	});
 
+	it("scrubs UNC shares (Windows の共有に置いた DICOM)", () => {
+		const b = String.fromCharCode(92);
+		expect(
+			scrubPaths(`open ${b}${b}srv${b}share${b}患者 太郎${b}img.dcm`),
+		).toBe("open img.dcm");
+	});
+
 	it("does not swallow the words between two paths", () => {
 		expect(scrubPaths("a /a/b and /c/d end")).toBe("a b and d end");
 	});

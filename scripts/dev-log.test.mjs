@@ -18,6 +18,7 @@ import {
 	pruneLogs,
 	runTee,
 	sanitizeLogText,
+	signalTree,
 } from "./dev-log.mjs";
 
 const withTempDir = (fn) => {
@@ -123,6 +124,37 @@ describe("dev-log", () => {
 				true,
 			]);
 		}));
+
+	it("createLineWriter はチャンクを跨いだ日本語を壊さない", () => {
+		const written = [];
+		const writer = createLineWriter(
+			(text) => written.push(text),
+			"out",
+			() => "00:00:00",
+		);
+		const bytes = Buffer.from("警告: 失敗\n", "utf8");
+		writer.write(bytes.subarray(0, 4));
+		writer.write(bytes.subarray(4));
+		writer.flush();
+
+		expect(written).toEqual(["[00:00:00] [out] 警告: 失敗\n"]);
+	});
+
+	it("sanitizeLogText は UNC のパスも basename にする", () => {
+		const b = String.fromCharCode(92);
+		const unc = `open ${b}${b}server${b}share${b}患者 太郎${b}image.dcm failed`;
+		expect(sanitizeLogText(unc)).toBe("open image.dcm failed");
+	});
+
+	it("signalTree は Windows では taskkill /T で木ごと落とす", () => {
+		const calls = [];
+		signalTree(4321, "SIGINT", "win32", (command, args) => {
+			calls.push([command, args]);
+			return { status: 0 };
+		});
+
+		expect(calls).toEqual([["taskkill", ["/pid", "4321", "/T", "/F"]]]);
+	});
 
 	it("pruneLogs は dir が無くても落ちない", () => {
 		expect(pruneLogs("/nonexistent/roentgen-logs")).toEqual([]);

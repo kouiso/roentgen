@@ -34,7 +34,12 @@ export const electronLogDir = (
 			appName,
 			"logs",
 		);
-	return join(home, ".config", appName, "logs");
+	// Electron の appData は XDG_CONFIG_HOME を尊重する。ここで見ないと、
+	// それを設定している環境で digest が「アプリのログ 0 件」と言い切ってしまう。
+	const xdg = env.XDG_CONFIG_HOME;
+	const configHome =
+		xdg && xdg.trim().length > 0 ? resolve(xdg) : join(home, ".config");
+	return join(configHome, appName, "logs");
 };
 
 const withOld = (path) => [path.replace(/\.log$/, ".old.log"), path];
@@ -156,7 +161,15 @@ export const readEntries = (source) => {
 	const entries = [];
 	for (const path of source.paths) {
 		if (!existsSync(path)) continue;
-		const lines = readFileSync(path, "utf8").split("\n");
+		// 別の pnpm dev が .logs を掃除している最中など、existsSync の直後に
+		// 消えることがある。1 本読めないだけで digest 全体を落とさない。
+		let lines;
+		try {
+			lines = readFileSync(path, "utf8").split("\n");
+		} catch (error) {
+			process.stderr.write(`skip ${path}: ${error.message}\n`);
+			continue;
+		}
 		if (source.kind === "dev") {
 			const date = devFileDate(path);
 			if (!date) continue;
@@ -207,6 +220,8 @@ const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
 const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
 const ABSOLUTE_PATH_PATTERN = new RegExp(
 	[
+		// UNC (\\\\server\\share\\...) を先に見る。Windows の共有に置いた DICOM の形。
+		`\\\\{2,}(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
 		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
 		`/+(?:${SPACED_SEGMENT}/+)*${SPACED_SEGMENT}/+${PATH_SEGMENT}`,
 	].join("|"),
@@ -239,15 +254,28 @@ const DEDUPE_WINDOW_MS = 5000;
  * 正規化メッセージが同じで時刻が ±5 秒以内なら dev 側を落とす (app が正)。
  */
 export const dedupe = (entries) => {
-	const app = entries.filter((entry) => entry.source === "app");
+	// 総当たりだと app 数 × dev 数の比較になり、長時間セッションの行数では
+	// digest が事実上止まる。正規化は 1 行 1 回にして、5 秒バケットで引く。
+	const bucketOf = (time) => Math.floor(time / DEDUPE_WINDOW_MS);
+	const appKeys = new Map();
+	for (const entry of entries) {
+		if (entry.source !== "app") continue;
+		const key = normalizeMessage(entry.message);
+		const bucket = bucketOf(entry.time);
+		// ±5 秒がバケット境界を跨ぐ場合を拾うため、隣にも登録する。
+		for (const b of [bucket - 1, bucket, bucket + 1]) {
+			const id = `${b}\u0000${key}`;
+			const times = appKeys.get(id);
+			if (times) times.push(entry.time);
+			else appKeys.set(id, [entry.time]);
+		}
+	}
 	return entries.filter((entry) => {
 		if (entry.source !== "dev") return true;
-		const key = normalizeMessage(entry.message);
-		return !app.some(
-			(other) =>
-				Math.abs(other.time - entry.time) <= DEDUPE_WINDOW_MS &&
-				normalizeMessage(other.message) === key,
-		);
+		const id = `${bucketOf(entry.time)}\u0000${normalizeMessage(entry.message)}`;
+		return !appKeys
+			.get(id)
+			?.some((time) => Math.abs(time - entry.time) <= DEDUPE_WINDOW_MS);
 	});
 };
 

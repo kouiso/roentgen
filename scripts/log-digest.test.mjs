@@ -248,6 +248,26 @@ describe("log-digest", () => {
 		expect(normalizeMessage("plain 1/2 done")).toBe("plain #/# done");
 	});
 
+	it("electronLogDir は XDG_CONFIG_HOME を尊重する", () => {
+		expect(
+			electronLogDir("Roentgen", {
+				platform: "linux",
+				home: "/h",
+				env: { XDG_CONFIG_HOME: "/xdg" },
+			}),
+		).toBe(join("/xdg", "Roentgen", "logs"));
+		expect(
+			electronLogDir("Roentgen", { platform: "linux", home: "/h", env: {} }),
+		).toBe(join("/h", ".config", "Roentgen", "logs"));
+	});
+
+	it("normalizeMessage は UNC のパスも basename にする", () => {
+		const b = String.fromCharCode(92);
+		expect(
+			normalizeMessage(`open ${b}${b}srv${b}share${b}患者 太郎${b}img.dcm`),
+		).toBe("open img.dcm");
+	});
+
 	it("日をまたいだ dev ログは翌日として扱う", () => {
 		const dir = mkdtempSync(join(tmpdir(), "roentgen-digest-"));
 		try {

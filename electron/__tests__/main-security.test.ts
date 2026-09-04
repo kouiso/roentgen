@@ -48,6 +48,16 @@ vi.mock("electron-log/main", () => ({
 				getFile: () => ({ path: "/tmp/main.log" }),
 			},
 		},
+		hooks: [],
+		functions: {
+			log: vi.fn(),
+			error: vi.fn(),
+			warn: vi.fn(),
+			info: vi.fn(),
+			debug: vi.fn(),
+			verbose: vi.fn(),
+			silly: vi.fn(),
+		},
 		info: vi.fn(),
 		warn: vi.fn(),
 		error: vi.fn(),
@@ -88,6 +98,24 @@ describe("read-directory-recursive allow-list", () => {
 		expect(vi.mocked(log.warn).mock.calls.flat().join(" ")).not.toContain(
 			"患者A",
 		);
+	});
+
+	it("main プロセスの出力も、ファイルへ書く前にパスを落とすこと", async () => {
+		await import("../main");
+		const log = (await import("electron-log/main")).default;
+
+		// google-drive.ts などの console.error は electron-log を通っていなかったため、
+		// main.log にも digest にも出てこなかった。console を差し替えたので、
+		// 代わりに全ての行が hook を通ること (= パスが落ちること) を確かめる。
+		const hook = log.hooks.at(-1);
+		if (!hook) throw new Error("log hook was not registered");
+		const result = hook({
+			data: [`[gdrive] 保存に失敗: ${join(tmpdir(), "患者A", "x.dcm")}`, 1],
+			level: "error",
+		});
+
+		expect(result.data[0]).toBe("[gdrive] 保存に失敗: x.dcm");
+		expect(result.data[1]).toBe(1);
 	});
 
 	it("rejects arbitrary paths outside dialog, userData, and tmp roots", async () => {

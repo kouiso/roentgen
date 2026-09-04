@@ -23,6 +23,7 @@
 			"vitest.config.ts",
 			"playwright.config.ts",
 			"scripts/dev-log.mjs",
+			"scripts/dev-raw.mjs",
 			"scripts/log-digest.mjs",
 			"scripts/dev-log.test.mjs",
 			"scripts/log-digest.test.mjs",

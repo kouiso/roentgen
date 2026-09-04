@@ -5,7 +5,7 @@
 	"main": "dist-electron/main.js",
 	"scripts": {
 		"dev": "node scripts/dev-log.mjs -- vite",
-		"dev:raw": "unset ELECTRON_RUN_AS_NODE && vite",
+		"dev:raw": "node scripts/dev-raw.mjs",
 		"build": "tsc && vite build",
 		"preview": "vite preview",
 		"lint": "biome check .",

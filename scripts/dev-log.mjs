@@ -19,10 +19,14 @@ import {
 	unlinkSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MAX_FILES = 10;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
+// 1 本の走行が単独でディスクを食い潰さないための上限。超えたら書くのをやめ、
+// 画面への転送だけ続ける (dev を止めない方が大事)。
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -39,15 +43,20 @@ export const fileStamp = (date = new Date()) =>
  */
 export const createLineWriter = (sink, streamName, now = clockStamp) => {
 	let rest = "";
+	// チャンクの切れ目が UTF-8 の途中に来ることがある。チャンクごとに toString すると
+	// そこで置換文字になり、日本語のログが壊れる。デコーダを跨がせて持つ。
+	const decoder = new StringDecoder("utf8");
 	const emit = (line) => sink(`[${now()}] [${streamName}] ${line}\n`);
 	return {
 		write: (chunk) => {
-			const text = rest + chunk.toString();
+			const text =
+				rest + (typeof chunk === "string" ? chunk : decoder.write(chunk));
 			const parts = text.split("\n");
 			rest = parts.pop() ?? "";
 			for (const line of parts) emit(line);
 		},
 		flush: () => {
+			rest += decoder.end();
 			if (rest.length > 0) {
 				emit(rest);
 				rest = "";
@@ -80,12 +89,14 @@ export const pruneLogs = (
 		(entries.length > maxFiles || total > maxTotalBytes)
 	) {
 		const oldest = entries.shift();
-		total -= oldest.size;
 		try {
 			unlinkSync(oldest.path);
 			removed.push(oldest.path);
+			// 消せたときだけ減らす。消せないファイルを減算すると、1 本も消えて
+			// いないのに「上限内」と判断して抜けてしまう。
+			total -= oldest.size;
 		} catch {
-			// 消せなくても dev を止める理由にはならない。
+			// 消せなくても dev を止める理由にはならない。次の候補へ進む。
 		}
 	}
 	return removed;
@@ -103,6 +114,9 @@ const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
 const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
 const ABSOLUTE_PATH_PATTERN = new RegExp(
 	[
+		// UNC (\\\\server\\share\\...): Windows の共有に置いた DICOM でよく使う形。
+		// ドライブレターより先に見る (先に見ないと後続の分岐が途中まで食う)。
+		`\\\\{2,}(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
 		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
 		`/+(?:${SPACED_SEGMENT}/+)*${SPACED_SEGMENT}/+${PATH_SEGMENT}`,
 	].join("|"),
@@ -134,7 +148,18 @@ export const descendantPids = (pid) => {
 };
 
 /** root と子孫すべてに同じシグナルを送る。既に居ないものは無視。 */
-export const signalTree = (rootPid, signal) => {
+export const signalTree = (
+	rootPid,
+	signal,
+	platform = process.platform,
+	run = spawnSync,
+) => {
+	// Windows には pgrep もシグナルも無く、shell 経由で起動するぶん直接の子は
+	// シェルなので、process.kill だけだと vite / Electron が孤児になる。
+	if (platform === "win32") {
+		run("taskkill", ["/pid", String(rootPid), "/T", "/F"], { stdio: "ignore" });
+		return;
+	}
 	for (const pid of [...descendantPids(rootPid), rootPid]) {
 		try {
 			process.kill(pid, signal);
@@ -176,10 +201,32 @@ export const runTee = ({
 }) =>
 	new Promise((resolveRun) => {
 		mkdirSync(logDir, { recursive: true });
-		pruneLogs(logDir);
+		// これから 1 本増えるので、その分だけ先に空ける。上限ちょうどで走ると
+		// 毎回 1 本超えた状態になってしまう。
+		pruneLogs(logDir, { maxFiles: MAX_FILES - 1 });
 		const logPath = join(logDir, `dev-${fileStamp()}.log`);
 		const file = createWriteStream(logPath, { flags: "a" });
-		const sink = (text) => file.write(sanitizeLogText(text));
+		// 書けなくなっても (読み取り専用の作業ディレクトリ、ディスク満杯) dev は
+		// 止めない。拾わないと unhandled 'error' でラッパーだけが落ち、vite と
+		// Electron が孤児になる。
+		let logging = true;
+		const stopLogging = (reason) => {
+			if (!logging) return;
+			logging = false;
+			process.stderr.write(`dev log disabled (${reason}); passthrough only\n`);
+		};
+		file.on("error", (error) => stopLogging(error.message));
+		let written = 0;
+		const sink = (text) => {
+			if (!logging) return;
+			if (written >= MAX_FILE_BYTES) {
+				stopLogging(`over ${MAX_FILE_BYTES} bytes`);
+				return;
+			}
+			const line = sanitizeLogText(text);
+			written += Buffer.byteLength(line);
+			file.write(line);
+		};
 		const out = createLineWriter(sink, "out");
 		const err = createLineWriter(sink, "err");
 

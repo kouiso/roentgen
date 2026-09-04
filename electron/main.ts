@@ -31,6 +31,7 @@ import {
 	attachRendererConsoleForwarding,
 	attachWindowLifecycleLogging,
 	basenameOf,
+	scrubPaths,
 } from "./renderer-log";
 import {
 	initSentryIfConsented,
@@ -67,6 +68,18 @@ log.transports.file.resolvePathFn = (variables) =>
 			: join(variables.appData, "Roentgen", "logs"),
 		variables.fileName ?? "main.log",
 	);
+// main プロセスの console もファイルへ残す。google-drive.ts などの
+// console.error は electron-log を通っていなかったため、main.log にも
+// logs:digest にも一切出てこず、失敗が黙って消えていた。
+// 併せて、書く前に必ずパスを basename に落とす (PHI 規約。main.ts 自身も
+// アクセス拒否時にフルパスを出している)。
+log.hooks.push((message) => ({
+	...message,
+	data: message.data.map((item: unknown) =>
+		typeof item === "string" ? scrubPaths(item) : item,
+	),
+}));
+Object.assign(console, log.functions);
 
 const initMainProcessSentry = async (): Promise<void> => {
 	const dsn = process.env.SENTRY_DSN;

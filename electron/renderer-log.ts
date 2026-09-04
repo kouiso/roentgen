@@ -40,11 +40,11 @@ export const basenameOf = (source: string): string => {
 // メッセージが壊れる。
 const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
 const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
-// 区切りは1つ以上。ログには `C:\\Users\\...` のようにエスケープ済みの
-// バックスラッシュがそのまま載ることがあり (JSON化されたエラーなど)、
-// 1つ固定にすると Windows パスを取りこぼす。
 const ABSOLUTE_PATH_PATTERN = new RegExp(
 	[
+		// UNC (\\\\server\\share\\...): Windows の共有に置いた DICOM でよく使う形。
+		// ドライブレターより先に見る (先に見ないと後続の分岐が途中まで食う)。
+		`\\\\{2,}(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
 		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
 		`/+(?:${SPACED_SEGMENT}/+)*${SPACED_SEGMENT}/+${PATH_SEGMENT}`,
 	].join("|"),
