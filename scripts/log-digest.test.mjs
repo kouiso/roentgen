@@ -231,4 +231,25 @@ describe("log-digest", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("日をまたいだ dev ログは翌日として扱う", () => {
+		const dir = mkdtempSync(join(tmpdir(), "roentgen-digest-"));
+		try {
+			const dev = join(dir, "dev-20260902-235900.log");
+			writeFileSync(
+				dev,
+				[
+					"[23:59:59] [err] error before midnight",
+					"[00:00:01] [err] error after midnight",
+					"",
+				].join("\n"),
+			);
+			const entries = readEntries({ kind: "dev", paths: [dev] });
+			expect(entries).toHaveLength(2);
+			expect(entries[1].time - entries[0].time).toBe(2000);
+			expect(new Date(entries[1].time).getDate()).toBe(3);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
 });

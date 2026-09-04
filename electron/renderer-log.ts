@@ -4,6 +4,8 @@ import log from "electron-log/main";
 // PHI規約: 患者タグやフルパスはログに書かない（basenameのみ）。
 
 const MAX_TEXT_LENGTH = 2048;
+// ERR_ABORTED — 遷移のキャンセルで出るだけで障害ではない。
+const ABORTED_ERROR_CODE = -3;
 const TRUNCATED_SUFFIX = "…[truncated]";
 
 type RendererLogLevel = "error" | "warn" | "info" | "debug";
@@ -31,9 +33,23 @@ export const basenameOf = (source: string): string => {
 	return segments[segments.length - 1] ?? "";
 };
 
-// POSIX: 区切りを1つ以上含む絶対パス / Windows: ドライブレター始まり
-const ABSOLUTE_PATH_PATTERN =
-	/[A-Za-z]:\\[^\s"'`]+|\/[^\s/"'`]+(?:\/[^\s/"'`]+)+/g;
+// POSIX: 区切りを1つ以上含む絶対パス / Windows: ドライブレター始まり。
+// 中間セグメントは空白を許す — 患者フォルダ名に空白が入っていても
+// ("/Users/x/患者 太郎/img.dcm") パス全体を1つとして拾い、basename だけ残すため。
+// 末尾 (basename) は空白を許さない。許すと後続の語や次のパスまで飲み込み、
+// メッセージが壊れる。
+const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
+const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
+// 区切りは1つ以上。ログには `C:\\Users\\...` のようにエスケープ済みの
+// バックスラッシュがそのまま載ることがあり (JSON化されたエラーなど)、
+// 1つ固定にすると Windows パスを取りこぼす。
+const ABSOLUTE_PATH_PATTERN = new RegExp(
+	[
+		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
+		`/+(?:${SPACED_SEGMENT}/+)*${SPACED_SEGMENT}/+${PATH_SEGMENT}`,
+	].join("|"),
+	"g",
+);
 
 export const scrubPaths = (text: string): string =>
 	text.replace(ABSOLUTE_PATH_PATTERN, (match) => basenameOf(match) || match);
@@ -80,6 +96,9 @@ export const attachWindowLifecycleLogging = (
 	webContents.on(
 		"did-fail-load",
 		(_event, errorCode, errorDescription, validatedURL) => {
+			// ERR_ABORTED (-3) はリダイレクトや遷移キャンセルで普通に出る。
+			// error として数えると logs:digest の件数が実害のない行で埋まる。
+			if (errorCode === ABORTED_ERROR_CODE) return;
 			log.error(
 				`[window] did-fail-load code=${errorCode} ${errorDescription} (${basenameOf(validatedURL)})`,
 			);
