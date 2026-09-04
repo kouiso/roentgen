@@ -17,7 +17,15 @@ jobs:
         id: enforce
         env:
           HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
         run: |
+          # fork 側に develop という名前のブランチを作っても、昇格元としては扱わない。
+          if [ "$HEAD_REPOSITORY" != "$BASE_REPOSITORY" ]; then
+            echo "Disallowed repository: $HEAD_REPOSITORY"
+            exit 1
+          fi
+
           # 許可ブランチ: develop / staging (完全一致) / release/* / hotfix/* (glob)
           # bash case の glob は全文一致なので任意文字列の混入を許さない
           case "$HEAD_REF" in

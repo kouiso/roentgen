@@ -2,7 +2,7 @@ name: Semgrep Code Scan
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "**/*.ts"
       - "**/*.tsx"
