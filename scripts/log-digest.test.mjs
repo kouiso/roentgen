@@ -122,6 +122,11 @@ describe("log-digest", () => {
 				"failed /Users/me/proj/a.png after 1200ms id=deadbeefcafe 0x1f",
 			),
 		).toBe("failed a.png after #ms id=# 0x#");
+		expect(
+			normalizeMessage(
+				"Authorization: Bearer eyJ.secret /Users/x/患者A/img.dcm ghp_abcdef123456",
+			),
+		).toBe("Authorization: Bearer *** img.dcm [REDACTED]");
 	});
 
 	it("dedupe は main.log と dev ログの同じ行を ±5 秒で 1 件に畳み、app を残す", () => {
@@ -181,7 +186,7 @@ describe("log-digest", () => {
 		expect(rows[0].level).toBe("error");
 		expect(rows[1].count).toBe(2);
 		expect(rows[1].message).toBe("slow #ms");
-		expect(rows[1].sample).toBe("slow 10ms");
+		expect(rows[1].sample).toBe("slow #ms");
 		expect(rows[1].first).toBe(at(9, 0, 1));
 		expect(rows[1].last).toBe(at(9, 30, 0));
 

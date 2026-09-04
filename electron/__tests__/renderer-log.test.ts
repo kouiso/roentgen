@@ -14,6 +14,8 @@ import {
 	attachRendererConsoleForwarding,
 	attachWindowLifecycleLogging,
 	basenameOf,
+	redactSecrets,
+	sanitizeLogText,
 	sanitizeRendererConsoleMessage,
 	scrubPaths,
 	toLogLevel,
@@ -99,6 +101,17 @@ describe("scrubPaths", () => {
 	});
 });
 
+describe("sanitizeLogText", () => {
+	it("フルパスと認証情報を同時に伏せる", () => {
+		expect(
+			sanitizeLogText(
+				"failed /Users/x/患者A/img.dcm Authorization: Bearer eyJ.secret ghp_abcdef123456",
+			),
+		).toBe("failed img.dcm Authorization: Bearer *** [REDACTED]");
+		expect(redactSecrets("plain text")).toBe("plain text");
+	});
+});
+
 describe("sanitizeRendererConsoleMessage", () => {
 	it("formats the renderer text with basename and line number", () => {
 		const result = sanitizeRendererConsoleMessage({
@@ -121,7 +134,7 @@ describe("sanitizeRendererConsoleMessage", () => {
 			lineNumber: 0,
 		});
 		expect(result.text.endsWith("…[truncated]")).toBe(true);
-		expect(result.text.length).toBe(2048 + "…[truncated]".length);
+		expect(result.text.length).toBe(2048);
 		expect(result.text.startsWith("[renderer] aaaa")).toBe(true);
 	});
 });
@@ -210,13 +223,15 @@ describe("attachWindowLifecycleLogging", () => {
 			"preload-error",
 			{},
 			"/Users/x/app/dist-electron/preload.js",
-			new Error("boom"),
+			new Error("boom at /Users/x/患者A/secret.dcm"),
 		);
 
 		expect(log.error).toHaveBeenCalledTimes(1);
 		const args = allLogArgs();
 		expect(args).toContain("preload.js");
 		expect(args).toContain("boom");
+		expect(args).toContain("secret.dcm");
 		expect(args).not.toContain("/Users/x/app");
+		expect(args).not.toContain("患者A");
 	});
 });

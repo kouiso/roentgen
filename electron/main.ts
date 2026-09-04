@@ -30,6 +30,7 @@ import {
 import {
 	attachRendererConsoleForwarding,
 	attachWindowLifecycleLogging,
+	basenameOf,
 } from "./renderer-log";
 import {
 	initSentryIfConsented,
@@ -131,8 +132,9 @@ export const resolveAllowedReadPath = async (
 	let requestedRealPath: string;
 	try {
 		requestedRealPath = await realpath(resolve(requestedPath));
-	} catch (err) {
-		log.warn(`Blocked missing file access: ${requestedPath}`, err);
+	} catch {
+		// 患者名を含み得る親ディレクトリは永続ログへ残さん。
+		log.warn(`Blocked missing file access: ${basenameOf(requestedPath)}`);
 		throw new Error(`ファイルが見つかりません: ${requestedPath}`);
 	}
 
@@ -146,7 +148,7 @@ export const resolveAllowedReadPath = async (
 		}
 	}
 
-	log.warn(`Blocked file access: ${requestedPath}`);
+	log.warn(`Blocked file access: ${basenameOf(requestedPath)}`);
 	throw new Error(`許可されていないファイルパス: ${requestedPath}`);
 };
 

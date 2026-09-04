@@ -17,6 +17,7 @@ import {
 	printSummary,
 	pruneLogs,
 	runTee,
+	sanitizeLogText,
 } from "./dev-log.mjs";
 
 const withTempDir = (fn) => {
@@ -37,6 +38,14 @@ const withTempDir = (fn) => {
 };
 
 describe("dev-log", () => {
+	it("永続コピーではフルパスと認証情報を伏せる", () => {
+		expect(
+			sanitizeLogText(
+				"error /Users/x/患者A/img.dcm Bearer eyJ.secret ghp_abcdef123456",
+			),
+		).toBe("error img.dcm Bearer *** [REDACTED]");
+	});
+
 	it("clockStamp / fileStamp はゼロ埋めした固定幅", () => {
 		const date = new Date(2026, 8, 2, 9, 5, 7);
 		expect(clockStamp(date)).toBe("09:05:07");
@@ -136,6 +145,23 @@ describe("dev-log", () => {
 			);
 			// 残余バッファが flush される
 			expect(lines.some((l) => l.endsWith("[out] tail-no-newline"))).toBe(true);
+		}));
+
+	it("runTee はファイル側だけ患者ディレクトリを伏せる", async () =>
+		withTempDir(async (dir) => {
+			const script = 'process.stderr.write("error /Users/x/患者A/img.dcm\\n");';
+			const { logPath } = await runTee({
+				command: process.execPath,
+				args: ["-e", script],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				stdin: { isTTY: false },
+			});
+
+			const text = readFileSync(logPath, "utf8");
+			expect(text).toContain("error img.dcm");
+			expect(text).not.toContain("患者A");
 		}));
 
 	it("runTee は SIGINT を受けたら (非 TTY のとき) 子へ転送し、末尾行を落とさず終わる", async () =>

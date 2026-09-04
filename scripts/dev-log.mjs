@@ -98,6 +98,18 @@ const ANSI_PATTERN = new RegExp(
 );
 const stripAnsi = (text) => text.replace(ANSI_PATTERN, "");
 
+// 端末表示はそのままにし、永続ファイルへ書くコピーだけを最小限マスクする。
+const ABSOLUTE_PATH_PATTERN =
+	/[A-Za-z]:\\[^\s"'`]+|\/[^\s/"'`]+(?:\/[^\s/"'`]+)+/g;
+export const sanitizeLogText = (text) =>
+	text
+		.replace(ABSOLUTE_PATH_PATTERN, (match) => {
+			const segments = match.split(/[\\/]/).filter((part) => part.length > 0);
+			return segments.at(-1) ?? match;
+		})
+		.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer ***")
+		.replace(/\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]+\b/g, "[REDACTED]");
+
 /**
  * 子孫の pid を全部集める (turbo → electron-vite → Electron)。
  * turbo の node シム (node_modules/.bin/turbo) は SIGINT を本体へ転送しないので、
@@ -160,7 +172,7 @@ export const runTee = ({
 		pruneLogs(logDir);
 		const logPath = join(logDir, `dev-${fileStamp()}.log`);
 		const file = createWriteStream(logPath, { flags: "a" });
-		const sink = (text) => file.write(text);
+		const sink = (text) => file.write(sanitizeLogText(text));
 		const out = createLineWriter(sink, "out");
 		const err = createLineWriter(sink, "err");
 

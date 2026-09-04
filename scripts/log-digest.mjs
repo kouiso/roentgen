@@ -188,6 +188,8 @@ export const readEntries = (source) => {
 /** 数値・ID・絶対パスを伏せて「同じ種類の行」にまとめる。 */
 export const normalizeMessage = (message) =>
 	message
+		.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer ***")
+		.replace(/\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]+\b/g, "[REDACTED]")
 		.replace(/(?:[A-Za-z]:)?(?:\/[^\s"'()]+)+/g, (path) => basename(path))
 		.replace(/0x[0-9a-f]+/gi, "«HEX»")
 		.replace(/\b[0-9a-f]{8,}\b/gi, "#")
@@ -234,7 +236,8 @@ export const digest = (entries, { since = null, minLevel = "warn" } = {}) => {
 	for (const entry of dedupe(entries)) {
 		if (!wanted.has(entry.level)) continue;
 		if (since !== null && entry.time < since) continue;
-		const key = `${entry.level} ${normalizeMessage(entry.message)}`;
+		const normalized = normalizeMessage(entry.message);
+		const key = `${entry.level} ${normalized}`;
 		const group = groups.get(key);
 		if (group) {
 			group.count += 1;
@@ -245,8 +248,9 @@ export const digest = (entries, { since = null, minLevel = "warn" } = {}) => {
 		} else {
 			groups.set(key, {
 				level: entry.level,
-				message: normalizeMessage(entry.message),
-				sample: entry.message,
+				message: normalized,
+				// JSON 出力にも患者パスを含む生ログを混ぜん。
+				sample: normalized,
 				count: 1,
 				first: entry.time,
 				last: entry.time,

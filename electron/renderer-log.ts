@@ -38,16 +38,24 @@ const ABSOLUTE_PATH_PATTERN =
 export const scrubPaths = (text: string): string =>
 	text.replace(ABSOLUTE_PATH_PATTERN, (match) => basenameOf(match) || match);
 
+export const redactSecrets = (text: string): string =>
+	text
+		.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer ***")
+		.replace(/\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]+\b/g, "[REDACTED]");
+
+export const sanitizeLogText = (text: string): string =>
+	redactSecrets(scrubPaths(text));
+
 export const sanitizeRendererConsoleMessage = (details: {
 	level: string;
 	message: string;
 	sourceId: string;
 	lineNumber: number;
 }): { level: RendererLogLevel; text: string } => {
-	const full = `[renderer] ${scrubPaths(details.message)} (${basenameOf(details.sourceId)}:${details.lineNumber})`;
+	const full = `[renderer] ${sanitizeLogText(details.message)} (${basenameOf(details.sourceId)}:${details.lineNumber})`;
 	const text =
 		full.length > MAX_TEXT_LENGTH
-			? `${full.slice(0, MAX_TEXT_LENGTH)}${TRUNCATED_SUFFIX}`
+			? `${full.slice(0, MAX_TEXT_LENGTH - TRUNCATED_SUFFIX.length)}${TRUNCATED_SUFFIX}`
 			: full;
 	return { level: toLogLevel(details.level), text };
 };
@@ -87,7 +95,7 @@ export const attachWindowLifecycleLogging = (
 	});
 	webContents.on("preload-error", (_event, preloadPath, error) => {
 		log.error(
-			`[window] preload-error (${basenameOf(preloadPath)}): ${error.message}`,
+			`[window] preload-error (${basenameOf(preloadPath)}): ${sanitizeLogText(error.message)}`,
 		);
 	});
 };
