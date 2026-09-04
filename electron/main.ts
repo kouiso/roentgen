@@ -31,6 +31,7 @@ import {
 	attachRendererConsoleForwarding,
 	attachWindowLifecycleLogging,
 	basenameOf,
+	sanitizeLogArgument,
 } from "./renderer-log";
 import {
 	initSentryIfConsented,
@@ -67,6 +68,10 @@ log.transports.file.resolvePathFn = (variables) =>
 			: join(variables.appData, "Roentgen", "logs"),
 		variables.fileName ?? "main.log",
 	);
+log.hooks?.push((message) => ({
+	...message,
+	data: message.data.map(sanitizeLogArgument),
+}));
 
 const initMainProcessSentry = async (): Promise<void> => {
 	const dsn = process.env.SENTRY_DSN;
@@ -775,7 +780,7 @@ ipcMain.handle(
 			return parsed;
 		} catch (err) {
 			if (!isMissingFileError(err)) {
-				log.warn(`[annotations] 読込失敗: ${studyUid}`, err);
+				log.warn("[annotations] 読込失敗", err);
 			}
 			return null;
 		}

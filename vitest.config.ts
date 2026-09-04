@@ -12,7 +12,14 @@ export default defineConfig({
 		],
 		coverage: {
 			provider: "v8",
-			include: ["src/**/*.{ts,tsx}"],
+			include: [
+				"src/**/*.{ts,tsx}",
+				"electron/renderer-log.ts",
+				"electron/main.ts",
+				"electron/google-drive.ts",
+				"scripts/dev-log.mjs",
+				"scripts/log-digest.mjs",
+			],
 			exclude: ["src/main.tsx", "src/**/*.d.ts"],
 		},
 	},

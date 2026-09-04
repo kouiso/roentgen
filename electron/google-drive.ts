@@ -433,7 +433,7 @@ export const syncToSeedDir = async (
 			);
 
 			if (!(res.data instanceof ArrayBuffer)) {
-				console.error(`[gdrive] 予期しないレスポンス型: ${file.name}`);
+				console.error("[gdrive] 予期しないレスポンス型");
 				continue;
 			}
 
@@ -441,7 +441,7 @@ export const syncToSeedDir = async (
 			saved++;
 		} catch (err) {
 			console.error(
-				`[gdrive] 保存失敗: ${file.name}`,
+				"[gdrive] 保存失敗",
 				err instanceof Error ? err.message : err,
 			);
 		}

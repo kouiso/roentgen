@@ -11,6 +11,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+const logHooks = vi.hoisted(
+	() => [] as Array<(message: { data: unknown[] }) => { data: unknown[] }>,
+);
+
 vi.mock("electron", () => ({
 	app: {
 		isPackaged: false,
@@ -47,6 +51,7 @@ vi.mock("@sentry/electron/main", () => ({
 
 vi.mock("electron-log/main", () => ({
 	default: {
+		hooks: logHooks,
 		initialize: vi.fn((_options?: { preload?: boolean }) => undefined),
 		transports: {
 			file: {
@@ -61,6 +66,28 @@ vi.mock("electron-log/main", () => ({
 		error: vi.fn(),
 	},
 }));
+
+describe("electron main persistent log hook", () => {
+	it("全log引数を永続化前にサニタイズする", async () => {
+		await import("../electron/main");
+		expect(logHooks).toHaveLength(1);
+		const cyclic = Object.create(null) as Record<string, unknown>;
+		cyclic.self = cyclic;
+		const message = logHooks[0]({
+			data: [
+				undefined,
+				Symbol("safe"),
+				'PatientName=山田 太郎, ../患者/秘密.dcm {"client_secret":"before \\"quoted\\" after"}',
+				cyclic,
+			],
+		});
+		const text = message.data.join(" ");
+		expect(text).not.toMatch(/山田|太郎|患者|秘密|before|quoted|after|\.dcm/i);
+		expect(text).toContain("undefined Symbol(safe) PatientName=[PHI]");
+		expect(text).toContain("[DICOM]");
+		expect(text).toContain("[unserializable]");
+	});
+});
 
 vi.mock("../electron/sentry", () => ({
 	initSentryIfConsented: vi.fn(),

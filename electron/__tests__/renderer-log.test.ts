@@ -15,6 +15,7 @@ import {
 	attachWindowLifecycleLogging,
 	basenameOf,
 	redactSecrets,
+	sanitizeLogArgument,
 	sanitizeLogText,
 	sanitizeRendererConsoleMessage,
 	scrubPaths,
@@ -126,8 +127,143 @@ describe("sanitizeLogText", () => {
 			sanitizeLogText(
 				"failed /Users/x/患者A/img.dcm Authorization: Bearer eyJ.secret ghp_abcdef123456",
 			),
-		).toBe("failed img.dcm Authorization: Bearer *** [REDACTED]");
+		).toBe("failed [DICOM] Authorization: *** [REDACTED]");
 		expect(redactSecrets("plain text")).toBe("plain text");
+	});
+
+	it("JSON PHIと複数語の患者名を値全体で伏せる", () => {
+		const text = sanitizeLogText(
+			'{"PatientName":"山田 太郎 続柄","access_token":"secret value"}, PatientID=患者番号 日本語, status=failed',
+		);
+		expect(text).not.toMatch(/山田|太郎|続柄|患者番号|日本語|secret value/);
+		expect(text).toContain("status=failed");
+	});
+
+	it("相対、空白、UNCのDICOMパスと拡張子を原文ごと伏せる", () => {
+		const samples = [
+			"open ../患者 太郎/study/scan.dcm failed",
+			"open .//患者 次郎//study image.dicom failed",
+			"open folder/患者 三郎/画像.dcm failed",
+			"open \\\\server\\share\\患者 四郎\\秘密.dicom failed",
+			"open 患者五郎.dicom failed",
+		];
+		for (const sample of samples) {
+			const text = sanitizeLogText(sample);
+			expect(text).toContain("[DICOM]");
+			expect(text).not.toMatch(
+				/患者|scan|study image|画像|秘密|五郎|\.dcm|\.dicom/i,
+			);
+		}
+	});
+
+	it("通常URLの構造を保ち、DICOM URL全体を伏せる", () => {
+		const normalUrl = sanitizeLogText(
+			"GET https://example.test/a/b?q=1&token=figd_URL_SECRET",
+		);
+		expect(normalUrl).not.toContain("URL_SECRET");
+		expect(normalUrl).toContain("https://example.test/a/b?q=1");
+		const dicomUrl = sanitizeLogText("GET https://example.test/患者/秘密.dcm");
+		expect(dicomUrl).toBe("GET [DICOM]");
+	});
+
+	it("DICOM末尾のUnicode句読点と記号を残してパス全体を伏せる", () => {
+		expect(sanitizeLogText("患者/山田.dcm!")).toBe("[DICOM]!");
+		expect(sanitizeLogText("患者/山田.dcm、次")).toBe("[DICOM]、次");
+		expect(sanitizeLogText("患者/山田.dcm。次")).toBe("[DICOM]。次");
+		expect(sanitizeLogText("患者/山田.dicom！次")).toBe("[DICOM]！次");
+		expect(sanitizeLogText("患者/山田.dicom？次")).toBe("[DICOM]？次");
+		expect(sanitizeLogText("患者/山田.dcm）")).toBe("[DICOM]）");
+		expect(sanitizeLogText("患者/山田.dcm】")).toBe("[DICOM]】");
+		expect(sanitizeLogText("患者/山田.dcm」")).toBe("[DICOM]」");
+		expect(sanitizeLogText("患者/山田.dcm…")).toBe("[DICOM]…");
+		expect(sanitizeLogText("https://example.test/患者/山田.dicom）")).toBe(
+			"[DICOM]",
+		);
+		expect(sanitizeLogText("https://example.test/患者/山田.dicom！？")).toBe(
+			"[DICOM]",
+		);
+		for (const boundary of ["》", "〙", "〟", "※", "★", "©", "→", "〜"]) {
+			expect(boundary).toMatch(/^[\p{P}\p{S}]$/u);
+			expect(sanitizeLogText(`患者/山田.dcm${boundary}`)).toBe(
+				`[DICOM]${boundary}`,
+			);
+			expect(
+				sanitizeLogText(`https://example.test/患者/山田.dicom${boundary}`),
+			).toBe("[DICOM]");
+		}
+	});
+
+	it("emoji sequenceやformat文字でもDICOM URL token全体を伏せる", () => {
+		for (const url of [
+			"https://example.test/患者/山田.dcm⚠️",
+			"https://example.test/患者/山田.dcm©️",
+			"https://example.test/患者/山田.dicom👩‍⚕️",
+			"https://example.test/患者/山田.dcm\u200B次",
+			"https://example.test/患者/山田.dicom\u0301次",
+			"https://example.test/%E6%82%A3%E8%80%85/%E5%B1%B1%E7%94%B0%2Edcm%E2%80%8B",
+		]) {
+			expect(sanitizeLogText(url)).toBe("[DICOM]");
+		}
+		expect(sanitizeLogText("患者/山田.dcm\u200B次")).toBe("[DICOM]\u200B次");
+		expect(sanitizeLogText("患者/山田.dicom\u0301次")).toBe("[DICOM]\u0301次");
+		expect(sanitizeLogText("患者/山田.dcm続")).toBe("患者/山田.dcm続");
+		expect(sanitizeLogText("https://example.test/患者/山田.dcm2")).toBe(
+			"https://example.test/患者/山田.dcm2",
+		);
+	});
+
+	it("空白DICOM、escaped PHI、汎用secret、URL passwordを原文ごと伏せる", () => {
+		const secrets = [
+			"generic-token",
+			"generic-api",
+			"generic-refresh",
+			"generic-client",
+			"url-password",
+		];
+		const text = sanitizeLogText(
+			'open 患者 太郎/study image.dicom {"PatientName":"山田 \\"太郎\\" 続柄"} token=generic-token api_key=generic-api refresh_token=generic-refresh client_secret=generic-client https://user:url-password@example.test/患者/秘密.dcm)',
+		);
+		for (const secret of secrets) expect(text).not.toContain(secret);
+		expect(text).not.toMatch(/患者|太郎|山田|続柄|秘密|\.dcm|\.dicom/i);
+		expect(text).toContain("[DICOM]");
+		for (const sample of [
+			"/Users/x/患者 太郎/山田 花子.dicom",
+			"../患者 太郎/山田 花子 image.dicom",
+			"患者/山田.dcm.",
+			"https://example.test/患者/山田.dicom]",
+			"患者:太郎/山田.dcm:",
+			"https://example.test/患者/山田.dicom}!",
+			"患者/山田.dcm!",
+			"患者/山田.dcm。次",
+			"患者/山田.dicom！？",
+			"https://example.test/患者/山田.dicom！？",
+		]) {
+			const sanitized = sanitizeLogText(sample);
+			expect(sanitized).not.toMatch(/患者|山田|花子|\.dcm|\.dicom/i);
+			expect(sanitized).toContain("[DICOM]");
+		}
+		expect(text).toMatch(/\[DICOM\]\s*$/);
+	});
+
+	it("undefinedとSymbolの引数でもthrowしない", () => {
+		expect(sanitizeLogArgument(undefined)).toBe("undefined");
+		expect(sanitizeLogArgument(Symbol("safe"))).toBe("Symbol(safe)");
+	});
+
+	it("循環null-prototypeとstring化例外でもloggerを止めない", () => {
+		const cyclic = Object.create(null) as Record<string, unknown>;
+		cyclic.self = cyclic;
+		const hostile = {
+			toJSON: () => {
+				throw new Error("json failed");
+			},
+			toString: () => {
+				throw new Error("string failed");
+			},
+		};
+		expect(sanitizeLogArgument(cyclic)).toBe("[unserializable]");
+		expect(sanitizeLogArgument(hostile)).toBe("[unserializable]");
+		expect(sanitizeLogArgument("still alive")).toBe("still alive");
 	});
 });
 
@@ -176,7 +312,7 @@ describe("attachRendererConsoleForwarding", () => {
 
 		expect(log.warn).toHaveBeenCalledTimes(1);
 		expect(log.warn).toHaveBeenCalledWith(
-			"[renderer] viewer failed for img.dcm (viewer.tsx:7)",
+			"[renderer] viewer failed for [DICOM] (viewer.tsx:7)",
 		);
 		expect(allLogArgs()).not.toContain("/Users/x");
 		expect(allLogArgs()).not.toContain("患者A");
@@ -258,7 +394,7 @@ describe("attachWindowLifecycleLogging", () => {
 		const args = allLogArgs();
 		expect(args).toContain("preload.js");
 		expect(args).toContain("boom");
-		expect(args).toContain("secret.dcm");
+		expect(args).toContain("[DICOM]");
 		expect(args).not.toContain("/Users/x/app");
 		expect(args).not.toContain("患者A");
 	});
