@@ -99,8 +99,15 @@ const ANSI_PATTERN = new RegExp(
 const stripAnsi = (text) => text.replace(ANSI_PATTERN, "");
 
 // 端末表示はそのままにし、永続ファイルへ書くコピーだけを最小限マスクする。
-const ABSOLUTE_PATH_PATTERN =
-	/[A-Za-z]:\\[^\s"'`]+|\/[^\s/"'`]+(?:\/[^\s/"'`]+)+/g;
+const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
+const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
+const ABSOLUTE_PATH_PATTERN = new RegExp(
+	[
+		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
+		`/+(?:${SPACED_SEGMENT}/+)*${SPACED_SEGMENT}/+${PATH_SEGMENT}`,
+	].join("|"),
+	"g",
+);
 export const sanitizeLogText = (text) =>
 	text
 		.replace(ABSOLUTE_PATH_PATTERN, (match) => {

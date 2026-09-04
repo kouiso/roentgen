@@ -127,6 +127,12 @@ describe("log-digest", () => {
 				"Authorization: Bearer eyJ.secret /Users/x/患者A/img.dcm ghp_abcdef123456",
 			),
 		).toBe("Authorization: Bearer *** img.dcm [REDACTED]");
+		expect(normalizeMessage("failed /Users/x/患者 太郎/img.dcm")).toBe(
+			"failed img.dcm",
+		);
+		expect(normalizeMessage("failed C:\\Users\\John Doe\\horse\\x.dcm")).toBe(
+			"failed x.dcm",
+		);
 	});
 
 	it("dedupe は main.log と dev ログの同じ行を ±5 秒で 1 件に畳み、app を残す", () => {

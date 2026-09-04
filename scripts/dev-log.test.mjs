@@ -44,6 +44,12 @@ describe("dev-log", () => {
 				"error /Users/x/患者A/img.dcm Bearer eyJ.secret ghp_abcdef123456",
 			),
 		).toBe("error img.dcm Bearer *** [REDACTED]");
+		expect(sanitizeLogText("error /Users/x/患者 太郎/img.dcm")).toBe(
+			"error img.dcm",
+		);
+		expect(sanitizeLogText("error C:\\Users\\John Doe\\horse\\x.dcm")).toBe(
+			"error x.dcm",
+		);
 	});
 
 	it("clockStamp / fileStamp はゼロ埋めした固定幅", () => {

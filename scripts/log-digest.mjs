@@ -200,12 +200,25 @@ export const readEntries = (source) => {
 
 // --- 集計 ---------------------------------------------------------------------
 
+const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
+const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
+const ABSOLUTE_PATH_PATTERN = new RegExp(
+	[
+		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
+		`/+(?:${SPACED_SEGMENT}/+)*${SPACED_SEGMENT}/+${PATH_SEGMENT}`,
+	].join("|"),
+	"g",
+);
+const scrubPaths = (text) =>
+	text.replace(ABSOLUTE_PATH_PATTERN, (match) =>
+		match.split(/[\\/]/).filter(Boolean).at(-1),
+	);
+
 /** 数値・ID・絶対パスを伏せて「同じ種類の行」にまとめる。 */
 export const normalizeMessage = (message) =>
-	message
+	scrubPaths(message)
 		.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer ***")
 		.replace(/\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]+\b/g, "[REDACTED]")
-		.replace(/(?:[A-Za-z]:)?(?:\/[^\s"'()]+)+/g, (path) => basename(path))
 		.replace(/0x[0-9a-f]+/gi, "«HEX»")
 		.replace(/\b[0-9a-f]{8,}\b/gi, "#")
 		.replace(/\d+/g, "#")
