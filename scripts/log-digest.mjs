@@ -45,7 +45,7 @@ export const defaultSources = (cwd = process.cwd()) => {
 	let devFiles = [];
 	try {
 		devFiles = readdirSync(devDir)
-			.filter((name) => /^dev-\d{8}-\d{6}\.log$/.test(name))
+			.filter((name) => /^dev-\d{8}-\d{6}(?:-\d+)?\.log$/.test(name))
 			.sort()
 			.map((name) => join(devDir, name));
 	} catch {
@@ -74,17 +74,22 @@ export const stripAnsi = (text) => text.replace(ANSI_PATTERN, "");
 const ELECTRON_LINE =
 	/^\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?\] \[(\w+)\] ?(.*)$/s;
 const DEV_LINE = /^\[(\d{2}):(\d{2}):(\d{2})\] \[(out|err)\] ?(.*)$/s;
-const DEV_FILE_DATE = /dev-(\d{4})(\d{2})(\d{2})-\d{6}\.log$/;
+const DEV_FILE_DATE = /dev-(\d{4})(\d{2})(\d{2})-\d{6}(?:-\d+)?\.log$/;
 // turbo などが付ける `pkg:task: ` 接頭辞 (例: `@scope/pkg:dev: `)。
 const TURBO_PREFIX = /^[@\w./-]+:[\w:-]+: /;
 // 行頭に固定した判定だけを使う。行中の "error" (error-boundary.tsx のコンパイル行など) は数えない。
 // pnpm の ` ELIFECYCLE  Command failed` は数えない: Ctrl-C で止めるたびに出る症状行で、原因は別の行にある。
-const LEVEL_HEAD = /^(?:[✘×]\s*)?\[?(ERROR|WARN(?:ING)?|FATAL)\]?\b/i;
+const LEVEL_HEAD =
+	/^(?:[✘×]\s*)?\[?(ERROR|WARN(?:ING)?|FATAL)\]?(?=[:\s\]]|$)/i;
 // Chromium / Electron 本体の形式。pid 付き `[26058:0903/004627.203911:ERROR:ssl_client_socket_impl.cc(924)]`
 // と pid 無し `[0903/003025.705923:FATAL:electron_main_delegate.cc(216)]` の両方がある。
 const CHROMIUM_HEAD = /^\[(?:\d+:)?\d+\/\d+\.\d+:(ERROR|WARNING|FATAL):/;
 const VITE_HEAD =
 	/^\[(?:vite|electron-vite)\] (Internal server error|error|warning)\b/i;
+const TOOL_HEAD =
+	/^(?:npm (?:ERR!|error)(?=\s|$)|pnpm ERR_[A-Z0-9_]*(?=\s|$)|UnhandledPromiseRejection(?:Warning)?:|uncaught exception\b)/i;
+const NODE_WARNING_HEAD =
+	/^\(node:\d+\)\s*(?:\[[\w-]+\]\s*)?[A-Za-z]*Warning\b/;
 
 const toEpoch = (y, mo, d, h, mi, s, ms = "0") =>
 	new Date(
@@ -141,6 +146,8 @@ export const classifyDevMessage = (message) => {
 	if (chromium) return normalizeLevel(chromium[1]);
 	const vite = VITE_HEAD.exec(message);
 	if (vite) return /warn/i.test(vite[1]) ? "warn" : "error";
+	if (TOOL_HEAD.test(message)) return "error";
+	if (NODE_WARNING_HEAD.test(message)) return "warn";
 	return "info";
 };
 
@@ -156,7 +163,15 @@ export const readEntries = (source) => {
 	const entries = [];
 	for (const path of source.paths) {
 		if (!existsSync(path)) continue;
-		const lines = readFileSync(path, "utf8").split("\n");
+		let lines;
+		try {
+			lines = readFileSync(path, "utf8").split("\n");
+		} catch (error) {
+			process.stderr.write(
+				`skip ${path}: ${error instanceof Error ? error.message : String(error)}\n`,
+			);
+			continue;
+		}
 		if (source.kind === "dev") {
 			const date = devFileDate(path);
 			if (!date) continue;
@@ -200,8 +215,14 @@ export const readEntries = (source) => {
 
 // --- 集計 ---------------------------------------------------------------------
 
-const PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
+const PATH_SEGMENT = `[^\\s/\\\\"'\`:]+`;
 const SPACED_SEGMENT = `${PATH_SEGMENT}(?:[ \\t]+${PATH_SEGMENT})*`;
+const DICOM_PATH_SEGMENT = `[^\\s/\\\\"'\`]+`;
+const DICOM_SPACED_SEGMENT = `${DICOM_PATH_SEGMENT}(?:[ \\t]+${DICOM_PATH_SEGMENT})*`;
+// 区切り側を列挙するとformat文字などを漏らすため、ファイル名が続く場合だけ除外する。
+const DICOM_BOUNDARY = "(?![\\p{L}\\p{N}_])";
+const DICOM_URL_PATH_PATTERN = /\.(?:dcm|dicom)(?![\p{L}\p{N}_])/iu;
+const TRAILING_URL_BOUNDARY_PATTERN = /[\p{P}\p{S}]+$/u;
 const ABSOLUTE_PATH_PATTERN = new RegExp(
 	[
 		`[A-Za-z]:\\\\+(?:${SPACED_SEGMENT}\\\\+)*${PATH_SEGMENT}`,
@@ -209,16 +230,135 @@ const ABSOLUTE_PATH_PATTERN = new RegExp(
 	].join("|"),
 	"g",
 );
-const scrubPaths = (text) =>
-	text.replace(ABSOLUTE_PATH_PATTERN, (match) =>
-		match.split(/[\\/]/).filter(Boolean).at(-1),
+const DICOM_PATH_PATTERN = new RegExp(
+	`(?:[A-Za-z]:[\\\\/]+|\\\\\\\\+|(?:\\.\\.?[\\\\/]+)+|(?<!\\S)[\\\\/]+)(?:${DICOM_SPACED_SEGMENT}[\\\\/]+)*${DICOM_SPACED_SEGMENT}\\.(?:dcm|dicom)${DICOM_BOUNDARY}`,
+	"giu",
+);
+const DICOM_RELATIVE_PATH_PATTERN = new RegExp(
+	`(?<!\\S)${DICOM_PATH_SEGMENT}(?:[ \\t]+${DICOM_PATH_SEGMENT})?[\\\\/]+(?:${DICOM_SPACED_SEGMENT}[\\\\/]+)*${DICOM_SPACED_SEGMENT}\\.(?:dcm|dicom)${DICOM_BOUNDARY}`,
+	"giu",
+);
+const DICOM_BASENAME_PATTERN = new RegExp(
+	`[^\\s"'(),;{}[\\]]+\\.(?:dcm|dicom)${DICOM_BOUNDARY}`,
+	"giu",
+);
+const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
+const URL_MARKER_PATTERN = /__LOG_URL_(\d+)__/g;
+const JSON_MEMBER_PATTERN =
+	/("((?:\\.|[^"\\])*)"\s*:\s*)("(?:\\.|[^"\\])*"|[^,}\]\s]+)/gu;
+const SECRET_KEY_SOURCE =
+	"x-figma-token|token|(?:access|refresh|id|api|auth)[_-]?token|client[_-]?secret|secret|password|passwd|api[_-]?key|authorization|cookie|set-cookie";
+const normalizeKey = (key) =>
+	key.replace(/([a-z\d])([A-Z])/g, "$1_$2").toLowerCase();
+const isSecretKey = (key) => {
+	const normalized = normalizeKey(key);
+	return (
+		/^(?:x-figma-token|token|(?:access|refresh|id|api|auth)[_-]?token|client[_-]?secret|secret|password|passwd|api[_-]?key|authorization|cookie|set-cookie)$/.test(
+			normalized,
+		) || /(?:^|[_-])token(?:$|[_-])/.test(normalized)
+	);
+};
+const isPhiKey = (key) =>
+	/^(?:patientname|patientid|patient_name|patient_id|studyuid|study_uid)$/i.test(
+		normalizeKey(key),
+	);
+const redactJsonFields = (text, predicate, replacement) =>
+	text.replace(JSON_MEMBER_PATTERN, (match, prefix, encodedKey) => {
+		try {
+			const key = JSON.parse(`"${encodedKey}"`);
+			return typeof key === "string" && predicate(key)
+				? `${prefix}${JSON.stringify(replacement)}`
+				: match;
+		} catch {
+			return match;
+		}
+	});
+const sanitizeUrl = (raw) => {
+	let rawUrl;
+	try {
+		rawUrl = new URL(raw);
+		let pathname = rawUrl.pathname;
+		try {
+			pathname = decodeURIComponent(pathname);
+		} catch {
+			// 壊れたpercent encodingでも、未encodeの拡張子は安全側で判定する。
+		}
+		if (DICOM_URL_PATH_PATTERN.test(pathname)) return "[DICOM]";
+	} catch {
+		return raw;
+	}
+	const trailing = TRAILING_URL_BOUNDARY_PATTERN.exec(raw)?.[0] ?? "";
+	const candidate = trailing ? raw.slice(0, -trailing.length) : raw;
+	try {
+		const url = trailing ? new URL(candidate) : rawUrl;
+		let changed = false;
+		if (url.password) {
+			url.password = "***";
+			changed = true;
+		}
+		for (const key of new Set(url.searchParams.keys())) {
+			if (!isSecretKey(key)) continue;
+			url.searchParams.set(key, "***");
+			changed = true;
+		}
+		return changed ? `${url.toString()}${trailing}` : raw;
+	} catch {
+		return raw;
+	}
+};
+const transformOutsideUrls = (text, transform) => {
+	const urls = [];
+	const protectedText = text.replace(URL_PATTERN, (raw) => {
+		const safe = sanitizeUrl(raw);
+		urls.push(safe);
+		return `__LOG_URL_${urls.length - 1}__`;
+	});
+	return transform(protectedText).replace(
+		URL_MARKER_PATTERN,
+		(_marker, index) => urls[Number(index)] ?? "[URL]",
+	);
+};
+const redactKeyValue = (text, keys, replacement, allowSpaces = false) =>
+	text.replace(
+		new RegExp(
+			`(["']?(?:${keys})["']?\\s*[:=]\\s*)(?:"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|${allowSpaces ? "[^,;}&\\n]+" : "[^\\s,;}&]+"})`,
+			"giu",
+		),
+		`$1${replacement}`,
+	);
+const redactSecrets = (text) =>
+	redactKeyValue(
+		redactJsonFields(text, isSecretKey, "***")
+			.replace(/figd_[A-Za-z0-9_-]+/gi, "figd_***")
+			.replace(/\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]+\b/gi, "[REDACTED]")
+			.replace(
+				/(["']?authorization["']?\s*[:=]\s*)(?:Bearer|Basic)\s+[^\s,;}&]+/giu,
+				"$1***",
+			)
+			.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer ***"),
+		SECRET_KEY_SOURCE,
+		"***",
 	);
 
 /** 数値・ID・絶対パスを伏せて「同じ種類の行」にまとめる。 */
 export const normalizeMessage = (message) =>
-	scrubPaths(message)
-		.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer ***")
-		.replace(/\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]+\b/g, "[REDACTED]")
+	transformOutsideUrls(
+		redactKeyValue(
+			redactJsonFields(redactSecrets(message), isPhiKey, "[PHI]"),
+			"PatientName|PatientID|patientName|patientId|studyUid",
+			"[PHI]",
+			true,
+		),
+		(value) =>
+			value
+				.replace(DICOM_PATH_PATTERN, "[DICOM]")
+				.replace(DICOM_RELATIVE_PATH_PATTERN, "[DICOM]")
+				.replace(DICOM_BASENAME_PATTERN, "[DICOM]")
+				.replace(ABSOLUTE_PATH_PATTERN, (match) =>
+					match.split(/[\\/]/).filter(Boolean).at(-1),
+				),
+	)
+		.replace(/(?<![\d.])(?:\d+\.){2,}\d+(?![\d.])/g, "[UID]")
 		.replace(/0x[0-9a-f]+/gi, "«HEX»")
 		.replace(/\b[0-9a-f]{8,}\b/gi, "#")
 		.replace(/\d+/g, "#")
@@ -234,27 +374,87 @@ const DEDUPE_WINDOW_MS = 5000;
  * 正規化メッセージが同じで時刻が ±5 秒以内なら dev 側を落とす (app が正)。
  */
 export const dedupe = (entries) => {
-	const app = entries.filter((entry) => entry.source === "app");
+	const appByKey = new Map();
+	for (const entry of entries) {
+		if (entry.source !== "app") continue;
+		const key = normalizeMessage(entry.message);
+		const times = appByKey.get(key) ?? [];
+		times.push(entry.time);
+		appByKey.set(key, times);
+	}
+	for (const times of appByKey.values()) times.sort((a, b) => a - b);
 	return entries.filter((entry) => {
 		if (entry.source !== "dev") return true;
 		const key = normalizeMessage(entry.message);
-		return !app.some(
-			(other) =>
-				Math.abs(other.time - entry.time) <= DEDUPE_WINDOW_MS &&
-				normalizeMessage(other.message) === key,
+		const times = appByKey.get(key);
+		if (!times) return true;
+		let low = 0;
+		let high = times.length;
+		while (low < high) {
+			const mid = (low + high) >> 1;
+			if (times[mid] < entry.time - DEDUPE_WINDOW_MS) low = mid + 1;
+			else high = mid;
+		}
+		return (
+			times[low] === undefined || times[low] > entry.time + DEDUPE_WINDOW_MS
 		);
 	});
 };
+
+const ISO_SINCE =
+	/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|([+-])(\d{2}):(\d{2}))?$/;
+const isLeapYear = (year) =>
+	year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+const daysInMonth = (year, month) =>
+	[31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][
+		month - 1
+	] ?? 0;
+const MAX_DATE_MS = 8_640_000_000_000_000;
 
 export const parseSince = (value, now = Date.now()) => {
 	if (!value) return null;
 	const rel = /^(\d+)([smhd])$/.exec(value);
 	if (rel) {
 		const unit = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[rel[2]];
-		return now - Number(rel[1]) * unit;
+		const amount = Number(rel[1]);
+		if (!Number.isSafeInteger(amount)) return null;
+		const result = now - amount * unit;
+		return Number.isSafeInteger(result) && Math.abs(result) <= MAX_DATE_MS
+			? result
+			: null;
 	}
+	const parts = ISO_SINCE.exec(value);
+	if (!parts) return null;
+	const [year, month, day, hour, minute, second] = parts
+		.slice(1, 7)
+		.map((part) => Number(part ?? 0));
+	if (
+		month < 1 ||
+		month > 12 ||
+		day < 1 ||
+		day > daysInMonth(year, month) ||
+		hour > 23 ||
+		minute > 59 ||
+		second > 59 ||
+		(parts[10] !== undefined && Number(parts[10]) > 23) ||
+		(parts[11] !== undefined && Number(parts[11]) > 59)
+	)
+		return null;
 	const abs = Date.parse(value);
-	return Number.isNaN(abs) ? null : abs;
+	if (Number.isNaN(abs)) return null;
+	if (parts[8] === undefined) {
+		const parsed = new Date(abs);
+		if (
+			parsed.getFullYear() !== year ||
+			parsed.getMonth() + 1 !== month ||
+			parsed.getDate() !== day ||
+			parsed.getHours() !== hour ||
+			parsed.getMinutes() !== minute ||
+			parsed.getSeconds() !== second
+		)
+			return null;
+	}
+	return abs;
 };
 
 export const digest = (entries, { since = null, minLevel = "warn" } = {}) => {

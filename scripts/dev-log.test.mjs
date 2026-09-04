@@ -1,9 +1,12 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
+	existsSync,
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
+	statSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +18,9 @@ import {
 	createLineWriter,
 	fileStamp,
 	printSummary,
+	processStartToken,
 	pruneLogs,
+	recoverStaleActiveLogs,
 	runTee,
 	sanitizeLogText,
 } from "./dev-log.mjs";
@@ -43,14 +48,131 @@ describe("dev-log", () => {
 			sanitizeLogText(
 				"error /Users/x/患者A/img.dcm Bearer eyJ.secret ghp_abcdef123456",
 			),
-		).toBe("error img.dcm Bearer *** [REDACTED]");
+		).toBe("error [DICOM] Bearer *** [REDACTED]");
 		expect(sanitizeLogText("error /Users/x/患者 太郎/img.dcm")).toBe(
-			"error img.dcm",
+			"error [DICOM]",
 		);
 		expect(sanitizeLogText("error C:\\Users\\John Doe\\horse\\x.dcm")).toBe(
-			"error x.dcm",
+			"error [DICOM]",
 		);
 	});
+
+	it("永続コピーでは各種トークンと長大行を伏せる", () => {
+		const sanitized = sanitizeLogText(
+			`FIGD_SECRET X-Figma-Token: abc access_token=xyz github_pat_123 ${"x".repeat(9000)}`,
+		);
+		expect(sanitized).not.toMatch(/SECRET|abc|xyz|github_pat_123/);
+		expect(sanitized).toMatch(/\[truncated\]$/);
+	});
+
+	it("JSON形式のtokenとPHIを伏せ、URLを壊さない", () => {
+		const sanitized = sanitizeLogText(
+			'{"access_token":"secret value","PatientName":"山田 太郎 続柄"} https://example.test/a/b?q=1&token=figd_URL_SECRET',
+		);
+		expect(sanitized).not.toMatch(/secret value|山田|太郎|続柄|URL_SECRET/);
+		expect(sanitized).toContain("https://example.test/a/b?q=1");
+	});
+
+	it("DICOM末尾のUnicode句読点と記号を残してパス全体を伏せる", () => {
+		expect(sanitizeLogText("患者/山田.dcm!")).toBe("[DICOM]!");
+		expect(sanitizeLogText("患者/山田.dcm、次")).toBe("[DICOM]、次");
+		expect(sanitizeLogText("患者/山田.dcm。次")).toBe("[DICOM]。次");
+		expect(sanitizeLogText("患者/山田.dicom！次")).toBe("[DICOM]！次");
+		expect(sanitizeLogText("患者/山田.dicom？次")).toBe("[DICOM]？次");
+		expect(sanitizeLogText("患者/山田.dcm）")).toBe("[DICOM]）");
+		expect(sanitizeLogText("患者/山田.dcm】")).toBe("[DICOM]】");
+		expect(sanitizeLogText("患者/山田.dcm」")).toBe("[DICOM]」");
+		expect(sanitizeLogText("患者/山田.dcm…")).toBe("[DICOM]…");
+		expect(sanitizeLogText("https://example.test/患者/山田.dicom）")).toBe(
+			"[DICOM]",
+		);
+		expect(sanitizeLogText("https://example.test/患者/山田.dicom！？")).toBe(
+			"[DICOM]",
+		);
+		for (const boundary of ["》", "〙", "〟", "※", "★", "©", "→", "〜"]) {
+			expect(boundary).toMatch(/^[\p{P}\p{S}]$/u);
+			expect(sanitizeLogText(`患者/山田.dcm${boundary}`)).toBe(
+				`[DICOM]${boundary}`,
+			);
+			expect(
+				sanitizeLogText(`https://example.test/患者/山田.dicom${boundary}`),
+			).toBe("[DICOM]");
+		}
+	});
+
+	it("emoji sequenceやformat文字でもDICOM URL token全体を伏せる", () => {
+		for (const url of [
+			"https://example.test/患者/山田.dcm⚠️",
+			"https://example.test/患者/山田.dcm©️",
+			"https://example.test/患者/山田.dicom👩‍⚕️",
+			"https://example.test/患者/山田.dcm\u200B次",
+			"https://example.test/患者/山田.dicom\u0301次",
+			"https://example.test/%E6%82%A3%E8%80%85/%E5%B1%B1%E7%94%B0%2Edcm%E2%80%8B",
+		]) {
+			expect(sanitizeLogText(url)).toBe("[DICOM]");
+		}
+		expect(sanitizeLogText("患者/山田.dcm\u200B次")).toBe("[DICOM]\u200B次");
+		expect(sanitizeLogText("患者/山田.dicom\u0301次")).toBe("[DICOM]\u0301次");
+		expect(sanitizeLogText("患者/山田.dcm続")).toBe("患者/山田.dcm続");
+		expect(sanitizeLogText("https://example.test/患者/山田.dcm2")).toBe(
+			"https://example.test/患者/山田.dcm2",
+		);
+	});
+
+	it("空白DICOM、escaped PHI、汎用secret、URL passwordを原文ごと伏せる", () => {
+		const text = sanitizeLogText(
+			'open 患者 太郎/study image.dicom {"PatientName":"山田 \\"太郎\\" 続柄"} token=generic-token api_key=generic-api refresh_token=generic-refresh client_secret=generic-client https://user:url-password@example.test/患者/秘密.dcm)',
+		);
+		for (const secret of [
+			"generic-token",
+			"generic-api",
+			"generic-refresh",
+			"generic-client",
+			"url-password",
+		]) {
+			expect(text).not.toContain(secret);
+		}
+		expect(text).not.toMatch(/患者|太郎|山田|続柄|秘密|\.dcm|\.dicom/i);
+		expect(text).toContain("[DICOM]");
+		expect(text).toMatch(/\[DICOM\]$/);
+		for (const sample of [
+			"/Users/x/患者 太郎/山田 花子.dicom",
+			"../患者 太郎/山田 花子 image.dicom",
+			"患者/山田.dcm.",
+			"https://example.test/患者/山田.dicom]",
+			"患者:太郎/山田.dcm:",
+			"https://example.test/患者/山田.dicom}!",
+			"患者/山田.dcm!",
+			"患者/山田.dcm。次",
+			"患者/山田.dicom！？",
+			"https://example.test/患者/山田.dicom！？",
+		]) {
+			const sanitized = sanitizeLogText(sample);
+			expect(sanitized).not.toMatch(/患者|山田|花子|\.dcm|\.dicom/i);
+			expect(sanitized).toContain("[DICOM]");
+		}
+	});
+
+	it("TTYのSIGINTでも子が終了しなければ猶予後に強制終了する", async () =>
+		withTempDir(async (dir) => {
+			const done = runTee({
+				command: process.execPath,
+				args: [
+					"-e",
+					'process.on("SIGINT", () => {}); setInterval(() => {}, 1000);',
+				],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				stdin: { isTTY: true },
+				signalGraceMs: 50,
+			});
+			await new Promise((resolveWait) => setTimeout(resolveWait, 300));
+			process.emit("SIGINT");
+			const { code } = await done;
+
+			expect(code).toBe(130);
+		}));
 
 	it("clockStamp / fileStamp はゼロ埋めした固定幅", () => {
 		const date = new Date(2026, 8, 2, 9, 5, 7);
@@ -94,6 +216,28 @@ describe("dev-log", () => {
 		);
 		writer.write("[33mwarning[0m 1\rwarning 2\n");
 		expect(out[0]).toBe("[10:00:00] [err] [33mwarning[0m 1\rwarning 2\n");
+	});
+
+	it("createLineWriter は分割UTF-8を壊さず、改行なしの残余を上限内に保つ", () => {
+		const out = [];
+		const writer = createLineWriter(
+			(text) => out.push(text),
+			"out",
+			() => "10:00:00",
+			32,
+		);
+		const encoded = Buffer.from("患者\n");
+		writer.write(encoded.subarray(0, 2));
+		writer.write(encoded.subarray(2));
+		writer.write("x".repeat(100));
+		writer.write("discarded until newline\nstill works\n");
+		writer.flush();
+
+		expect(out[0]).toContain("患者");
+		expect(out.join("")).not.toContain("�");
+		expect(out[1]).toMatch(/\[truncated\]$/m);
+		expect(out.some((line) => line.endsWith("still works\n"))).toBe(true);
+		expect(out.join("")).not.toContain("discarded");
 	});
 
 	it("pruneLogs は本数と合計バイトの上限を超えた分だけ古い順に消す", () =>
@@ -166,7 +310,7 @@ describe("dev-log", () => {
 			});
 
 			const text = readFileSync(logPath, "utf8");
-			expect(text).toContain("error img.dcm");
+			expect(text).toContain("error [DICOM]");
 			expect(text).not.toContain("患者A");
 		}));
 
@@ -200,11 +344,36 @@ describe("dev-log", () => {
 			expect(started.child.exitCode).toBe(130);
 		}));
 
+	it("runTee は SIGHUP を専用process groupへ転送して129を返す", async () =>
+		withTempDir(async (dir) => {
+			const done = runTee({
+				command: process.execPath,
+				args: [
+					"-e",
+					'process.on("SIGHUP", () => process.exit(129)); process.stdout.write("ready\\n"); setInterval(() => {}, 1000);',
+				],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+			});
+			await new Promise((resolveWait) => setTimeout(resolveWait, 300));
+			process.emit("SIGHUP");
+			const { code } = await done;
+			expect(code).toBe(129);
+		}));
+
 	it("runTee のシグナル転送は孫プロセス (turbo → Electron の形) まで届く", async () =>
 		withTempDir(async (dir) => {
-			// 子は SIGINT で自分だけ終わり、孫 (sleep) を残す。ラッパーが木ごと送るので孫も消えるはず。
-			const script =
-				'const { spawn } = require("node:child_process"); spawn("sleep", ["12345"], { stdio: "ignore" }); process.on("SIGINT", () => process.exit(130)); setInterval(() => {}, 1000);';
+			const pidPath = join(dir, "grandchild.pid");
+			const script = [
+				'const { spawn } = require("node:child_process");',
+				'const { writeFileSync } = require("node:fs");',
+				'const grandchild = spawn("sleep", ["12345"], { stdio: "ignore" });',
+				`writeFileSync(${JSON.stringify(pidPath)}, String(grandchild.pid));`,
+				'process.on("SIGINT", () => process.exit(130));',
+				"setInterval(() => {}, 1000);",
+			].join(" ");
+			let grandchildPid = 0;
 			const done = runTee({
 				command: process.execPath,
 				args: ["-e", script],
@@ -213,16 +382,75 @@ describe("dev-log", () => {
 				logDir: dir,
 				stdin: { isTTY: false },
 			});
-			await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+			for (let count = 0; count < 200 && !existsSync(pidPath); count += 1) {
+				await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+			}
+			if (!existsSync(pidPath)) {
+				process.emit("SIGINT");
+				await done;
+				throw new Error("孫PIDの準備が時間内に完了しなかった");
+			}
+			grandchildPid = Number(readFileSync(pidPath, "utf8"));
 			process.emit("SIGINT");
 			const { code } = await done;
-			await new Promise((resolveWait) => setTimeout(resolveWait, 300));
 
 			expect(code).toBe(130);
-			const survivors = spawnSync("pgrep", ["-f", "^sleep 12345$"], {
-				encoding: "utf8",
-			}).stdout.trim();
-			expect(survivors).toBe("");
+			expect(() => process.kill(grandchildPid, 0)).toThrow(
+				expect.objectContaining({ code: "ESRCH" }),
+			);
+		}));
+
+	it("TTYで直下の子が130終了しても、SIGINTを無視する孫を残さない", async () =>
+		withTempDir(async (dir) => {
+			const pidPath = join(dir, "grandchild.pid");
+			const grandchild =
+				'process.on("SIGINT", () => {}); setInterval(() => {}, 1000);';
+			const child = [
+				'const { spawn } = require("node:child_process");',
+				'const { writeFileSync } = require("node:fs");',
+				`const grandchild = spawn(process.execPath, ["-e", ${JSON.stringify(grandchild)}], { stdio: "ignore" });`,
+				`writeFileSync(${JSON.stringify(pidPath)}, String(grandchild.pid));`,
+				'process.on("SIGINT", () => process.exit(130));',
+				"setInterval(() => {}, 1000);",
+			].join(" ");
+			let started;
+			let grandchildPid = 0;
+			const done = runTee({
+				command: process.execPath,
+				args: ["-e", child],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				stdin: { isTTY: true },
+				signalGraceMs: 50,
+				onStarted: (info) => {
+					started = info;
+				},
+			});
+			for (let count = 0; count < 200 && !existsSync(pidPath); count += 1) {
+				await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+			}
+			if (!existsSync(pidPath)) {
+				process.kill(started.child.pid, "SIGKILL");
+				await done;
+				throw new Error("孫PIDの準備が時間内に完了しなかった");
+			}
+			grandchildPid = Number(readFileSync(pidPath, "utf8"));
+			process.emit("SIGINT");
+			const { code } = await done;
+
+			expect(code).toBe(130);
+			let grandchildAlive = true;
+			for (let count = 0; count < 100 && grandchildAlive; count += 1) {
+				try {
+					process.kill(grandchildPid, 0);
+					await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+				} catch {
+					grandchildAlive = false;
+				}
+			}
+			if (grandchildAlive) process.kill(grandchildPid, "SIGKILL");
+			expect(grandchildAlive, "SIGINTを無視した孫が残っている").toBe(false);
 		}));
 
 	it("runTee は起動できないコマンドでも解決し、理由をファイルに残す", async () =>
@@ -239,6 +467,290 @@ describe("dev-log", () => {
 			expect(readFileSync(logPath, "utf8")).toMatch(/\[err\] failed to start/);
 		}));
 
+	it("ログディレクトリへ書けなくても子コマンドは実行する", async () =>
+		withTempDir(async (dir) => {
+			const blocked = join(dir, "blocked");
+			writeFileSync(blocked, "file");
+			const { code } = await runTee({
+				command: process.execPath,
+				args: ["-e", "process.exit(0)"],
+				cwd: dir,
+				env: process.env,
+				logDir: blocked,
+			});
+			expect(code).toBe(0);
+		}));
+
+	it("quota lockを取れなくても子は実行し、loggingを成功扱いしない", async () =>
+		withTempDir(async (dir) => {
+			writeFileSync(
+				join(dir, ".dev-log-quota.lock"),
+				JSON.stringify({ pid: process.pid }),
+			);
+			const result = await runTee({
+				command: process.execPath,
+				args: ["-e", 'process.stdout.write("child-ran\\n")'],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				quotaLockTimeoutMs: 30,
+			});
+			expect(result.code).toBe(0);
+			expect(result.loggingEnabled).toBe(false);
+			expect(existsSync(result.logPath)).toBe(false);
+		}));
+
+	it("同一秒の並行起動は別ファイルを確保する", async () =>
+		withTempDir(async (dir) => {
+			const start = (marker) =>
+				runTee({
+					command: process.execPath,
+					args: [
+						"-e",
+						`process.stdout.write(${JSON.stringify(`${marker}\n`)})`,
+					],
+					cwd: dir,
+					env: process.env,
+					logDir: dir,
+				});
+			const [first, second] = await Promise.all([
+				start("first"),
+				start("second"),
+			]);
+			expect(first.logPath).not.toBe(second.logPath);
+			expect(readFileSync(first.logPath, "utf8")).toContain("first");
+			expect(readFileSync(second.logPath, "utf8")).toContain("second");
+		}));
+
+	it(
+		"20並列でもactive名を衝突・残留させず、総量上限を超えない",
+		async () =>
+			withTempDir(async (dir) => {
+				const previousMaxListeners = process.getMaxListeners();
+				process.setMaxListeners(30);
+				const results = await Promise.all(
+					Array.from({ length: 20 }, (_, index) =>
+						runTee({
+							command: process.execPath,
+							args: [
+								"-e",
+								`process.stdout.write(${JSON.stringify(`worker-${index}\n`)})`,
+							],
+							cwd: dir,
+							env: process.env,
+							logDir: dir,
+							maxTotalBytes: 300,
+						}),
+					),
+				).finally(() => process.setMaxListeners(previousMaxListeners));
+				expect(new Set(results.map(({ logPath }) => logPath)).size).toBe(20);
+				expect(
+					readdirSync(dir).filter((name) => name.endsWith(".active")),
+				).toHaveLength(0);
+				expect(
+					readdirSync(dir).filter(
+						(name) => name.endsWith(".owner") || name.endsWith(".lock"),
+					),
+				).toHaveLength(0);
+				const finalLogs = readdirSync(dir).filter((name) =>
+					/^dev-.*\.log$/.test(name),
+				);
+				expect(finalLogs.length).toBeLessThanOrEqual(10);
+				const total = finalLogs.reduce(
+					(sum, name) => sum + statSync(join(dir, name)).size,
+					0,
+				);
+				expect(total).toBeLessThanOrEqual(300);
+			}),
+		15_000,
+	);
+
+	it("所有権不明のactiveでquotaが尽きたら0B finalを成功扱いせず、自分のactiveを消す", async () =>
+		withTempDir(async (dir) => {
+			writeFileSync(
+				join(dir, "dev-20260902-100000.log.active"),
+				"x".repeat(90),
+			);
+			const result = await runTee({
+				command: process.execPath,
+				args: ["-e", 'process.stdout.write("new output\\n")'],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				maxTotalBytes: 100,
+			});
+			const total = readdirSync(dir)
+				.filter((name) => /^dev-.*\.log(?:\.active)?$/.test(name))
+				.reduce((sum, name) => sum + statSync(join(dir, name)).size, 0);
+			expect(total).toBeLessThanOrEqual(100);
+			expect(result.loggingEnabled).toBe(false);
+			expect(existsSync(result.logPath)).toBe(false);
+			expect(
+				readdirSync(dir).filter((name) => name.endsWith(".active")),
+			).toEqual(["dev-20260902-100000.log.active"]);
+		}));
+
+	it("active logの上限後も子コマンドを完走する", async () =>
+		withTempDir(async (dir) => {
+			const result = await runTee({
+				command: process.execPath,
+				args: ["-e", 'process.stdout.write("x".repeat(1000))'],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				maxLogBytes: 100,
+			});
+			expect(result.code).toBe(0);
+			expect(result.loggingEnabled).toBe(false);
+			expect(existsSync(result.logPath)).toBe(false);
+		}));
+
+	it("死んだownerのactiveをfinalへ昇格し、PID再利用と生存ownerを区別する", () =>
+		withTempDir((dir) => {
+			const stale = join(dir, "dev-20260902-100000.log.active");
+			const staleFinal = stale.slice(0, -".active".length);
+			writeFileSync(stale, "stale");
+			writeFileSync(
+				`${stale}.owner`,
+				JSON.stringify({ pid: process.pid, startToken: "other" }),
+			);
+			expect(
+				recoverStaleActiveLogs(
+					dir,
+					() => true,
+					() => "current",
+				),
+			).toEqual([staleFinal]);
+			expect(readFileSync(staleFinal, "utf8")).toBe("stale");
+			expect(existsSync(stale)).toBe(false);
+
+			const live = join(dir, "dev-20260902-100001.log.active");
+			writeFileSync(live, "live");
+			writeFileSync(`${live}.owner`, JSON.stringify({ pid: process.pid }));
+			expect(recoverStaleActiveLogs(dir, () => true)).toEqual([]);
+			expect(existsSync(live)).toBe(true);
+		}));
+
+	it("ownerが空のままcrashしたactiveも猶予後にfinalへ昇格する", () =>
+		withTempDir((dir) => {
+			const active = join(dir, "dev-20260902-100000.log.active");
+			const final = active.slice(0, -".active".length);
+			writeFileSync(active, "before crash\n");
+			writeFileSync(`${active}.owner`, "");
+			const old = new Date(Date.now() - 2000);
+			utimesSync(active, old, old);
+
+			expect(
+				recoverStaleActiveLogs(
+					dir,
+					() => false,
+					() => null,
+					0,
+				),
+			).toEqual([final]);
+			expect(readFileSync(final, "utf8")).toBe("before crash\n");
+			expect(existsSync(`${active}.owner`)).toBe(false);
+		}));
+
+	it("active公開前にcrashした孤立ownerを猶予後に回収する", () =>
+		withTempDir((dir) => {
+			const ownerPath = join(dir, "dev-20260902-100000.log.active.owner");
+			writeFileSync(ownerPath, JSON.stringify({ pid: 999_999 }));
+			const old = new Date(Date.now() - 2000);
+			utimesSync(ownerPath, old, old);
+
+			recoverStaleActiveLogs(
+				dir,
+				() => false,
+				() => null,
+				0,
+			);
+			expect(existsSync(ownerPath)).toBe(false);
+		}));
+
+	it("独立Node間でもquota確認とwriteを原子化する", async () =>
+		withTempDir(async (dir) => {
+			const barrier = join(dir, "go");
+			const moduleUrl = new URL("./dev-log.mjs", import.meta.url).href;
+			const worker = [
+				'import { existsSync } from "node:fs";',
+				`const { runTee } = await import(${JSON.stringify(moduleUrl)});`,
+				`while (!existsSync(${JSON.stringify(barrier)})) await new Promise((r) => setTimeout(r, 5));`,
+				`await runTee({ command: process.execPath, args: ["-e", ${JSON.stringify('process.stdout.write("x".repeat(250) + "\\n")')}], cwd: ${JSON.stringify(dir)}, env: process.env, logDir: ${JSON.stringify(dir)}, maxTotalBytes: 1000 });`,
+			].join("\n");
+			const workers = Array.from({ length: 8 }, () =>
+				spawn(process.execPath, ["--input-type=module", "-e", worker], {
+					stdio: "ignore",
+				}),
+			);
+			writeFileSync(barrier, "go");
+			const codes = await Promise.all(
+				workers.map(
+					(child) =>
+						new Promise((resolve) =>
+							child.once("exit", (code) => resolve(code)),
+						),
+				),
+			);
+			expect(codes).toEqual(Array(8).fill(0));
+			const logs = readdirSync(dir).filter((name) =>
+				/^dev-.*\.log(?:\.active)?$/.test(name),
+			);
+			const total = logs.reduce(
+				(sum, name) => sum + statSync(join(dir, name)).size,
+				0,
+			);
+			expect(total).toBeLessThanOrEqual(1000);
+		}));
+
+	it("WindowsのPID開始時刻はPowerShell失敗時にWMICへfallbackする", () => {
+		const calls = [];
+		const token = processStartToken(
+			42,
+			(command) => {
+				calls.push(command);
+				return command === "powershell.exe"
+					? { status: 1, stdout: "" }
+					: {
+							status: 0,
+							stdout: "CreationDate=20260904010203.000000-420\n",
+						};
+			},
+			"win32",
+		);
+		expect(token).toBe("20260904010203.000000-420");
+		expect(calls).toEqual(["powershell.exe", "wmic"]);
+	});
+
+	it("旧実装が残した空lockは猶予後に安全回収する", async () =>
+		withTempDir(async (dir) => {
+			const lockPath = join(dir, ".dev-log-quota.lock");
+			writeFileSync(lockPath, "");
+			const old = new Date(Date.now() - 2000);
+			utimesSync(lockPath, old, old);
+			const result = await runTee({
+				command: process.execPath,
+				args: ["-e", 'process.stdout.write("recovered\\n")'],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+			});
+			expect(result.loggingEnabled).toBe(true);
+			expect(readFileSync(result.logPath, "utf8")).toContain("recovered");
+		}));
+
+	it("子が自発SIGTERM終了したら143を返す", async () =>
+		withTempDir(async (dir) => {
+			const result = await runTee({
+				command: process.execPath,
+				args: ["-e", 'process.kill(process.pid, "SIGTERM")'],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+			});
+			expect(result.code).toBe(143);
+		}));
+
 	it("printSummary は digest が無ければパスだけ出す", () =>
 		withTempDir((dir) => {
 			const logPath = join(dir, "dev-20260902-100000.log");
@@ -248,5 +760,42 @@ describe("dev-log", () => {
 				out.push(text),
 			);
 			expect(out).toEqual([`dev log → ${logPath}\n`]);
+		}));
+
+	it("printSummary はログ無効時にgreen summaryを出さない", () =>
+		withTempDir((dir) => {
+			const logPath = join(dir, "missing.log");
+			const out = [];
+			printSummary(logPath, join(dir, "missing-digest.mjs"), (text) =>
+				out.push(text),
+			);
+			expect(out).toEqual([`dev log unavailable → ${logPath}\n`]);
+			expect(out.join("")).not.toContain("✓");
+		}));
+
+	it("quotaで途中欠落したログはfinalを残すがgreen summaryを出さない", async () =>
+		withTempDir(async (dir) => {
+			const result = await runTee({
+				command: process.execPath,
+				args: [
+					"-e",
+					'process.stdout.write("first\\n" + "x".repeat(1000) + "\\n")',
+				],
+				cwd: dir,
+				env: process.env,
+				logDir: dir,
+				maxLogBytes: 100,
+			});
+			expect(result.loggingEnabled).toBe(false);
+			expect(existsSync(result.logPath)).toBe(true);
+			const out = [];
+			printSummary(
+				result.logPath,
+				join(dir, "missing-digest.mjs"),
+				(text) => out.push(text),
+				false,
+			);
+			expect(out).toEqual([`dev log incomplete → ${result.logPath}\n`]);
+			expect(out.join("")).not.toContain("✓");
 		}));
 });
