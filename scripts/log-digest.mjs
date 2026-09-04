@@ -150,6 +150,8 @@ export const devFileDate = (path) => {
 	return { y: m[1], mo: m[2], d: m[3] };
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export const readEntries = (source) => {
 	const entries = [];
 	for (const path of source.paths) {
@@ -158,14 +160,27 @@ export const readEntries = (source) => {
 		if (source.kind === "dev") {
 			const date = devFileDate(path);
 			if (!date) continue;
+			// dev ログの行は時刻しか持たず、日付はファイル名から補う。日をまたいで
+			// 走り続けたセッションでは 23:59 の次が 00:00 になるので、時刻が
+			// 巻き戻ったところで 1 日進める (tee は時系列に書くため)。
+			let dayShift = 0;
+			let previous = null;
 			for (const line of lines) {
-				for (const entry of parseDevLine(line, date))
+				for (const entry of parseDevLine(line, date)) {
+					let time = entry.time + dayShift;
+					if (previous !== null && time < previous) {
+						dayShift += DAY_MS;
+						time += DAY_MS;
+					}
+					previous = time;
 					entries.push({
 						...entry,
+						time,
 						source: source.kind,
 						file: path,
 						raw: line,
 					});
+				}
 			}
 		} else {
 			for (const line of lines) {

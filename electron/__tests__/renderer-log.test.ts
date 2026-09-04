@@ -97,6 +97,25 @@ describe("scrubPaths", () => {
 	it("leaves text without paths untouched", () => {
 		expect(scrubPaths("plain message 1/2 done")).toBe("plain message 1/2 done");
 	});
+
+	it("strips folder names that contain spaces (患者名の混入を防ぐ)", () => {
+		expect(scrubPaths("failed /Users/kouiso/患者 太郎/img.dcm")).toBe(
+			"failed img.dcm",
+		);
+		expect(scrubPaths("C:\\Users\\John Doe\\horse\\x.dcm missing")).toBe(
+			"x.dcm missing",
+		);
+	});
+
+	it("scrubs escaped Windows separators (JSON 化されたパス)", () => {
+		expect(scrubPaths("open C:\\\\Users\\\\John Doe\\\\x.dcm failed")).toBe(
+			"open x.dcm failed",
+		);
+	});
+
+	it("does not swallow the words between two paths", () => {
+		expect(scrubPaths("a /a/b and /c/d end")).toBe("a b and d end");
+	});
 });
 
 describe("sanitizeRendererConsoleMessage", () => {
@@ -154,6 +173,15 @@ describe("attachRendererConsoleForwarding", () => {
 describe("attachWindowLifecycleLogging", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it("ignores ERR_ABORTED (-3) — 遷移キャンセルは障害ではない", () => {
+		const { webContents, dispatch } = createFakeWebContents();
+		attachWindowLifecycleLogging(webContents);
+
+		dispatch("did-fail-load", {}, -3, "ERR_ABORTED", "http://localhost/", true);
+
+		expect(log.error).not.toHaveBeenCalled();
 	});
 
 	it("logs did-fail-load as error with the URL basename only", () => {
