@@ -320,14 +320,14 @@ const run = async () => {
 		? readText("src/types/measurement.ts")
 		: "";
 	const annotationOverlayTest = exists(
-		"src/components/viewer/__tests__/annotation-overlay.test.tsx",
+		"src/components/viewer/test/annotation-overlay.test.tsx",
 	)
-		? readText("src/components/viewer/__tests__/annotation-overlay.test.tsx")
+		? readText("src/components/viewer/test/annotation-overlay.test.tsx")
 		: "";
 	const measurementOverlayTest = exists(
-		"src/components/viewer/__tests__/measurement-overlay.test.tsx",
+		"src/components/viewer/test/measurement-overlay.test.tsx",
 	)
-		? readText("src/components/viewer/__tests__/measurement-overlay.test.tsx")
+		? readText("src/components/viewer/test/measurement-overlay.test.tsx")
 		: "";
 	const measurementMathTest = exists("src/utils/measurement-math.test.ts")
 		? readText("src/utils/measurement-math.test.ts")
@@ -365,7 +365,7 @@ const run = async () => {
 			annotationOverlayTest.includes(
 				"配置中のフリーハンド点とテキスト入力をresize後も画像座標から再投影する",
 			),
-		"src/components/viewer/__tests__/annotation-overlay.test.tsx",
+		"src/components/viewer/test/annotation-overlay.test.tsx",
 	);
 	addCheck(
 		checks,
@@ -385,7 +385,7 @@ const run = async () => {
 			measurementOverlayTest.includes(
 				"配置中の計測点とプレビュー線をresize後も画像座標から再投影する",
 			),
-		"src/components/viewer/__tests__/measurement-overlay.test.tsx",
+		"src/components/viewer/test/measurement-overlay.test.tsx",
 	);
 	addCheck(
 		checks,
