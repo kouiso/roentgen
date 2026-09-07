@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../App";
+import { App } from "../app";
 import type { DicomFileInfo, DicomLoadState } from "../types/dicom";
 
 const appState = vi.hoisted(() => ({
