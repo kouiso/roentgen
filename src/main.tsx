@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
+import { App } from "./app";
 import { initSentryRenderer } from "./lib/sentry-renderer";
 import "../app.css";
 
