@@ -5,6 +5,7 @@ import type {
 	OverlayPlaneData,
 	VoiLutData,
 } from "@/types/dicom";
+import { decodeDicomText } from "@/utils/dicom-text";
 
 // dicom-parserの型（ライブラリに型定義がないため）
 type DicomDataSet = {
@@ -247,6 +248,35 @@ export const parseOverlayPlanes = (
 	return overlays;
 };
 
+// 日本語が入りうる文字列タグ（PN / LO / SH / ST / LT）
+const TEXT_TAGS = new Set([
+	"x00100010",
+	"x00080080",
+	"x00080090",
+	"x00081010",
+	"x00081030",
+	"x0008103e",
+	"x00081070",
+	"x00181030",
+	"x00180015",
+]);
+
+const readTextTag = (
+	dataSet: DicomDataSet,
+	tag: string,
+	specificCharacterSet: string | undefined,
+): string | undefined => {
+	const element = dataSet.elements?.[tag];
+	if (!element || !dataSet.byteArray || element.length <= 0) {
+		return dataSet.string(tag);
+	}
+	const bytes = dataSet.byteArray.subarray(
+		element.dataOffset,
+		element.dataOffset + element.length,
+	);
+	return decodeDicomText(bytes, specificCharacterSet);
+};
+
 // DICOMタグから主要情報を一括取得
 export const extractDicomTags = (
 	dataSet: DicomDataSet,
@@ -347,8 +377,12 @@ export const extractDicomTags = (
 		x00181314: "FlipAngle",
 	};
 
+	const specificCharacterSet = dataSet.string("x00080005");
+
 	for (const [tag, name] of Object.entries(tagMap)) {
-		const value = dataSet.string(tag);
+		const value = TEXT_TAGS.has(tag)
+			? readTextTag(dataSet, tag, specificCharacterSet)
+			: dataSet.string(tag);
 		if (value !== undefined && value.trim() !== "") {
 			tags[name] = value.trim();
 		}

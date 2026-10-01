@@ -1,4 +1,5 @@
 import type { DicomFileInfo } from "../types/dicom";
+import { formatPersonNameText } from "./dicom-text";
 
 export type PrintImageMetadata = {
 	patientName: string;
@@ -27,7 +28,7 @@ export const formatDicomDateForPrint = (value: string | undefined): string => {
 export const formatDicomPersonNameForPrint = (
 	value: string | undefined,
 ): string => {
-	const normalized = value?.replace(/\^+/g, " ").replace(/\s+/g, " ").trim();
+	const normalized = formatPersonNameText(value);
 	return normalized ? normalized : EMPTY_VALUE;
 };
 
