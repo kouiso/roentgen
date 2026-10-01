@@ -131,7 +131,7 @@ describe("App load feedback", () => {
 		render(<App />);
 
 		expect(screen.getByTestId("dicom-viewer")).toBeTruthy();
-		expect(screen.getByText("1件のファイルをスキップしました")).toBeTruthy();
+		expect(screen.getByText("1件のファイルは開けませんでした")).toBeTruthy();
 		expect(screen.getByText("broken.dcm")).toBeTruthy();
 		expect(
 			screen.getByText("ファイルが破損しているため読み込めませんでした"),

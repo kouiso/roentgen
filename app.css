@@ -4,7 +4,7 @@
 @import "@fontsource/ibm-plex-mono/500.css";
 
 @theme {
-	/* Clinical dark theme tokens */
+	/* レントゲンは暗い背景のほうが白黒の差が読み取りやすいので、画面全体はダーク基調を保つ */
 	--color-bg: #0a0b0d;
 	--color-chrome: #121417;
 	--color-chrome-2: #15171a;
@@ -15,8 +15,8 @@
 	--color-accent-warm: #f2994a;
 	--color-accent-berry: #d1477a;
 	--color-ink: #e8eaed;
-	--color-ink-2: #9aa1a9;
-	--color-ink-3: #666c75;
+	--color-ink-2: #b3b9c0;
+	--color-ink-3: #8a9099;
 	--color-viewport: #000000;
 	--color-cell: #050607;
 	--color-hover: rgb(255 255 255 / 0.045);

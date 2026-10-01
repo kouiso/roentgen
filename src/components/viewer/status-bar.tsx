@@ -13,11 +13,18 @@ type StatusBarProps = {
 };
 
 const MODE_LABEL: Record<ViewerControlType, string> = {
-	[VIEWER_CONTROL_TYPE.WW_WC]: "ウィンドウ調整",
-	[VIEWER_CONTROL_TYPE.ZOOM]: "ズーム",
-	[VIEWER_CONTROL_TYPE.PAN]: "移動",
-	[VIEWER_CONTROL_TYPE.MEASURE_DISTANCE]: "距離計測",
-	[VIEWER_CONTROL_TYPE.MEASURE_ANGLE]: "角度計測",
+	[VIEWER_CONTROL_TYPE.WW_WC]: "ドラッグで明るさを調整",
+	[VIEWER_CONTROL_TYPE.ZOOM]: "上下にドラッグで拡大・縮小",
+	[VIEWER_CONTROL_TYPE.PAN]: "ドラッグで動かす・ホイールで拡大",
+	[VIEWER_CONTROL_TYPE.MEASURE_DISTANCE]: "2点をクリックして長さを測る",
+	[VIEWER_CONTROL_TYPE.MEASURE_ANGLE]: "3点をクリックして角度を測る",
+};
+
+const LAYOUT_LABEL: Record<string, string> = {
+	"1x1": "1枚表示",
+	"2x1": "左右に並べて表示",
+	"1x2": "上下に並べて表示",
+	"2x2": "4枚並べて表示",
 };
 
 const MODE_DOT_CLASS: Record<ViewerControlType, string> = {
@@ -44,7 +51,7 @@ export const StatusBar = ({
 				<span
 					className={`h-1.5 w-1.5 rounded-full ${MODE_DOT_CLASS[activeMode]}`}
 				/>
-				<span className="text-ink-3">{MODE_LABEL[activeMode]}</span>
+				<span className="text-ink-2">{MODE_LABEL[activeMode]}</span>
 			</div>
 
 			{viewerReady &&
@@ -54,7 +61,10 @@ export const StatusBar = ({
 				!Number.isNaN(currentWC) && (
 					<>
 						<div className="h-3 w-px bg-white/[0.075]" />
-						<span className="font-mono text-ink-2">
+						<span
+							className="font-mono text-ink-3"
+							title="WW（コントラスト）/ WC（明るさ）"
+						>
 							{"WW "}
 							<span className="text-ink">{Math.round(currentWW)}</span>
 							<span className="mx-1 text-ink-3">·</span>
@@ -71,10 +81,12 @@ export const StatusBar = ({
 
 			<div className="flex-1" />
 
-			<span className="font-mono text-ink-3">
-				{layout}
+			<span className="text-ink-3">
+				{LAYOUT_LABEL[layout] ?? layout}
 				{paneCount > 1 && (
-					<span className="ml-1 text-ink-2">· P{activePaneIndex + 1}</span>
+					<span className="ml-1 text-ink-2">
+						・{activePaneIndex + 1}枚目を操作中
+					</span>
 				)}
 			</span>
 		</div>

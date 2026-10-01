@@ -63,10 +63,12 @@ describe("ToolPanel", () => {
 		const onClearAll = vi.fn();
 		render(<ToolPanel {...makeProps({ onClearAll })} />);
 
+		// 全部閉じる操作は誤タップを避けるため「くわしい設定」の中に置いている
+		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
 
 		expect(window.confirm).toHaveBeenCalledWith(
-			"すべての画像をクリアします。よろしいですか？",
+			"開いている画像をすべて閉じます。よろしいですか？",
 		);
 		expect(onClearAll).not.toHaveBeenCalled();
 	});
@@ -76,6 +78,8 @@ describe("ToolPanel", () => {
 		const onClearAll = vi.fn();
 		render(<ToolPanel {...makeProps({ onClearAll })} />);
 
+		// 全部閉じる操作は誤タップを避けるため「くわしい設定」の中に置いている
+		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
 
 		expect(onClearAll).toHaveBeenCalledOnce();
@@ -96,7 +100,7 @@ describe("ToolPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
 
 		expect(window.confirm).toHaveBeenCalledWith(
-			"すべての計測をクリアします。よろしいですか？",
+			"測った線をすべて消します。よろしいですか？",
 		);
 		expect(onClearMeasurements).not.toHaveBeenCalled();
 	});
@@ -133,7 +137,7 @@ describe("ToolPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
 
 		expect(window.confirm).toHaveBeenCalledWith(
-			"すべての注釈をクリアします。よろしいですか？",
+			"書き込みをすべて消します。よろしいですか？",
 		);
 		expect(onClearAnnotations).not.toHaveBeenCalled();
 	});
@@ -159,8 +163,6 @@ describe("ToolPanel", () => {
 		const onStartFreehandTool = vi.fn();
 		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);
 
-		// 注釈セクションは初期折りたたみ → ヘッダーをクリックして展開
-		fireEvent.click(screen.getByRole("button", { name: /^注釈$/ }));
 		fireEvent.click(screen.getByRole("button", { name: "フリーハンド" }));
 
 		expect(onStartFreehandTool).toHaveBeenCalledOnce();
@@ -187,8 +189,8 @@ describe("ToolPanel", () => {
 		const onIncreaseFps = vi.fn();
 		render(<ToolPanel {...makeProps({ onDecreaseFps, onIncreaseFps })} />);
 
-		// シリーズ再生セクションは初期折りたたみ → ヘッダーをクリックして展開
-		fireEvent.click(screen.getByRole("button", { name: /^シリーズ再生$/ }));
+		// シリーズ再生は複数枚の連続撮影でしか使わないため「くわしい設定」の中にある
+		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 
 		fireEvent.click(screen.getByRole("button", { name: "再生速度を下げる" }));
 		fireEvent.click(screen.getByRole("button", { name: "再生速度を上げる" }));
@@ -200,8 +202,8 @@ describe("ToolPanel", () => {
 	it("disables FPS steppers at their bounds", () => {
 		const { rerender } = render(<ToolPanel {...makeProps({ fps: 5 })} />);
 
-		// シリーズ再生セクションは初期折りたたみ → ヘッダーをクリックして展開
-		fireEvent.click(screen.getByRole("button", { name: /^シリーズ再生$/ }));
+		// シリーズ再生は複数枚の連続撮影でしか使わないため「くわしい設定」の中にある
+		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 
 		expect(
 			screen
@@ -214,6 +216,34 @@ describe("ToolPanel", () => {
 		expect(
 			screen
 				.getByRole("button", { name: "再生速度を上げる" })
+				.hasAttribute("disabled"),
+		).toBe(true);
+	});
+	it("applies owner presets relative to the image's own window", () => {
+		const onSetWwWc = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					onSetWwWc,
+					baseWW: 10000,
+					baseWC: 8000,
+					photometricInterpretation: "MONOCHROME2",
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "骨を見やすく" }));
+
+		// 絶対値（WW 2500 / WC 500）ではなく、その画像の窓を基準に骨側へ寄せる
+		expect(onSetWwWc).toHaveBeenCalledWith(6000, 10000);
+	});
+
+	it("disables owner presets until the image window is known", () => {
+		render(<ToolPanel {...makeProps()} />);
+
+		expect(
+			screen
+				.getByRole("button", { name: "骨を見やすく" })
 				.hasAttribute("disabled"),
 		).toBe(true);
 	});

@@ -151,13 +151,12 @@ test.describe("real Electron baseline regression", () => {
 			);
 
 			await page.keyboard.press("P");
-			await expect(page.getByRole("button", { name: /パン/ })).toHaveAttribute(
-				"aria-pressed",
-				"true",
-			);
+			await expect(
+				page.getByRole("button", { name: "ドラッグで動かす" }),
+			).toHaveAttribute("aria-pressed", "true");
 			await page.keyboard.press("W");
 			await expect(
-				page.getByRole("button", { name: /コントラスト/ }),
+				page.getByRole("button", { name: "ドラッグで明るさ調整" }),
 			).toHaveAttribute("aria-pressed", "true");
 
 			const beforeDrag = await canvasAverageChannel(page);
