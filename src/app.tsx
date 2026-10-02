@@ -5,8 +5,7 @@ import {
 	CloudOff,
 	Loader2,
 	LogOut,
-	Plus,
-	User,
+	PawPrint,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CrashReporterToggle } from "./components/crash-reporter-toggle";
@@ -16,6 +15,7 @@ import { DicomViewer } from "./components/viewer/dicom-viewer";
 import { useDicomLoader } from "./hooks/use-dicom-loader";
 import { useGoogleDrive } from "./hooks/use-google-drive";
 import type { DicomFileError } from "./types/dicom";
+import { formatPersonName } from "./utils/dicom-text";
 
 const getDisplayFileName = (filePath: string) => {
 	const parts = filePath.split(/[\\/]/).filter(Boolean);
@@ -186,7 +186,7 @@ export const App = () => {
 					: `読込中 ${Math.round(loadState.progress)}%`;
 			case "loaded":
 				return skippedCount > 0
-					? `${dicomFiles.length} 枚（${skippedCount}件スキップ）`
+					? `${dicomFiles.length} 枚（${skippedCount}件は開けませんでした）`
 					: `${dicomFiles.length} 枚`;
 			case "error":
 				return `エラー: ${loadState.message}`;
@@ -231,7 +231,8 @@ export const App = () => {
 	const isSyncing = sync.status !== "idle";
 
 	const handleClearFiles = useCallback(() => {
-		if (!window.confirm("すべての画像をクリアします。よろしいですか？")) return;
+		if (!window.confirm("開いている画像をすべて閉じます。よろしいですか？"))
+			return;
 		clearFiles();
 	}, [clearFiles]);
 
@@ -244,21 +245,20 @@ export const App = () => {
 				}
 			: loadState.status === "loaded" && skippedCount > 0
 				? {
-						message: `${skippedCount}件のファイルをスキップしました`,
+						message: `${skippedCount}件のファイルは開けませんでした`,
 						skipped: loadState.skipped,
 						variant: "warning" as const,
 					}
 				: null;
 
-	// Patient info derived from first loaded DICOM file
+	// 馬名（PN の最初のグループ）と撮影日を、飼い主が読める形で見出しにする
 	const firstFile = dicomFiles[0];
-	const patientName =
-		firstFile?.tags?.PatientName?.replace(/\^/g, " ").trim() || null;
+	const horseName = formatPersonName(firstFile?.tags?.PatientName);
 	const studyDesc = firstFile?.tags?.StudyDescription?.trim() || null;
 	const rawStudyDate = firstFile?.tags?.StudyDate ?? null;
 	const formattedStudyDate =
-		typeof rawStudyDate === "string" && rawStudyDate.length === 8
-			? `${rawStudyDate.slice(0, 4)}/${rawStudyDate.slice(4, 6)}/${rawStudyDate.slice(6, 8)}`
+		typeof rawStudyDate === "string" && /^\d{8}$/.test(rawStudyDate)
+			? `${rawStudyDate.slice(0, 4)}年${Number(rawStudyDate.slice(4, 6))}月${Number(rawStudyDate.slice(6, 8))}日 撮影`
 			: rawStudyDate;
 
 	return (
@@ -267,47 +267,49 @@ export const App = () => {
 				{/* Brand logo */}
 				<div className="flex shrink-0 items-center gap-2.5">
 					<div
-						className="flex h-7 w-7 items-center justify-center rounded"
+						className="flex h-8 w-8 items-center justify-center rounded-lg"
 						style={{
 							background:
 								"linear-gradient(135deg, #1fbfa6, color-mix(in oklab, #1fbfa6 50%, #000))",
 						}}
 					>
-						<Plus size={13} strokeWidth={2.5} className="text-white" />
+						<PawPrint size={16} strokeWidth={2.25} className="text-white" />
 					</div>
 					<div className="flex flex-col leading-none">
-						<span className="text-[12px] font-semibold tracking-[0.1em] text-ink">
-							ROENTGEN
+						<span className="text-[13px] font-semibold text-ink">
+							馬のレントゲンビューア
 						</span>
-						<span className="mt-0.5 text-[9px] text-ink-3">
-							馬レントゲンビューア
+						<span className="mt-1 text-[10px] tracking-[0.12em] text-ink-3">
+							ROENTGEN
 						</span>
 					</div>
 				</div>
 
-				{/* Separator */}
-				<div className="h-4 w-px shrink-0 bg-white/[0.075]" />
-
-				{/* Patient info (when images are loaded) */}
-				{(patientName || studyDesc || formattedStudyDate) && (
-					<div className="flex min-w-0 items-center gap-2">
-						{patientName && (
-							<span className="chip max-w-[10rem]">
-								<User size={9} className="shrink-0" />
-								<span className="min-w-0 truncate">{patientName}</span>
-							</span>
-						)}
-						{studyDesc && (
-							<span className="max-w-[12rem] truncate text-[11px] text-ink-3">
-								{studyDesc}
-							</span>
-						)}
-						{formattedStudyDate && (
-							<span className="font-mono text-[10px] text-ink-3">
-								{formattedStudyDate}
-							</span>
-						)}
-					</div>
+				{/* 見ている馬と撮影日 */}
+				{(horseName || studyDesc || formattedStudyDate) && (
+					<>
+						<div className="h-5 w-px shrink-0 bg-white/[0.1]" />
+						<div className="flex min-w-0 items-baseline gap-3">
+							{horseName && (
+								<span
+									className="min-w-0 max-w-[14rem] truncate text-[15px] font-semibold text-ink"
+									title={horseName.all.join(" / ")}
+								>
+									{horseName.primary}
+								</span>
+							)}
+							{formattedStudyDate && (
+								<span className="shrink-0 text-[12px] text-ink-2">
+									{formattedStudyDate}
+								</span>
+							)}
+							{studyDesc && (
+								<span className="max-w-[12rem] truncate text-[12px] text-ink-3">
+									{studyDesc}
+								</span>
+							)}
+						</div>
+					</>
 				)}
 
 				{/* Spacer */}
@@ -436,22 +438,11 @@ export const App = () => {
 						type="button"
 						onClick={handleClearFiles}
 						className="chip"
-						aria-label="すべての画像をクリア"
+						aria-label="すべての画像を閉じる"
 					>
-						全クリア
+						画像を閉じる
 					</button>
 				)}
-
-				{/* Avatar */}
-				<div
-					className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-					style={{
-						background: "color-mix(in oklab, #1fbfa6 18%, #1c1f23)",
-						color: "#1fbfa6",
-					}}
-				>
-					RT
-				</div>
 			</header>
 
 			{loadFeedback && (

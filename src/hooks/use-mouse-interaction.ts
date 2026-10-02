@@ -14,8 +14,12 @@ type UseMouseInteractionProps = {
 	currentWindowWidth: number;
 	onNextFrame: () => void;
 	onPrevFrame: () => void;
+	// 1 枚だけの画像ではホイールで送る先が無いので、写真と同じく拡大縮小に使う
+	wheelZooms?: boolean;
 	enabled: boolean;
 };
+
+const WHEEL_ZOOM_STEP = 1.15;
 
 // マウスショートカット切替の順番
 const MODE_CYCLE: ViewerControlType[] = [
@@ -46,6 +50,7 @@ export const useMouseInteraction = ({
 	currentWindowWidth,
 	onNextFrame,
 	onPrevFrame,
+	wheelZooms = false,
 	enabled,
 }: UseMouseInteractionProps) => {
 	const isDraggingRef = useRef(false);
@@ -178,9 +183,19 @@ export const useMouseInteraction = ({
 		onPrevFrameRef.current = onPrevFrame;
 	}, [onNextFrame, onPrevFrame]);
 
-	// ホイールでスタックフレーム切替
+	const wheelZoomsRef = useRef(wheelZooms);
+	useEffect(() => {
+		wheelZoomsRef.current = wheelZooms;
+	}, [wheelZooms]);
+
+	// ホイール: 1 枚なら拡大縮小、複数枚ならフレーム送り（Ctrl/⌘ 併用で常に拡大縮小）
 	const handleWheel = useCallback((e: WheelEvent) => {
 		e.preventDefault();
+		if (wheelZoomsRef.current || e.ctrlKey || e.metaKey) {
+			if (e.deltaY === 0) return;
+			zoomByRef.current(e.deltaY < 0 ? WHEEL_ZOOM_STEP : 1 / WHEEL_ZOOM_STEP);
+			return;
+		}
 		if (e.deltaY > 0) {
 			onNextFrameRef.current();
 		} else if (e.deltaY < 0) {
@@ -203,7 +218,12 @@ export const useMouseInteraction = ({
 		container.addEventListener("mousemove", handleMouseMove);
 		container.addEventListener("mouseup", handleMouseUp);
 		container.addEventListener("mouseleave", handleMouseUp);
-		container.addEventListener("wheel", handleWheel, { passive: false });
+		// OSDのMouseTrackerが実ホイールイベントをバブリング前に握り潰すため、
+		// キャプチャ相（親→子）で先に受け取る
+		container.addEventListener("wheel", handleWheel, {
+			passive: false,
+			capture: true,
+		});
 		container.addEventListener("contextmenu", handleContextMenu);
 
 		return () => {
@@ -215,7 +235,7 @@ export const useMouseInteraction = ({
 			container.removeEventListener("mousemove", handleMouseMove);
 			container.removeEventListener("mouseup", handleMouseUp);
 			container.removeEventListener("mouseleave", handleMouseUp);
-			container.removeEventListener("wheel", handleWheel);
+			container.removeEventListener("wheel", handleWheel, { capture: true });
 			container.removeEventListener("contextmenu", handleContextMenu);
 		};
 	}, [

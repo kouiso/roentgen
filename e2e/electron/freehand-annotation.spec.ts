@@ -92,28 +92,16 @@ test.describe("real Electron freehand annotation", () => {
 
 			await waitForAutoloadedFixture(page);
 
-			// "注釈" section is collapsible and starts collapsed — expand it first
-			const annotationSectionHeader = page.getByRole("button", {
-				name: "注釈",
-			});
-			if (
-				!(await page
-					.getByRole("button", { name: "フリーハンド" })
-					.isVisible()
-					.catch(() => false))
-			) {
-				await annotationSectionHeader.click();
-			}
-
+			// 注釈ツールは「測る・書き込む」セクションに常時表示されている
 			const clearAnnotationsButton = page.getByRole("button", {
-				name: "注釈クリア",
+				name: "書き込みを消す",
 			});
 			if (await clearAnnotationsButton.isVisible().catch(() => false)) {
 				await clearAnnotationsButton.click();
 			}
 
 			const freehandButton = page.getByRole("button", {
-				name: "フリーハンド",
+				name: "手書き",
 			});
 			await freehandButton.click();
 			await expect(freehandButton).toHaveAttribute("aria-pressed", "true");

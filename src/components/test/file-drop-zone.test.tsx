@@ -7,11 +7,15 @@ describe("FileDropZone", () => {
 	it("shows first-run import guidance for supported sources", () => {
 		render(<FileDropZone onFilesLoaded={vi.fn()} />);
 
+		// 初めての飼い主が「何をすればいいか」「何ができるか」を専門用語なしで理解できること
+		expect(screen.getByText("愛馬のレントゲンを見てみよう")).toBeTruthy();
 		expect(
-			screen.getByText("病院でもらったレントゲンファイル（.dcm）に対応"),
+			screen.getByText(
+				"CD・USB・メールでもらった「.dcm」ファイルやフォルダに対応",
+			),
 		).toBeTruthy();
-		expect(screen.getByText("骨格解析")).toBeTruthy();
-		expect(screen.getByText("精密計測")).toBeTruthy();
-		expect(screen.getByText("Drive同期")).toBeTruthy();
+		expect(screen.getByText("自動で見やすく")).toBeTruthy();
+		expect(screen.getByText("長さ・角度を測る")).toBeTruthy();
+		expect(screen.getByText("メモを残す")).toBeTruthy();
 	});
 });

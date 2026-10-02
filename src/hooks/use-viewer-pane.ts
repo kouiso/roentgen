@@ -23,10 +23,13 @@ import { containerToImageCoord } from "@/utils/measurement-math";
 const PRELOAD_COUNT = 10;
 
 export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
+	// 写真ビューアと同じ「ドラッグで動かす・ホイールで拡大」を既定にする。
+	// 明るさはドラッグではなくパネルのスライダーで変える（誤操作で画像が真っ白/真っ黒にならないように）
 	const [activeMode, setActiveMode] = useState<ViewerControlType>(
-		VIEWER_CONTROL_TYPE.WW_WC,
+		VIEWER_CONTROL_TYPE.PAN,
 	);
-	const [showOverlay, setShowOverlay] = useState(true);
+	// 装置の撮影パラメータ一覧は飼い主には読めない情報なので、必要な人だけが出す
+	const [showOverlay, setShowOverlay] = useState(false);
 	const [showDirection, setShowDirection] = useState(true);
 	const [species, setSpecies] = useState<Species>("equine");
 	const [isOsdReady, setIsOsdReady] = useState(false);
@@ -37,6 +40,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const {
 		cornerstoneReady,
 		currentImage,
+		initialWindow,
 		worldInfo,
 		setWorldInfo,
 		triggerRedraw,
@@ -337,31 +341,31 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	]);
 
 	const startTextTool = useCallback(() => {
-		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		setActiveMode(VIEWER_CONTROL_TYPE.PAN);
 		measurement.cancelTool();
 		annotation.startTextTool();
 	}, [annotation.startTextTool, measurement.cancelTool]);
 
 	const startArrowTool = useCallback(() => {
-		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		setActiveMode(VIEWER_CONTROL_TYPE.PAN);
 		measurement.cancelTool();
 		annotation.startArrowTool();
 	}, [annotation.startArrowTool, measurement.cancelTool]);
 
 	const startRectTool = useCallback(() => {
-		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		setActiveMode(VIEWER_CONTROL_TYPE.PAN);
 		measurement.cancelTool();
 		annotation.startRectTool();
 	}, [annotation.startRectTool, measurement.cancelTool]);
 
 	const startEllipseTool = useCallback(() => {
-		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		setActiveMode(VIEWER_CONTROL_TYPE.PAN);
 		measurement.cancelTool();
 		annotation.startEllipseTool();
 	}, [annotation.startEllipseTool, measurement.cancelTool]);
 
 	const startFreehandTool = useCallback(() => {
-		setActiveMode(VIEWER_CONTROL_TYPE.WW_WC);
+		setActiveMode(VIEWER_CONTROL_TYPE.PAN);
 		measurement.cancelTool();
 		annotation.startFreehandTool();
 	}, [annotation.startFreehandTool, measurement.cancelTool]);
@@ -377,6 +381,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		currentWindowWidth: worldInfo.windowWidth,
 		onNextFrame: nextFrame,
 		onPrevFrame: prevFrame,
+		wheelZooms: files.length <= 1,
 		enabled:
 			isOsdReady &&
 			!annotation.activeAnnotationTool &&
@@ -447,8 +452,16 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// ビューアリセット
 	const resetImage = useCallback(() => {
 		if (!currentFile) return;
-		controls.resetImage(currentFile.windowWidth, currentFile.windowCenter);
-	}, [controls, currentFile]);
+		controls.resetImage(
+			initialWindow?.ww ?? currentFile.windowWidth,
+			initialWindow?.wc ?? currentFile.windowCenter,
+		);
+	}, [controls, currentFile, initialWindow]);
+
+	const autoContrast = useCallback(() => {
+		if (!initialWindow) return;
+		controls.setWwWc(initialWindow.ww, initialWindow.wc);
+	}, [controls, initialWindow]);
 
 	const handleFrameChange = useCallback(
 		(frame: number) => setFrame(frame),
@@ -481,6 +494,10 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			onToggleSpecies: () =>
 				setSpecies((current) => (current === "equine" ? "human" : "equine")),
 			onSetWwWc: controls.setWwWc,
+			onAutoContrast: autoContrast,
+			baseWW: initialWindow?.ww,
+			baseWC: initialWindow?.wc,
+			photometricInterpretation: currentFile?.photometricInterpretation,
 			currentWW: worldInfo.windowWidth,
 			currentWC: worldInfo.windowCenter,
 			isPlaying: cine.isPlaying,
@@ -514,6 +531,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			showDirection,
 			species,
 			controls.setWwWc,
+			autoContrast,
+			initialWindow,
+			currentFile?.photometricInterpretation,
 			worldInfo.windowWidth,
 			worldInfo.windowCenter,
 			cine.isPlaying,

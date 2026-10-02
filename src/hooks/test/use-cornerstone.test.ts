@@ -94,7 +94,7 @@ const makeFileInfo = (
 });
 
 describe("useCornerstone", () => {
-	it("preserves explicit DICOM WW/WC tags even when they span most of the pixel range", async () => {
+	it("preserves explicit DICOM WW/WC tags that actually clip the pixel range", async () => {
 		cornerstoneMock.loadImage.mockResolvedValue({
 			imageId: "roentgen:/test/wide-window.dcm",
 			rows: 2,
@@ -117,12 +117,51 @@ describe("useCornerstone", () => {
 			expect(result.current.cornerstoneReady).toBe(true);
 		});
 
+		// 範囲の 9 割以上を覆う広い窓でも、実際に端を切っていれば撮影者の意図として尊重する
+		await act(async () => {
+			await result.current.loadAndDisplayImage(makeFileInfo(3900, 2000));
+		});
+
+		expect(result.current.worldInfo.windowWidth).toBe(3900);
+		expect(result.current.worldInfo.windowCenter).toBe(2000);
+		expect(result.current.initialWindow).toEqual({ ww: 3900, wc: 2000 });
+	});
+
+	it("replaces a DICOM window that spans the whole pixel range with an auto window", async () => {
+		const pixels = new Uint16Array(100);
+		for (let i = 0; i < pixels.length; i++) pixels[i] = 1000 + i * 10;
+		cornerstoneMock.loadImage.mockResolvedValue({
+			imageId: "roentgen:/test/wide-window.dcm",
+			rows: 10,
+			columns: 10,
+			width: 10,
+			height: 10,
+			getPixelData: () => pixels,
+			windowCenter: 2047.5,
+			windowWidth: 4095,
+			slope: 1,
+			intercept: 0,
+			invert: false,
+			minPixelValue: 0,
+			maxPixelValue: 4095,
+		});
+
+		const { result } = renderHook(() => useCornerstone());
+
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		// 全レンジ指定は何もクリップしない恒等変換で、飼い主には灰色の眠い画像にしか見えない
 		await act(async () => {
 			await result.current.loadAndDisplayImage(makeFileInfo(4095, 2047.5));
 		});
 
-		expect(result.current.worldInfo.windowWidth).toBe(4095);
-		expect(result.current.worldInfo.windowCenter).toBe(2047.5);
+		expect(result.current.worldInfo.windowWidth).toBeLessThan(4095);
+		expect(result.current.worldInfo.windowWidth).toBeGreaterThan(0);
+		expect(result.current.initialWindow?.ww).toBe(
+			result.current.worldInfo.windowWidth,
+		);
 	});
 
 	it.each(

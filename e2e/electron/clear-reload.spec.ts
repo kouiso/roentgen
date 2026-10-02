@@ -109,8 +109,7 @@ test.describe("real Electron Clear reload regression", () => {
 
 				page.once("dialog", (dialog) => dialog.accept());
 				await page
-					.getByRole("button", { name: "全クリア", exact: true })
-					.first()
+					.getByRole("button", { name: "すべての画像を閉じる", exact: true })
 					.click();
 
 				await page.screenshot({

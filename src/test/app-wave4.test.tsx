@@ -123,11 +123,11 @@ describe("App Wave 4 polish", () => {
 		render(<App />);
 
 		fireEvent.click(
-			screen.getByRole("button", { name: "すべての画像をクリア" }),
+			screen.getByRole("button", { name: "すべての画像を閉じる" }),
 		);
 
 		expect(window.confirm).toHaveBeenCalledWith(
-			"すべての画像をクリアします。よろしいですか？",
+			"開いている画像をすべて閉じます。よろしいですか？",
 		);
 		expect(clearFilesMock).not.toHaveBeenCalled();
 	});
@@ -141,7 +141,7 @@ describe("App Wave 4 polish", () => {
 		render(<App />);
 
 		fireEvent.click(
-			screen.getByRole("button", { name: "すべての画像をクリア" }),
+			screen.getByRole("button", { name: "すべての画像を閉じる" }),
 		);
 
 		expect(clearFilesMock).toHaveBeenCalledTimes(1);

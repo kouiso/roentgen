@@ -1,6 +1,7 @@
 // オーバーレイ項目定義
 // 70+タグの4隅オーバーレイ配置
 import type { OverlayItemDefinition } from "@/types/overlay";
+import { formatPersonNameText } from "@/utils/dicom-text";
 
 // 日付フォーマット: YYYYMMDD → YYYY/MM/DD
 const formatDate = (value: string): string => {
@@ -22,6 +23,7 @@ export const OVERLAY_ITEMS: OverlayItemDefinition[] = [
 		label: "名前",
 		position: "topLeft",
 		bold: true,
+		format: formatPersonNameText,
 	},
 	{ id: "patientId", tag: "PatientID", label: "ID", position: "topLeft" },
 	{

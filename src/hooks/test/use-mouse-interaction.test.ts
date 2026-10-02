@@ -357,6 +357,44 @@ describe("useMouseInteraction", () => {
 		expect(props.onPrevFrame).toHaveBeenCalledOnce();
 	});
 
+	it("zooms on wheel when a single image is shown", () => {
+		const props = makeProps({ wheelZooms: true });
+		renderHook(() => useMouseInteraction(props));
+
+		container.dispatchEvent(
+			new WheelEvent("wheel", {
+				deltaY: -100,
+				bubbles: true,
+				cancelable: true,
+			}),
+		);
+		container.dispatchEvent(
+			new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true }),
+		);
+
+		expect(props.zoomBy).toHaveBeenNthCalledWith(1, 1.15);
+		expect(props.zoomBy).toHaveBeenNthCalledWith(2, 1 / 1.15);
+		expect(props.onNextFrame).not.toHaveBeenCalled();
+		expect(props.onPrevFrame).not.toHaveBeenCalled();
+	});
+
+	it("zooms with Ctrl+wheel even when browsing multiple frames", () => {
+		const props = makeProps();
+		renderHook(() => useMouseInteraction(props));
+
+		const event = new WheelEvent("wheel", {
+			deltaY: -100,
+			bubbles: true,
+			cancelable: true,
+		});
+		// happy-dom の WheelEvent は init の ctrlKey を反映しないため直接与える
+		Object.defineProperty(event, "ctrlKey", { value: true });
+		container.dispatchEvent(event);
+
+		expect(props.zoomBy).toHaveBeenCalledWith(1.15);
+		expect(props.onPrevFrame).not.toHaveBeenCalled();
+	});
+
 	it("prevents context menu on right click", () => {
 		const props = makeProps();
 		renderHook(() => useMouseInteraction(props));

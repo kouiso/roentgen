@@ -1,9 +1,9 @@
 import {
-	Bone,
-	Cloud,
 	FileUp,
 	FolderOpen,
+	PencilLine,
 	Ruler,
+	Sparkles,
 	UploadCloud,
 } from "lucide-react";
 import {
@@ -182,7 +182,16 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
 		>
-			<div className="flex w-full max-w-lg flex-col items-center gap-4">
+			<div className="flex w-full max-w-xl flex-col items-center gap-5">
+				<div className="text-center">
+					<h1 className="text-[22px] font-semibold text-ink">
+						愛馬のレントゲンを見てみよう
+					</h1>
+					<p className="mt-1.5 text-[13px] text-ink-2">
+						動物病院でもらった画像を開くだけ。専門知識はいりません。
+					</p>
+				</div>
+
 				{/* biome-ignore lint/a11y/useSemanticElements: ドロップゾーンはdivが必要（buttonではDnDが動作しない） */}
 				<div
 					role="button"
@@ -191,65 +200,36 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					tabIndex={0}
 					onClick={handleFileClick}
 					onKeyDown={handleDropZoneKeyDown}
-					className={`dropzone-surface group relative flex w-full cursor-pointer flex-col items-center gap-5 rounded-2xl border-2 border-dashed px-10 py-14 text-center transition-all duration-200 ${
+					className={`dropzone-surface group relative flex w-full cursor-pointer flex-col items-center gap-4 rounded-2xl border-2 border-dashed px-10 py-12 text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
 						isDragging
-							? "border-accent/60 bg-accent/[0.04]"
-							: "border-white/[0.1] hover:border-accent/30 hover:bg-white/[0.02]"
+							? "border-accent/60 bg-accent/[0.06]"
+							: "border-white/[0.14] hover:border-accent/40 hover:bg-white/[0.03]"
 					}`}
 				>
 					<div
-						className={`flex h-14 w-14 items-center justify-center rounded-full border transition-colors ${
+						className={`flex h-16 w-16 items-center justify-center rounded-full border transition-colors ${
 							isDragging
-								? "border-accent/30 bg-accent/[0.08] text-accent"
-								: "border-white/[0.08] bg-white/[0.03] text-ink-3 group-hover:text-ink-2"
+								? "border-accent/30 bg-accent/[0.1] text-accent"
+								: "border-accent/20 bg-accent/[0.06] text-accent group-hover:bg-accent/[0.1]"
 						}`}
 					>
-						<UploadCloud size={26} strokeWidth={1.5} />
+						<UploadCloud size={30} strokeWidth={1.6} />
 					</div>
 					{isLoading ? (
-						<p className="text-[13px] text-ink-3">読込中...</p>
+						<p className="text-[14px] text-ink-2">読み込んでいます…</p>
 					) : (
 						<div className="flex flex-col gap-1.5">
-							<p className="text-[15px] font-medium text-ink">
-								レントゲン画像をドロップ
+							<p className="text-[17px] font-semibold text-ink">
+								ここに画像をドラッグ
 							</p>
-							<p className="text-[12px] text-ink-2">
-								クリックしてファイルを選択
+							<p className="text-[13px] text-ink-2">
+								またはクリックして画像を選ぶ
 							</p>
-							<p className="text-[11px] text-ink-3">
-								病院でもらったレントゲンファイル（.dcm）に対応
+							<p className="text-[12px] text-ink-3">
+								CD・USB・メールでもらった「.dcm」ファイルやフォルダに対応
 							</p>
 						</div>
 					)}
-				</div>
-
-				{/* Feature cards */}
-				<div className="grid w-full grid-cols-3 gap-2">
-					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-						<Bone size={18} className="text-accent-warm" />
-						<div>
-							<p className="text-[11px] font-medium text-ink-2">骨格解析</p>
-							<p className="mt-0.5 text-[10px] text-ink-3">
-								馬用WW/WCプリセット
-							</p>
-						</div>
-					</div>
-					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-						<Ruler size={18} className="text-accent" />
-						<div>
-							<p className="text-[11px] font-medium text-ink-2">精密計測</p>
-							<p className="mt-0.5 text-[10px] text-ink-3">距離・角度の計測</p>
-						</div>
-					</div>
-					<div className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-						<Cloud size={18} className="text-accent-berry" />
-						<div>
-							<p className="text-[11px] font-medium text-ink-2">Drive同期</p>
-							<p className="mt-0.5 text-[10px] text-ink-3">
-								Google Driveから読込
-							</p>
-						</div>
-					</div>
 				</div>
 
 				{/* File / folder buttons */}
@@ -258,21 +238,46 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 						type="button"
 						onClick={handleFileClick}
 						disabled={isLoading}
-						className="chip justify-center py-2 disabled:cursor-not-allowed disabled:opacity-50"
+						className="flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-[14px] font-semibold text-[#062b25] transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						<FileUp size={13} />
-						<span className="font-sans">ファイルを開く</span>
+						<FileUp size={16} />
+						<span>ファイルを開く</span>
 					</button>
 					<button
 						type="button"
 						onClick={handleDirectoryClick}
 						disabled={isLoading}
-						className="chip justify-center py-2 disabled:cursor-not-allowed disabled:opacity-50"
+						className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.03] px-4 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						<FolderOpen size={13} />
-						<span className="font-sans">フォルダを開く</span>
+						<FolderOpen size={16} />
+						<span>フォルダを開く</span>
 					</button>
 				</div>
+
+				{/* できること */}
+				<ul className="grid w-full grid-cols-3 gap-2">
+					<li className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-4 text-center">
+						<Sparkles size={20} className="text-accent" />
+						<p className="text-[13px] font-medium text-ink">自動で見やすく</p>
+						<p className="text-[11px] leading-relaxed text-ink-3">
+							明るさを自動調整。骨や蹄もワンタップで
+						</p>
+					</li>
+					<li className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-4 text-center">
+						<Ruler size={20} className="text-accent-warm" />
+						<p className="text-[13px] font-medium text-ink">長さ・角度を測る</p>
+						<p className="text-[11px] leading-relaxed text-ink-3">
+							2点・3点クリックするだけ
+						</p>
+					</li>
+					<li className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-4 text-center">
+						<PencilLine size={20} className="text-accent-berry" />
+						<p className="text-[13px] font-medium text-ink">メモを残す</p>
+						<p className="text-[11px] leading-relaxed text-ink-3">
+							矢印や文字を書いて保存・印刷
+						</p>
+					</li>
+				</ul>
 			</div>
 
 			{readErrors.length > 0 && (
@@ -282,7 +287,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					aria-live="assertive"
 				>
 					<p className="mb-1 text-[12px] font-medium text-rose-300">
-						ファイル読込エラー
+						開けなかったファイルがあります
 					</p>
 					<ul className="space-y-0.5">
 						{readErrors.map((err) => (

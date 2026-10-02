@@ -10,8 +10,8 @@ test.describe("Roentgen — App Launch & Empty State", () => {
 
 	test("shows DICOM drop zone with instructions", async ({ page }) => {
 		await page.goto("/");
-		await expect(page.getByText("レントゲン画像をドロップ")).toBeVisible();
-		await expect(page.getByText("クリックしてファイルを選択")).toBeVisible();
+		await expect(page.getByText("ここに画像をドラッグ")).toBeVisible();
+		await expect(page.getByText("またはクリックして画像を選ぶ")).toBeVisible();
 	});
 
 	test("shows file status indicator", async ({ page }) => {

@@ -79,7 +79,7 @@ describe("FileDropZone keyboard access", () => {
 		});
 
 		fireEvent.click(dropZone);
-		await screen.findByText("読込中...");
+		await screen.findByText("読み込んでいます…");
 		fireEvent.keyDown(dropZone, { key: "Enter" });
 
 		expect(dropZone.getAttribute("aria-disabled")).toBe("true");

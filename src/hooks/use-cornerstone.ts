@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DicomFileInfo } from "@/types/dicom";
 import type { ViewerWorldInfo } from "@/types/viewer";
 import { INITIAL_WORLD_INFO } from "@/types/viewer";
+import {
+	computeAutoWindow,
+	type DisplayWindow,
+	isUninformativeWindow,
+} from "@/utils/auto-window";
 import { isEncapsulatedTransferSyntax } from "@/utils/dicom-parser";
 
 // cornerstone-coreの型（旧版に型定義なし）
@@ -448,6 +453,10 @@ export const useCornerstone = () => {
 	const [worldInfo, setWorldInfo] =
 		useState<ViewerWorldInfo>(INITIAL_WORLD_INFO);
 	const [cornerstoneReady, setCornerstoneReady] = useState(false);
+	// 「元に戻す」で戻る先。装置指定ではなく実際に最初に見せた明るさを基準にする
+	const [initialWindow, setInitialWindow] = useState<DisplayWindow | null>(
+		null,
+	);
 
 	// クロージャ問題回避: tileDrawingハンドラ内で最新値を参照するためにrefsを使用
 	const currentImageRef = useRef<CornerstoneImage | null>(null);
@@ -535,40 +544,20 @@ export const useCornerstone = () => {
 				let ww = hasDicomWindow ? fileInfo.windowWidth : image.windowWidth;
 				let wc = hasDicomWindow ? fileInfo.windowCenter : image.windowCenter;
 
-				// WW/WCタグが無い場合のみ、2-98パーセンタイルで自動計算する
-				if (!hasDicomWindow) {
-					const fullRange = image.maxPixelValue - image.minPixelValue;
-					const pixels = image.getPixelData();
-					const histSize = 4096;
-					const hist = new Uint32Array(histSize);
-					const scale = (histSize - 1) / (fullRange || 1);
-					for (let i = 0; i < pixels.length; i++) {
-						const bin = Math.min(
-							histSize - 1,
-							Math.max(
-								0,
-								Math.round(((pixels[i] ?? 0) - image.minPixelValue) * scale),
-							),
-						);
-						hist[bin] = (hist[bin] ?? 0) + 1;
-					}
-					const total = pixels.length;
-					let cumulative = 0;
-					let p02 = image.minPixelValue;
-					let p98 = image.maxPixelValue;
-					for (let i = 0; i < histSize; i++) {
-						cumulative += hist[i] ?? 0;
-						if (cumulative >= total * 0.02 && p02 === image.minPixelValue) {
-							p02 = image.minPixelValue + i / scale;
-						}
-						if (cumulative >= total * 0.98) {
-							p98 = image.minPixelValue + i / scale;
-							break;
-						}
-					}
-					ww = Math.max(1, p98 - p02);
-					wc = (p02 + p98) / 2;
+				// 装置指定が無い、または全レンジ指定で眠い画像になる場合は自動で見やすくする
+				const autoWindow = computeAutoWindow(
+					image.getPixelData(),
+					image.minPixelValue,
+					image.maxPixelValue,
+				);
+				if (
+					!hasDicomWindow ||
+					isUninformativeWindow(ww, image.minPixelValue, image.maxPixelValue)
+				) {
+					ww = autoWindow.ww;
+					wc = autoWindow.wc;
 				}
+				setInitialWindow({ ww, wc });
 
 				setWorldInfo((prev) => ({
 					...prev,
@@ -678,6 +667,7 @@ export const useCornerstone = () => {
 	return {
 		cornerstoneReady,
 		currentImage,
+		initialWindow,
 		worldInfo,
 		setWorldInfo,
 		loadAndDisplayImage,
