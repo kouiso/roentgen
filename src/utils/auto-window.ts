@@ -29,6 +29,9 @@ export const computeAutoWindow = (
 	let total = 0;
 	for (let i = 0; i < pixels.length; i++) {
 		const value = pixels[i] ?? 0;
+		// NaN/±Infinity は比較をすり抜けて total だけを水増しし、
+		// パーセンタイルに届かなくなるため明示的に外す
+		if (!Number.isFinite(value)) continue;
 		if (value <= minPixelValue || value >= maxPixelValue) continue;
 		const bin = Math.min(
 			HIST_SIZE - 1,

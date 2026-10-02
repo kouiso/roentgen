@@ -15,7 +15,7 @@ type StatusBarProps = {
 const MODE_LABEL: Record<ViewerControlType, string> = {
 	[VIEWER_CONTROL_TYPE.WW_WC]: "ドラッグで明るさを調整",
 	[VIEWER_CONTROL_TYPE.ZOOM]: "上下にドラッグで拡大・縮小",
-	[VIEWER_CONTROL_TYPE.PAN]: "ドラッグで動かす・ホイールで拡大",
+	[VIEWER_CONTROL_TYPE.PAN]: "ドラッグで動かす",
 	[VIEWER_CONTROL_TYPE.MEASURE_DISTANCE]: "2点をクリックして長さを測る",
 	[VIEWER_CONTROL_TYPE.MEASURE_ANGLE]: "3点をクリックして角度を測る",
 };

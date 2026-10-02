@@ -405,7 +405,7 @@ export const ToolPanel = ({
 						/>
 					</div>
 					<p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-						ホイールで拡大・縮小できます
+						ホイールで拡大・縮小（複数枚あるときは画像の切り替え）
 					</p>
 					<div className="mt-2 grid grid-cols-2 gap-1.5">
 						<TileButton
@@ -494,7 +494,6 @@ export const ToolPanel = ({
 						<TileButton
 							icon={<Ruler size={ICON} />}
 							label="長さを測る"
-							ariaLabel="距離を測る"
 							shortcut="D"
 							active={activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE}
 							onClick={() => onModeChange(VIEWER_CONTROL_TYPE.MEASURE_DISTANCE)}
@@ -523,21 +522,18 @@ export const ToolPanel = ({
 						<TileButton
 							icon={<PencilLine size={ICON} />}
 							label="手書き"
-							ariaLabel="フリーハンド"
 							active={activeAnnotationTool === "freehand"}
 							onClick={onStartFreehandTool}
 						/>
 						<TileButton
 							icon={<Square size={ICON} />}
 							label="四角で囲む"
-							ariaLabel="四角形"
 							active={activeAnnotationTool === "rect"}
 							onClick={onStartRectTool}
 						/>
 						<TileButton
 							icon={<Circle size={ICON} />}
 							label="丸で囲む"
-							ariaLabel="楕円"
 							active={activeAnnotationTool === "ellipse"}
 							onClick={onStartEllipseTool}
 						/>
@@ -548,7 +544,6 @@ export const ToolPanel = ({
 								<RowButton
 									icon={<Trash2 size={16} />}
 									label="測った線を消す"
-									ariaLabel="計測クリア"
 									tone="danger"
 									onClick={handleClearMeasurements}
 								/>
@@ -557,7 +552,6 @@ export const ToolPanel = ({
 								<RowButton
 									icon={<Trash2 size={16} />}
 									label="書き込みを消す"
-									ariaLabel="注釈クリア"
 									tone="danger"
 									onClick={handleClearAnnotations}
 								/>
@@ -571,7 +565,6 @@ export const ToolPanel = ({
 						<TileButton
 							icon={<Camera size={ICON} />}
 							label="画像で保存"
-							ariaLabel="スクリーンショット"
 							onClick={onScreenshot}
 						/>
 						<TileButton
@@ -634,13 +627,13 @@ export const ToolPanel = ({
 						<div className="mt-1 grid grid-cols-4 gap-1">
 							<TileButton
 								icon={<RotateCw size={16} />}
-								label="右回転"
+								label="右90°"
 								ariaLabel="右90°回転"
 								onClick={onRotateCW}
 							/>
 							<TileButton
 								icon={<RotateCcw size={16} />}
-								label="左回転"
+								label="左90°"
 								ariaLabel="左90°回転"
 								onClick={onRotateCCW}
 							/>
@@ -668,7 +661,8 @@ export const ToolPanel = ({
 								<button
 									key={preset.key}
 									type="button"
-									title={i < 9 ? `キー: ${i + 1}` : undefined}
+									// 数字キーのプリセット割当は use-keyboard-shortcuts 側が 1-7 まで
+									title={i < 7 ? `キー: ${i + 1}` : undefined}
 									onClick={() => onSetWwWc(preset.ww, preset.wc)}
 									className="flex h-8 items-center justify-between rounded-md px-2 text-[12px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
 								>
@@ -712,14 +706,12 @@ export const ToolPanel = ({
 							<RowButton
 								icon={<X size={16} />}
 								label="この画像を閉じる"
-								ariaLabel="選択クリア"
 								tone="danger"
 								onClick={handleClearSelected}
 							/>
 							<RowButton
 								icon={<XCircle size={16} />}
 								label="すべての画像を閉じる"
-								ariaLabel="全クリア"
 								tone="danger"
 								onClick={handleClearAll}
 							/>
@@ -763,7 +755,7 @@ export const ToolPanel = ({
 							key={type}
 							icon={<Icon size={16} />}
 							label={text}
-							ariaLabel={tip}
+							ariaLabel={`${text}表示（${tip}）`}
 							active={layout === type}
 							onClick={() => onSetLayout(type)}
 						/>
@@ -775,7 +767,6 @@ export const ToolPanel = ({
 							<RowButton
 								icon={<Maximize size={16} />}
 								label="すべて全体表示"
-								ariaLabel="全ペイン合わせる"
 								onClick={onFitAllPanes}
 							/>
 						)}
@@ -783,7 +774,6 @@ export const ToolPanel = ({
 							<RowButton
 								icon={<Sun size={16} />}
 								label="明るさをそろえる"
-								ariaLabel="コントラスト同期"
 								active={syncWwWc ?? false}
 								onClick={onToggleSyncWwWc}
 							/>
@@ -792,7 +782,6 @@ export const ToolPanel = ({
 							<RowButton
 								icon={<ZoomIn size={16} />}
 								label="拡大位置をそろえる"
-								ariaLabel="ズーム同期"
 								active={syncZoom ?? false}
 								onClick={onToggleSyncZoom}
 							/>

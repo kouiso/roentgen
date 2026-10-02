@@ -65,7 +65,9 @@ describe("ToolPanel", () => {
 
 		// 全部閉じる操作は誤タップを避けるため「くわしい設定」の中に置いている
 		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
-		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "すべての画像を閉じる" }),
+		);
 
 		expect(window.confirm).toHaveBeenCalledWith(
 			"開いている画像をすべて閉じます。よろしいですか？",
@@ -80,7 +82,9 @@ describe("ToolPanel", () => {
 
 		// 全部閉じる操作は誤タップを避けるため「くわしい設定」の中に置いている
 		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
-		fireEvent.click(screen.getByRole("button", { name: "全クリア" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "すべての画像を閉じる" }),
+		);
 
 		expect(onClearAll).toHaveBeenCalledOnce();
 	});
@@ -97,7 +101,7 @@ describe("ToolPanel", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
+		fireEvent.click(screen.getByRole("button", { name: "測った線を消す" }));
 
 		expect(window.confirm).toHaveBeenCalledWith(
 			"測った線をすべて消します。よろしいですか？",
@@ -117,7 +121,7 @@ describe("ToolPanel", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "計測クリア" }));
+		fireEvent.click(screen.getByRole("button", { name: "測った線を消す" }));
 
 		expect(onClearMeasurements).toHaveBeenCalledOnce();
 	});
@@ -134,7 +138,7 @@ describe("ToolPanel", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
+		fireEvent.click(screen.getByRole("button", { name: "書き込みを消す" }));
 
 		expect(window.confirm).toHaveBeenCalledWith(
 			"書き込みをすべて消します。よろしいですか？",
@@ -154,7 +158,7 @@ describe("ToolPanel", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "注釈クリア" }));
+		fireEvent.click(screen.getByRole("button", { name: "書き込みを消す" }));
 
 		expect(onClearAnnotations).toHaveBeenCalledOnce();
 	});
@@ -163,7 +167,7 @@ describe("ToolPanel", () => {
 		const onStartFreehandTool = vi.fn();
 		render(<ToolPanel {...makeProps({ onStartFreehandTool })} />);
 
-		fireEvent.click(screen.getByRole("button", { name: "フリーハンド" }));
+		fireEvent.click(screen.getByRole("button", { name: "手書き" }));
 
 		expect(onStartFreehandTool).toHaveBeenCalledOnce();
 	});
@@ -179,7 +183,7 @@ describe("ToolPanel", () => {
 
 		expect(
 			screen
-				.getByRole("button", { name: "フリーハンド" })
+				.getByRole("button", { name: "手書き" })
 				.getAttribute("aria-pressed"),
 		).toBe("true");
 	});

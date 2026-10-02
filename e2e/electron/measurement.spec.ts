@@ -128,7 +128,7 @@ test.describe("real Electron measurement overlay", () => {
 			await waitForAutoloadedFixture(page);
 
 			const clearMeasurementsButton = page.getByRole("button", {
-				name: "計測クリア",
+				name: "測った線を消す",
 			});
 			if (await clearMeasurementsButton.isVisible().catch(() => false)) {
 				await clearMeasurementsButton.click();
@@ -137,7 +137,7 @@ test.describe("real Electron measurement overlay", () => {
 				).toBeHidden();
 			}
 			const clearAnnotationsButton = page.getByRole("button", {
-				name: "注釈クリア",
+				name: "書き込みを消す",
 			});
 			if (await clearAnnotationsButton.isVisible().catch(() => false)) {
 				await clearAnnotationsButton.click();
@@ -146,7 +146,7 @@ test.describe("real Electron measurement overlay", () => {
 				).toBeHidden();
 			}
 
-			const distanceButton = page.getByRole("button", { name: "距離を測る" });
+			const distanceButton = page.getByRole("button", { name: "長さを測る" });
 			await distanceButton.click();
 			await expect(distanceButton).toHaveAttribute("aria-pressed", "true");
 			// Wait until the click listener is actually attached (signalled by data-measurement-ready)
@@ -189,7 +189,7 @@ test.describe("real Electron measurement overlay", () => {
 				path: resolve(screenshotDir, "measurement-distance-created.png"),
 			});
 
-			await page.getByRole("button", { name: "計測クリア" }).click();
+			await page.getByRole("button", { name: "測った線を消す" }).click();
 			await expect(overlay).toBeHidden();
 
 			const angleButton = page.getByRole("button", { name: "角度を測る" });
