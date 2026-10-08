@@ -1,5 +1,6 @@
 // OpenSeadragon初期化・ビューア作成
 // DICOM画像を単一タイルとしてOSDに表示し、ズーム/パン/ビューポート制御をOSDに委譲
+// imageWidth/imageHeight は「表示キャンバス」のサイズ（回転・縦横比補正後）を受け取る
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { OSDViewer } from "./use-cornerstone";
 
@@ -70,12 +71,17 @@ export const useOpenSeaDragon = ({
 			activeSizeRef.current.h === imageHeight
 		)
 			return;
-		// サイズ変更で古いビューアが残っていたら破棄
+		// サイズ変更で古いビューアが残っていたら破棄。子コンポーネントの effect から
+		// 呼ばれるとサイズ変更 effect より先にここへ来るため、破棄の通知もここで行う
+		// （通知しないと破棄済みビューアへの forceRedraw() で例外になる）。
 		if (viewerRef.current) {
 			initGenerationRef.current++;
 			viewerRef.current.destroy();
 			viewerRef.current = null;
 			tileCanvasRef.current = null;
+			setTileReady(false);
+			activeSizeRef.current = { w: 0, h: 0 };
+			onViewerDestroyedRef.current?.();
 		}
 
 		const container = document.getElementById(containerId);
@@ -103,9 +109,11 @@ export const useOpenSeaDragon = ({
 		// getContext2DでCanvasを直接提供し、ImageJob/ImageLoaderを完全にバイパスする。
 		// OSDのdrawWorld()→imageLoader.clear()によるタイルabort問題を根本的に回避。
 		// cornerstoneがtile-drawingイベント内でこのCanvasを上書きするため初期内容は無関係。
+		// キャンバスはタイルソースと同じ縦横比にする。OSD は端タイルを sourceBounds
+		// (0,0,width,height) で切り出すため、正方形キャンバスだと縦長/横長画像の一部が欠ける。
 		const tileCanvas = document.createElement("canvas");
-		tileCanvas.width = tileSize;
-		tileCanvas.height = tileSize;
+		tileCanvas.width = imageWidth;
+		tileCanvas.height = imageHeight;
 		const tileCtx = tileCanvas.getContext("2d");
 		tileCanvasRef.current = tileCanvas;
 

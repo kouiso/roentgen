@@ -26,6 +26,7 @@ vi.mock("../use-cornerstone", () => ({
 		triggerRedraw: vi.fn(),
 		loadAndDisplayImage: loadAndDisplayImageMock,
 		setupTileDrawingBridge: setupTileDrawingBridgeMock,
+		detachTileDrawingBridge: vi.fn(),
 		registerImageData: vi.fn(),
 		unregisterImageData: vi.fn(),
 		clearAllImageData: vi.fn(),

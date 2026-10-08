@@ -10,6 +10,11 @@ import {
 	isUninformativeWindow,
 } from "@/utils/auto-window";
 import { isEncapsulatedTransferSyntax } from "@/utils/dicom-parser";
+import {
+	createImageGeometry,
+	getImageToDisplayMatrix,
+	getPixelAspect,
+} from "@/utils/image-geometry";
 
 // cornerstone-coreの型（旧版に型定義なし）
 type CornerstoneImage = {
@@ -26,15 +31,30 @@ type CornerstoneImage = {
 	invert: boolean;
 	minPixelValue: number;
 	maxPixelValue: number;
+	rowPixelSpacing?: number;
+	columnPixelSpacing?: number;
 	render?: (enabledElement: unknown, invalidated: boolean) => void;
 };
 
 type CornerstoneViewport = {
 	voi?: { windowWidth: number; windowCenter: number };
 	invert?: boolean;
-	rotation?: number;
-	hflip?: boolean;
-	vflip?: boolean;
+};
+
+// cornerstone は rowPixelSpacing ≠ columnPixelSpacing の画像を自前で縦横比補正するが、
+// 回転・反転・縦横比は image-geometry 側で一元的に適用したい。原画像を等倍で
+// 描かせるため、ピクセル間隔だけを等方に見せる派生オブジェクトを渡す。
+// prototype 経由で原画像のプロパティを参照するので、ピクセルデータは複製されない。
+const squarePixelImageCache = new WeakMap<CornerstoneImage, CornerstoneImage>();
+const toSquarePixelImage = (image: CornerstoneImage): CornerstoneImage => {
+	const cached = squarePixelImageCache.get(image);
+	if (cached) return cached;
+	const squared: CornerstoneImage = Object.create(image, {
+		rowPixelSpacing: { value: 1, writable: true },
+		columnPixelSpacing: { value: 1, writable: true },
+	});
+	squarePixelImageCache.set(image, squared);
+	return squared;
 };
 
 type CornerstoneWadoImageLoader = {
@@ -463,6 +483,110 @@ export const useCornerstone = () => {
 	const worldInfoRef = useRef<ViewerWorldInfo>(INITIAL_WORLD_INFO);
 	const overlayDataRef = useRef<import("@/types/dicom").OverlayPlaneData[]>([]);
 	const photometricInterpretationRef = useRef("MONOCHROME2");
+	const pixelAspectRef = useRef(1);
+	// 原画像（等倍・無回転）を描いておく作業用キャンバス。表示タイルへはここから
+	// 回転・反転・縦横比を含む行列で転写する。パン/ズームの再描画ごとに
+	// cornerstone の LUT 処理を走らせないよう、入力が同じなら再利用する。
+	const sourceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+	const sourceKeyRef = useRef<{
+		image: CornerstoneImage;
+		windowWidth: number;
+		windowCenter: number;
+		invert: boolean;
+		overlays: import("@/types/dicom").OverlayPlaneData[];
+	} | null>(null);
+
+	const renderSourceCanvas = useCallback(
+		(
+			cs: {
+				renderToCanvas: (
+					canvas: HTMLCanvasElement,
+					image: CornerstoneImage,
+					viewport: CornerstoneViewport,
+				) => void;
+			},
+			image: CornerstoneImage,
+			wi: ViewerWorldInfo,
+		): HTMLCanvasElement | null => {
+			const source =
+				sourceCanvasRef.current ?? document.createElement("canvas");
+			sourceCanvasRef.current = source;
+			const overlays = overlayDataRef.current;
+			const key = sourceKeyRef.current;
+			if (
+				key &&
+				key.image === image &&
+				key.windowWidth === wi.windowWidth &&
+				key.windowCenter === wi.windowCenter &&
+				key.invert === wi.invert &&
+				key.overlays === overlays &&
+				source.width === image.columns &&
+				source.height === image.rows
+			) {
+				return source;
+			}
+			if (source.width !== image.columns) source.width = image.columns;
+			if (source.height !== image.rows) source.height = image.rows;
+
+			const viewport: CornerstoneViewport = {
+				voi: {
+					windowWidth: wi.windowWidth,
+					windowCenter: wi.windowCenter,
+				},
+				invert: wi.invert,
+			};
+			cs.renderToCanvas(source, toSquarePixelImage(image), viewport);
+
+			if (overlays.length > 0) {
+				const ctx = source.getContext("2d");
+				if (ctx) {
+					const overlayColor =
+						photometricInterpretationRef.current === "MONOCHROME1"
+							? [0, 0, 0]
+							: [255, 255, 255];
+					for (const overlay of overlays) {
+						const imgData = ctx.getImageData(
+							overlay.originCol - 1,
+							overlay.originRow - 1,
+							overlay.columns,
+							overlay.rows,
+						);
+						for (let y = 0; y < overlay.rows; y++) {
+							for (let x = 0; x < overlay.columns; x++) {
+								const bitIdx = y * overlay.columns + x;
+								const byteIdx = Math.floor(bitIdx / 8);
+								const bitOffset = bitIdx % 8;
+								const byteVal = overlay.data[byteIdx] ?? 0;
+								const isSet = (byteVal >> bitOffset) & 1;
+								if (isSet) {
+									const pixelIdx = (y * overlay.columns + x) * 4;
+									imgData.data[pixelIdx] = overlayColor[0] ?? 255;
+									imgData.data[pixelIdx + 1] = overlayColor[1] ?? 255;
+									imgData.data[pixelIdx + 2] = overlayColor[2] ?? 255;
+									imgData.data[pixelIdx + 3] = 180;
+								}
+							}
+						}
+						ctx.putImageData(
+							imgData,
+							overlay.originCol - 1,
+							overlay.originRow - 1,
+						);
+					}
+				}
+			}
+
+			sourceKeyRef.current = {
+				image,
+				windowWidth: wi.windowWidth,
+				windowCenter: wi.windowCenter,
+				invert: wi.invert,
+				overlays,
+			};
+			return source;
+		},
+		[],
+	);
 
 	useEffect(() => {
 		currentImageRef.current = currentImage;
@@ -536,6 +660,7 @@ export const useCornerstone = () => {
 				currentImageRef.current = image;
 				setCurrentImage(image);
 				overlayDataRef.current = fileInfo.overlayData;
+				pixelAspectRef.current = getPixelAspect(fileInfo.pixelSpacing);
 				photometricInterpretationRef.current =
 					fileInfo.photometricInterpretation;
 
@@ -576,78 +701,64 @@ export const useCornerstone = () => {
 	);
 
 	// OSD tileDrawingブリッジ設定
-	const setupTileDrawingBridge = useCallback((osdViewer: OSDViewer) => {
-		if (osdViewerRef.current) {
-			osdViewerRef.current.removeAllHandlers("tile-drawing");
-		}
-		osdViewerRef.current = osdViewer;
-
-		osdViewer.addHandler("tile-drawing", (rawEvent) => {
-			const event = rawEvent as OSDTileEvent;
-			const cs = _cornerstoneModule;
-			const image = currentImageRef.current;
-			if (!cs || !image || !event.rendered?.canvas) return;
-
-			const canvas = event.rendered.canvas;
-			const wi = worldInfoRef.current;
-
-			const viewport: CornerstoneViewport = {
-				voi: {
-					windowWidth: wi.windowWidth,
-					windowCenter: wi.windowCenter,
-				},
-				invert: wi.invert,
-				rotation: wi.rotation,
-				hflip: wi.flipHorizontal,
-				vflip: wi.flipVertical,
-			};
-
-			try {
-				cs.renderToCanvas(canvas, image, viewport);
-
-				const overlays = overlayDataRef.current;
-				if (overlays.length > 0) {
-					const ctx = canvas.getContext("2d");
-					if (ctx) {
-						const overlayColor =
-							photometricInterpretationRef.current === "MONOCHROME1"
-								? [0, 0, 0]
-								: [255, 255, 255];
-						for (const overlay of overlays) {
-							const imgData = ctx.getImageData(
-								overlay.originCol - 1,
-								overlay.originRow - 1,
-								overlay.columns,
-								overlay.rows,
-							);
-							for (let y = 0; y < overlay.rows; y++) {
-								for (let x = 0; x < overlay.columns; x++) {
-									const bitIdx = y * overlay.columns + x;
-									const byteIdx = Math.floor(bitIdx / 8);
-									const bitOffset = bitIdx % 8;
-									const byteVal = overlay.data[byteIdx] ?? 0;
-									const isSet = (byteVal >> bitOffset) & 1;
-									if (isSet) {
-										const pixelIdx = (y * overlay.columns + x) * 4;
-										imgData.data[pixelIdx] = overlayColor[0] ?? 255;
-										imgData.data[pixelIdx + 1] = overlayColor[1] ?? 255;
-										imgData.data[pixelIdx + 2] = overlayColor[2] ?? 255;
-										imgData.data[pixelIdx + 3] = 180;
-									}
-								}
-							}
-							ctx.putImageData(
-								imgData,
-								overlay.originCol - 1,
-								overlay.originRow - 1,
-							);
-						}
-					}
-				}
-			} catch (err) {
-				console.error("[tileDrawing] renderToCanvas失敗:", err);
+	const setupTileDrawingBridge = useCallback(
+		(osdViewer: OSDViewer) => {
+			if (osdViewerRef.current) {
+				osdViewerRef.current.removeAllHandlers("tile-drawing");
 			}
-		});
+			osdViewerRef.current = osdViewer;
+
+			osdViewer.addHandler("tile-drawing", (rawEvent) => {
+				const event = rawEvent as OSDTileEvent;
+				const cs = _cornerstoneModule;
+				const image = currentImageRef.current;
+				if (!cs || !image || !event.rendered?.canvas) return;
+
+				const canvas = event.rendered.canvas;
+				const ctx = canvas.getContext("2d");
+				if (!ctx) return;
+				const wi = worldInfoRef.current;
+
+				try {
+					const source = renderSourceCanvas(cs, image, wi);
+					if (!source) return;
+
+					const matrix = getImageToDisplayMatrix(
+						createImageGeometry(image.columns, image.rows, {
+							pixelAspect: pixelAspectRef.current,
+							rotation: wi.rotation,
+							flipHorizontal: wi.flipHorizontal,
+							flipVertical: wi.flipVertical,
+						}),
+						{ width: canvas.width, height: canvas.height },
+					);
+					ctx.save();
+					ctx.setTransform(1, 0, 0, 1, 0, 0);
+					ctx.fillStyle = "#000";
+					ctx.fillRect(0, 0, canvas.width, canvas.height);
+					ctx.setTransform(
+						matrix.a,
+						matrix.b,
+						matrix.c,
+						matrix.d,
+						matrix.e,
+						matrix.f,
+					);
+					ctx.imageSmoothingEnabled = true;
+					ctx.drawImage(source, 0, 0);
+					ctx.restore();
+				} catch (err) {
+					console.error("[tileDrawing] renderToCanvas失敗:", err);
+				}
+			});
+		},
+		[renderSourceCanvas],
+	);
+
+	// OSD は destroy 後に forceRedraw() を呼ぶと例外を投げる。90°回転などで
+	// ビューアが作り直される間に古い参照から再描画しないよう、破棄時に外す。
+	const detachTileDrawingBridge = useCallback(() => {
+		osdViewerRef.current = null;
 	}, []);
 
 	const triggerRedraw = useCallback(() => {
@@ -672,6 +783,7 @@ export const useCornerstone = () => {
 		setWorldInfo,
 		loadAndDisplayImage,
 		setupTileDrawingBridge,
+		detachTileDrawingBridge,
 		triggerRedraw,
 		registerImageData,
 		unregisterImageData,

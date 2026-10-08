@@ -18,6 +18,11 @@ import {
 	matchesSopInstanceUid,
 } from "@/utils/annotation-storage";
 import { calculateImageDirection, type Species } from "@/utils/image-direction";
+import {
+	createImageGeometry,
+	getDisplaySize,
+	getPixelAspect,
+} from "@/utils/image-geometry";
 import { containerToImageCoord } from "@/utils/measurement-math";
 
 const PRELOAD_COUNT = 10;
@@ -34,6 +39,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	const [species, setSpecies] = useState<Species>("equine");
 	const [isOsdReady, setIsOsdReady] = useState(false);
 	const [imageLoadError, setImageLoadError] = useState<string | null>(null);
+	const loadedFileRef = useRef<DicomFileInfo | null>(null);
 	const isFreehandDraggingRef = useRef(false);
 	const freehandPointerIdRef = useRef<number | null>(null);
 
@@ -46,6 +52,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		triggerRedraw,
 		loadAndDisplayImage,
 		setupTileDrawingBridge,
+		detachTileDrawingBridge,
 		registerImageData,
 		unregisterImageData,
 		clearAllImageData,
@@ -62,16 +69,38 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 
 	const containerId = `osd-${paneId}`;
 
+	// 計測・注釈は常に元画像のピクセル座標で保存し、表示時だけこの幾何で変換する
+	const pixelAspect = getPixelAspect(currentFile?.pixelSpacing);
+	const geometry = useMemo(
+		() =>
+			createImageGeometry(imageWidth, imageHeight, {
+				pixelAspect,
+				rotation: worldInfo.rotation,
+				flipHorizontal: worldInfo.flipHorizontal,
+				flipVertical: worldInfo.flipVertical,
+			}),
+		[
+			imageWidth,
+			imageHeight,
+			pixelAspect,
+			worldInfo.rotation,
+			worldInfo.flipHorizontal,
+			worldInfo.flipVertical,
+		],
+	);
+	const displaySize = getDisplaySize(geometry);
+
 	const { initViewer, getViewport, tileReady, tileCanvasRef, viewerRef } =
 		useOpenSeaDragon({
 			containerId,
-			imageWidth,
-			imageHeight,
+			imageWidth: displaySize.width,
+			imageHeight: displaySize.height,
 			onViewerCreated: (viewer) => {
 				setupTileDrawingBridge(viewer);
 				setIsOsdReady(true);
 			},
 			onViewerDestroyed: () => {
+				detachTileDrawingBridge();
 				setIsOsdReady(false);
 			},
 		});
@@ -172,6 +201,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				imageWidth,
 				imageHeight,
 				viewport,
+				geometry,
 			);
 			if (imageCoord) {
 				if (isClickAnnotationMode || annotation.pendingTextPosition) {
@@ -190,6 +220,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			getViewport,
 			imageWidth,
 			imageHeight,
+			geometry,
 			measurement.addPoint,
 		],
 	);
@@ -207,9 +238,10 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 				imageWidth,
 				imageHeight,
 				viewport,
+				geometry,
 			);
 		},
-		[containerId, getViewport, imageWidth, imageHeight],
+		[containerId, getViewport, imageWidth, imageHeight, geometry],
 	);
 
 	// 計測・注釈クリックイベント登録
@@ -403,12 +435,16 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 現在フレーム変更時に画像読み込み
 	useEffect(() => {
 		if (!currentFile || !isOsdReady || !cornerstoneReady) return;
+		// 90°回転では表示タイルの縦横が入れ替わるため OSD ビューアが作り直される。
+		// 同じ画像を読み直すと明るさ調整が初期値に戻ってしまうので、読込済みなら再利用する。
+		if (loadedFileRef.current === currentFile) return;
 		const controller = new AbortController();
 		setImageLoadError(null);
 		Promise.resolve(
 			loadAndDisplayImage(currentFile, { signal: controller.signal }),
 		).then((success) => {
 			if (controller.signal.aborted) return;
+			loadedFileRef.current = success !== false ? currentFile : null;
 			setImageLoadError(
 				success !== false
 					? null
@@ -568,6 +604,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		currentFile,
 		imageWidth,
 		imageHeight,
+		geometry,
 		cornerstoneReady,
 		currentImage,
 		imageLoadError,

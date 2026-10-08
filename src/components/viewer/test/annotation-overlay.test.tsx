@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Annotation } from "@/types/annotation";
+import { createImageGeometry } from "@/utils/image-geometry";
 import { AnnotationOverlay } from "../annotation-overlay";
 
 const makeViewport = (
@@ -456,50 +457,51 @@ describe("AnnotationOverlay", () => {
 		expect(numAttr(line(), "y1")).toBeCloseTo(80, 6);
 	});
 
-	it("projects rectangle ROI corners through viewport rotation", () => {
+	it.each([
+		{
+			label: "unrotated",
+			options: {},
+			expected: { x: 20, y: 40, width: 60, height: 20 },
+		},
+		{
+			// 90°回転: (x, y) → (100 - y, x)
+			label: "rotation 90",
+			options: { rotation: 90 },
+			expected: { x: 140, y: 20, width: 20, height: 60 },
+		},
+		{
+			label: "rotation 90 + horizontal flip",
+			options: { rotation: 90, flipHorizontal: true },
+			expected: { x: 40, y: 20, width: 20, height: 60 },
+		},
+	])("projects rectangle ROI corners through the display geometry ($label)", ({
+		options,
+		expected,
+	}) => {
 		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
 			mockRect(200, 200),
 		);
-		// 画像中心を中心とした正方形ROI。回転の基準点が画像中心なら、
-		// 対角線上の2頂点を入れ替えるだけで矩形の範囲自体は変わらないはず。
 		const annotations: Annotation[] = [
 			{
 				id: "a-rect",
 				type: "rect",
-				topLeft: { x: 30, y: 30 },
-				bottomRight: { x: 70, y: 70 },
+				topLeft: { x: 10, y: 20 },
+				bottomRight: { x: 40, y: 30 },
 			},
 		];
 
-		const renderWithRotation = (rotation: number) =>
-			renderOverlay({
-				annotations,
-				viewport: makeViewport({ center: { x: 0.8, y: 0.2 }, rotation }),
-			});
-
-		const unrotated = renderWithRotation(0);
-		const unrotatedRect = unrotated.container.querySelector(
-			"rect[stroke='#FFD700']",
-		);
-		const before = {
-			x: numAttr(unrotatedRect, "x"),
-			y: numAttr(unrotatedRect, "y"),
-			width: numAttr(unrotatedRect, "width"),
-			height: numAttr(unrotatedRect, "height"),
-		};
-		unrotated.unmount();
-		unrotated.container.remove();
-
-		const rotated = renderWithRotation(90);
-		const rotatedRect = rotated.container.querySelector(
-			"rect[stroke='#FFD700']",
-		);
-		expect(numAttr(rotatedRect, "x")).toBeCloseTo(before.x, 6);
-		expect(numAttr(rotatedRect, "y")).toBeCloseTo(before.y, 6);
-		expect(numAttr(rotatedRect, "width")).toBeCloseTo(before.width, 6);
-		expect(numAttr(rotatedRect, "height")).toBeCloseTo(before.height, 6);
-		rotated.unmount();
-		rotated.container.remove();
+		const rendered = renderOverlay({
+			annotations,
+			viewport: makeViewport(),
+			geometry: createImageGeometry(100, 100, options),
+		});
+		const rect = rendered.container.querySelector("rect[stroke='#FFD700']");
+		expect(numAttr(rect, "x")).toBeCloseTo(expected.x, 6);
+		expect(numAttr(rect, "y")).toBeCloseTo(expected.y, 6);
+		expect(numAttr(rect, "width")).toBeCloseTo(expected.width, 6);
+		expect(numAttr(rect, "height")).toBeCloseTo(expected.height, 6);
+		rendered.unmount();
+		rendered.container.remove();
 	});
 
 	it("projects ellipse ROI through viewport rotation", () => {

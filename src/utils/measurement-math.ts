@@ -1,15 +1,17 @@
-// 計測ユーティリティ — 距離・角度計算
+// 計測ユーティリティ — 距離・角度計算とコンテナ⇄画像座標変換
 import type { MeasurementPoint, MeasurementUnit } from "@/types/measurement";
+import {
+	createImageGeometry,
+	displayToImagePoint,
+	getDisplaySize,
+	type ImageGeometry,
+	imageToDisplayPoint,
+} from "@/utils/image-geometry";
 
-type OSDViewport = {
+// OSD Viewport のうち座標変換に使う最小限のAPI
+export type OSDViewport = {
 	getZoom: () => number;
 	getCenter: () => MeasurementPoint;
-	getHomeBounds: () => {
-		x: number;
-		y: number;
-		width: number;
-		height: number;
-	};
 	getRotation?: () => number;
 	getFlip?: () => boolean;
 };
@@ -20,78 +22,77 @@ export type DistanceCalculationResult = {
 	calibrated: boolean;
 };
 
-const getViewportTransformMatrix = (
-	rotation: number,
-	flip: boolean,
-): { a: number; b: number; c: number; d: number } => {
-	const radians = (rotation * Math.PI) / 180;
-	const cos = Math.cos(radians);
-	const sin = Math.sin(radians);
-
-	if (!flip) {
-		return { a: cos, b: sin, c: -sin, d: cos };
-	}
-
-	return { a: -cos, b: sin, c: sin, d: cos };
-};
-
-const applyMatrixAroundCenter = (
+const rotateAround = (
 	point: MeasurementPoint,
 	center: MeasurementPoint,
-	matrix: { a: number; b: number; c: number; d: number },
+	degrees: number,
 ): MeasurementPoint => {
+	if (!degrees) return point;
+	const radians = (degrees * Math.PI) / 180;
+	const cos = Math.cos(radians);
+	const sin = Math.sin(radians);
 	const dx = point.x - center.x;
 	const dy = point.y - center.y;
-
 	return {
-		x: center.x + matrix.a * dx + matrix.c * dy,
-		y: center.y + matrix.b * dx + matrix.d * dy,
+		x: center.x + dx * cos - dy * sin,
+		y: center.y + dx * sin + dy * cos,
 	};
 };
 
-export const applyViewportTransform = (
-	point: MeasurementPoint,
-	center: MeasurementPoint,
-	rotation: number,
-	flip: boolean,
-): MeasurementPoint => {
-	return applyMatrixAroundCenter(
-		point,
-		center,
-		getViewportTransformMatrix(rotation, flip),
-	);
+// OSD のビューポート座標は等方的（x/y とも「表示タイル幅 = 1.0」で正規化）。
+// 可視範囲の幅は 1/zoom で、高さはコンテナの縦横比から決まる。
+// homeBounds はコンテナの縦横比に合わせて拡張された矩形なので、画像の高さ換算には使えない。
+// rotation/flip は OSD の pointFromPixel / pixelFromPoint と同じ規約で扱う
+// （アプリ自身は OSD の回転・反転を使わず、表示タイル側で回転させている）。
+const containerToViewportPoint = (
+	containerX: number,
+	containerY: number,
+	containerRect: DOMRect,
+	viewport: OSDViewport,
+): MeasurementPoint | null => {
+	const zoom = viewport.getZoom();
+	if (!Number.isFinite(zoom) || zoom <= 0 || containerRect.width <= 0) {
+		return null;
+	}
+	const center = viewport.getCenter();
+	const pixelsPerUnit = containerRect.width * zoom;
+	const x = viewport.getFlip?.()
+		? containerRect.width - containerX
+		: containerX;
+	const unrotated = {
+		x: center.x + (x - containerRect.width / 2) / pixelsPerUnit,
+		y: center.y + (containerY - containerRect.height / 2) / pixelsPerUnit,
+	};
+	return rotateAround(unrotated, center, -(viewport.getRotation?.() ?? 0));
 };
 
-// 回転の基準点は画像自体の中心（パン位置に依存させない）。
-// OSD viewport.setRotation() のデフォルトpivotは現在のパン中心だが、
-// 臨床ビューアでは「画像をその場で回す」挙動が期待されるため、
-// 再投影計算では常に画像中心を回転の基準点として扱う。
-const getImageCenter = (homeBounds: {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}): MeasurementPoint => ({
-	x: homeBounds.x + homeBounds.width / 2,
-	y: homeBounds.y + homeBounds.height / 2,
-});
-
-export const invertViewportTransform = (
+const viewportToContainerPoint = (
 	point: MeasurementPoint,
-	center: MeasurementPoint,
-	rotation: number,
-	flip: boolean,
-): MeasurementPoint => {
-	const matrix = getViewportTransformMatrix(rotation, flip);
-	const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-
-	return applyMatrixAroundCenter(point, center, {
-		a: matrix.d / determinant,
-		b: -matrix.b / determinant,
-		c: -matrix.c / determinant,
-		d: matrix.a / determinant,
-	});
+	containerRect: DOMRect,
+	viewport: OSDViewport,
+): MeasurementPoint | null => {
+	const zoom = viewport.getZoom();
+	if (!Number.isFinite(zoom) || zoom <= 0 || containerRect.width <= 0) {
+		return null;
+	}
+	const center = viewport.getCenter();
+	const pixelsPerUnit = containerRect.width * zoom;
+	const rotated = rotateAround(point, center, viewport.getRotation?.() ?? 0);
+	const x = (rotated.x - center.x) * pixelsPerUnit + containerRect.width / 2;
+	return {
+		x: viewport.getFlip?.() ? containerRect.width - x : x,
+		y: (rotated.y - center.y) * pixelsPerUnit + containerRect.height / 2,
+	};
 };
+
+const resolveGeometry = (
+	imageWidth: number,
+	imageHeight: number,
+	geometry: ImageGeometry | null | undefined,
+): ImageGeometry =>
+	geometry && geometry.columns === imageWidth && geometry.rows === imageHeight
+		? geometry
+		: createImageGeometry(imageWidth, imageHeight);
 
 // 2点間の距離（校正済みならmm、PixelSpacingなしならpx）
 // pixelSpacing: [rowSpacing, colSpacing] in mm/pixel
@@ -143,7 +144,8 @@ export const calculateAngleDeg = (
 	return (angleRad * 180) / Math.PI;
 };
 
-// コンテナ座標 → 画像座標
+// コンテナ座標(clientX/Y) → 画像ピクセル座標。画像の外なら null。
+// geometry には表示中の回転・反転・縦横比を渡す。省略時は無変換の正方ピクセル扱い。
 export const containerToImageCoord = (
 	clientX: number,
 	clientY: number,
@@ -151,117 +153,55 @@ export const containerToImageCoord = (
 	imageWidth: number,
 	imageHeight: number,
 	viewport: OSDViewport | null,
+	geometry?: ImageGeometry | null,
 ): MeasurementPoint | null => {
-	if (!viewport) return null;
+	if (!viewport || imageWidth <= 0 || imageHeight <= 0) return null;
 
-	// コンテナ内の相対座標
-	const containerX = clientX - containerRect.left;
-	const containerY = clientY - containerRect.top;
+	const vp = containerToViewportPoint(
+		clientX - containerRect.left,
+		clientY - containerRect.top,
+		containerRect,
+		viewport,
+	);
+	if (!vp) return null;
 
-	// OSDビューポート座標系に変換
-	const zoom = viewport.getZoom();
-	const center = viewport.getCenter();
-	const homeBounds = viewport.getHomeBounds();
-
-	// ビューポート座標 (OSD 6.x: image normalized width = 1.0, NOT homeBounds.width)
-	const vpWidth = 1.0 / zoom;
-	const vpHeight = homeBounds.height / zoom;
-
-	const vpX =
-		center.x - vpWidth / 2 + (containerX / containerRect.width) * vpWidth;
-	const vpY =
-		center.y - vpHeight / 2 + (containerY / containerRect.height) * vpHeight;
-	const transformed = invertViewportTransform(
-		{ x: vpX, y: vpY },
-		getImageCenter(homeBounds),
-		viewport.getRotation?.() ?? 0,
-		viewport.getFlip?.() ?? false,
+	const resolved = resolveGeometry(imageWidth, imageHeight, geometry);
+	const displayWidth = getDisplaySize(resolved).width;
+	const image = displayToImagePoint(
+		{ x: vp.x * displayWidth, y: vp.y * displayWidth },
+		resolved,
 	);
 
-	// 画像座標に変換 (OSD 6.x: image x ∈ [0, 1.0], not [0, homeBounds.width])
-	const imgX = transformed.x * imageWidth;
-	const imgY = (transformed.y / homeBounds.height) * imageHeight;
-
-	if (imgX < 0 || imgX >= imageWidth || imgY < 0 || imgY >= imageHeight) {
+	if (
+		image.x < 0 ||
+		image.x >= imageWidth ||
+		image.y < 0 ||
+		image.y >= imageHeight
+	) {
 		return null;
 	}
 
-	return { x: imgX, y: imgY };
+	return image;
 };
 
-// 画像座標 → コンテナピクセル座標（SVG描画用）
-export function imageToContainerCoord(
+// 画像ピクセル座標 → コンテナ座標（SVG描画用）
+export const imageToContainerCoord = (
 	imagePoint: MeasurementPoint,
 	imageWidth: number,
 	imageHeight: number,
 	containerRect: DOMRect,
 	viewport: OSDViewport | null,
-): MeasurementPoint | null;
-export function imageToContainerCoord(
-	imagePoint: MeasurementPoint,
-	imageWidth: number,
-	containerRect: DOMRect,
-	viewport: OSDViewport | null,
-): MeasurementPoint | null;
-export function imageToContainerCoord(
-	imagePoint: MeasurementPoint,
-	imageWidth: number,
-	imageHeightOrContainerRect: number | DOMRect,
-	containerRectOrViewport: DOMRect | OSDViewport | null,
-	maybeViewport?: OSDViewport | null,
-): MeasurementPoint | null {
-	let containerRect: DOMRect;
-	let viewport: OSDViewport | null;
-	let explicitImageHeight: number | null = null;
+	geometry?: ImageGeometry | null,
+): MeasurementPoint | null => {
+	if (!viewport || imageWidth <= 0 || imageHeight <= 0) return null;
 
-	if (typeof imageHeightOrContainerRect === "number") {
-		explicitImageHeight = imageHeightOrContainerRect;
-		if (
-			!containerRectOrViewport ||
-			"getHomeBounds" in containerRectOrViewport
-		) {
-			return null;
-		}
-		containerRect = containerRectOrViewport;
-		viewport = maybeViewport ?? null;
-	} else {
-		containerRect = imageHeightOrContainerRect;
-		if (
-			!containerRectOrViewport ||
-			!("getHomeBounds" in containerRectOrViewport)
-		) {
-			return null;
-		}
-		viewport = containerRectOrViewport;
-	}
+	const resolved = resolveGeometry(imageWidth, imageHeight, geometry);
+	const displayWidth = getDisplaySize(resolved).width;
+	const display = imageToDisplayPoint(imagePoint, resolved);
 
-	if (!viewport) return null;
-
-	const homeBounds = viewport.getHomeBounds();
-	const zoom = viewport.getZoom();
-	const center = viewport.getCenter();
-	const imageHeight = explicitImageHeight ?? imageWidth * homeBounds.height;
-
-	// 画像座標 → ビューポート座標 (OSD 6.x: image x ∈ [0, 1.0])
-	const vpX = imagePoint.x / imageWidth;
-	const vpY = (imagePoint.y / imageHeight) * homeBounds.height;
-	const transformed = applyViewportTransform(
-		{ x: vpX, y: vpY },
-		getImageCenter(homeBounds),
-		viewport.getRotation?.() ?? 0,
-		viewport.getFlip?.() ?? false,
+	return viewportToContainerPoint(
+		{ x: display.x / displayWidth, y: display.y / displayWidth },
+		containerRect,
+		viewport,
 	);
-
-	// ビューポート座標 → コンテナ座標
-	const vpWidth = 1.0 / zoom;
-	const vpHeight = homeBounds.height / zoom;
-
-	const containerX =
-		((transformed.x - (center.x - vpWidth / 2)) / vpWidth) *
-		containerRect.width;
-	const containerY =
-		((transformed.y - (center.y - vpHeight / 2)) / vpHeight) *
-		containerRect.height;
-
-	return { x: containerX, y: containerY };
-}
+};

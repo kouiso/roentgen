@@ -22,9 +22,11 @@ import {
 	buildDicomFileInfo,
 	UnsupportedTransferSyntaxError,
 } from "@/utils/dicom-parser";
+import { createImageGeometry, getPixelAspect } from "@/utils/image-geometry";
 import {
-	applyViewportTransform,
 	calculateDistanceMm,
+	containerToImageCoord,
+	imageToContainerCoord,
 } from "@/utils/measurement-math";
 
 const padEven = (bytes: Uint8Array, pad = 0x20): Uint8Array => {
@@ -329,32 +331,68 @@ describe("Daily workflow scenarios", () => {
 		expect(state.windowCenter).toBe(2048);
 	});
 
-	it("rotating 90 degrees preserves measured injury distance", () => {
-		const p1 = { x: 10, y: 20 };
-		const p2 = { x: 40, y: 80 };
-		const center = { x: 50, y: 50 };
-		const before = calculateDistanceMm(p1, p2, [0.2, 0.2]);
-		const after = calculateDistanceMm(
-			applyViewportTransform(p1, center, 90, false),
-			applyViewportTransform(p2, center, 90, false),
-			[0.2, 0.2],
-		);
+	// 画面上で同じ解剖学的位置を2回クリックしたとき、回転・反転の有無で距離が変わらないこと。
+	// 非正方ピクセル（行0.2mm/列0.1mm）で縦横比補正も同時に通す。
+	const pickOnScreenAndMeasure = (
+		geometryOptions: Parameters<typeof createImageGeometry>[2],
+	) => {
+		const pixelSpacing: [number, number] = [0.2, 0.1];
+		const geometry = createImageGeometry(200, 100, {
+			pixelAspect: getPixelAspect(pixelSpacing),
+			...geometryOptions,
+		});
+		const rect = new DOMRect(0, 0, 400, 400);
+		const viewport = {
+			getZoom: () => 1,
+			getCenter: () => ({ x: 0.5, y: 0.5 }),
+		};
+		const injury = [
+			{ x: 10, y: 20 },
+			{ x: 40, y: 80 },
+		];
+		const picked = injury.map((point) => {
+			const screen = imageToContainerCoord(
+				point,
+				200,
+				100,
+				rect,
+				viewport,
+				geometry,
+			);
+			if (!screen) throw new Error("injury should be on screen");
+			const image = containerToImageCoord(
+				screen.x,
+				screen.y,
+				rect,
+				200,
+				100,
+				viewport,
+				geometry,
+			);
+			if (!image) throw new Error("click should hit the image");
+			return image;
+		});
+		const [p1, p2] = picked;
+		if (!p1 || !p2) throw new Error("two points should be picked");
+		return calculateDistanceMm(p1, p2, pixelSpacing);
+	};
 
-		expect(after).toBeCloseTo(before);
+	it("rotating 90 degrees preserves measured injury distance", () => {
+		const before = pickOnScreenAndMeasure({});
+		expect(before).toBeCloseTo(Math.hypot(30 * 0.1, 60 * 0.2), 6);
+		expect(pickOnScreenAndMeasure({ rotation: 90 })).toBeCloseTo(before, 6);
+		expect(pickOnScreenAndMeasure({ rotation: 270 })).toBeCloseTo(before, 6);
 	});
 
 	it("flipping horizontally preserves measured injury distance", () => {
-		const p1 = { x: 10, y: 20 };
-		const p2 = { x: 40, y: 80 };
-		const center = { x: 50, y: 50 };
-		const before = calculateDistanceMm(p1, p2, [0.2, 0.2]);
-		const after = calculateDistanceMm(
-			applyViewportTransform(p1, center, 0, true),
-			applyViewportTransform(p2, center, 0, true),
-			[0.2, 0.2],
+		const before = pickOnScreenAndMeasure({});
+		expect(pickOnScreenAndMeasure({ flipHorizontal: true })).toBeCloseTo(
+			before,
+			6,
 		);
-
-		expect(after).toBeCloseTo(before);
+		expect(
+			pickOnScreenAndMeasure({ rotation: 90, flipHorizontal: true }),
+		).toBeCloseTo(before, 6);
 	});
 });
 
