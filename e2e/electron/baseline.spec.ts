@@ -9,7 +9,7 @@ import {
 } from "@playwright/test";
 import {
 	buildElectronApp,
-	electronMainPath,
+	electronLaunchArgs,
 	type RendererDevServer,
 	repoRoot,
 	startRendererDevServer,
@@ -113,7 +113,7 @@ test.describe("real Electron baseline regression", () => {
 		try {
 			rendererServer = await startRendererDevServer();
 			const launchedApp = await electron.launch({
-				args: [electronMainPath, "--no-sandbox"],
+				args: electronLaunchArgs(),
 				env: {
 					...process.env,
 					ELECTRON_RUN_AS_NODE: "",
