@@ -344,6 +344,11 @@ test.describe("real Electron image geometry", () => {
 			});
 			expect(first.pageErrors.map((error) => error.message)).toEqual([]);
 
+			// 注釈は 1 秒デバウンスで保存される。CI では上の操作が 1 秒未満で終わり、
+			// 保存前にアプリを閉じてしまうため、保存完了の表示を待ってから終了する。
+			await expect(
+				page.getByRole("status").filter({ hasText: "注釈を保存しました" }),
+			).toBeVisible({ timeout: 10_000 });
 			await first.app.close();
 			electronApp = undefined;
 
