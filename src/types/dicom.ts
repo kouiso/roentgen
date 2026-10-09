@@ -20,6 +20,10 @@ export type DicomFileInfo = {
 	pixelSpacing: [number, number] | null;
 	imageOrientationPatient: number[] | null;
 	imagePositionPatient: number[] | null;
+	// Patient Orientation (0020,0020)。一般撮影(DX/CR)は IOP を持たずこちらだけのことが多い
+	patientOrientation: PatientOrientation | null;
+	// Anatomical Orientation Type (0010,2210)。未設定は規格上 BIPED 扱い
+	anatomicalOrientationType: AnatomicalOrientationType;
 	sliceThickness: number | null;
 	sliceLocation: number | null;
 	instanceNumber: number | null;
@@ -36,6 +40,14 @@ export type DicomFileInfo = {
 	tags: Record<string, string>;
 	// サムネイル用プリレンダリング済みRGBAデータ（100x80）
 	thumbnailData: Uint8ClampedArray | null;
+};
+
+export type AnatomicalOrientationType = "BIPED" | "QUADRUPED";
+
+// 画像の右方向（行）と下方向（列）の解剖学的方向。値は DICOM の略号のまま保持する
+export type PatientOrientation = {
+	row: string;
+	column: string;
 };
 
 // Modality LUT データ

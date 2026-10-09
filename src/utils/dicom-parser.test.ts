@@ -8,10 +8,12 @@ import {
 	getStringTag,
 	getUint16Tag,
 	isEncapsulatedTransferSyntax,
+	parseAnatomicalOrientationType,
 	parseImageOrientation,
 	parseImagePosition,
 	parseModalityLut,
 	parseOverlayPlanes,
+	parsePatientOrientation,
 	parsePixelSpacing,
 	parseVoiLut,
 	UnsupportedTransferSyntaxError,
@@ -186,6 +188,53 @@ describe("parseImageOrientation", () => {
 		expect(result).toHaveLength(6);
 		if (!result) throw new Error("orientation should be present");
 		expect(result[0]).toBeCloseTo(Math.SQRT1_2, 3);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// parsePatientOrientation / parseAnatomicalOrientationType
+// ---------------------------------------------------------------------------
+describe("parsePatientOrientation", () => {
+	it("splits row and column values and normalizes case/whitespace", () => {
+		const ds = makeDataSet({ strings: { x00200020: " d \\di " } });
+		expect(parsePatientOrientation(ds)).toEqual({ row: "D", column: "DI" });
+	});
+
+	it("returns null when tag is missing or empty", () => {
+		expect(parsePatientOrientation(makeDataSet())).toBeNull();
+		expect(
+			parsePatientOrientation(makeDataSet({ strings: { x00200020: "" } })),
+		).toBeNull();
+	});
+
+	it("returns null unless exactly two values are present", () => {
+		expect(
+			parsePatientOrientation(makeDataSet({ strings: { x00200020: "L" } })),
+		).toBeNull();
+		expect(
+			parsePatientOrientation(
+				makeDataSet({ strings: { x00200020: "L\\F\\A" } }),
+			),
+		).toBeNull();
+	});
+});
+
+describe("parseAnatomicalOrientationType", () => {
+	it("returns QUADRUPED only when explicitly set", () => {
+		expect(
+			parseAnatomicalOrientationType(
+				makeDataSet({ strings: { x00102210: "QUADRUPED" } }),
+			),
+		).toBe("QUADRUPED");
+	});
+
+	it("defaults to BIPED when missing (PS3.3 C.7.6.1.1.1)", () => {
+		expect(parseAnatomicalOrientationType(makeDataSet())).toBe("BIPED");
+		expect(
+			parseAnatomicalOrientationType(
+				makeDataSet({ strings: { x00102210: "BIPED" } }),
+			),
+		).toBe("BIPED");
 	});
 });
 
@@ -740,6 +789,8 @@ describe("buildDicomFileInfo", () => {
 		expect(info.pixelSpacing).toBeNull();
 		expect(info.imageOrientationPatient).toBeNull();
 		expect(info.imagePositionPatient).toBeNull();
+		expect(info.patientOrientation).toBeNull();
+		expect(info.anatomicalOrientationType).toBe("BIPED");
 		expect(info.studyInstanceUID).toBeNull();
 		expect(info.seriesInstanceUID).toBeNull();
 		expect(info.thumbnailData).toBeNull();

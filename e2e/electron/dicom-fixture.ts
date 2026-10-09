@@ -66,6 +66,9 @@ export const writeGeometryFixture = (
 		columns: number;
 		pixelSpacing: [number, number];
 		uid: string;
+		// 指定時だけ Patient Orientation (0020,0020) / Anatomical Orientation Type (0010,2210) を書く
+		patientOrientation?: string;
+		anatomicalOrientationType?: "BIPED" | "QUADRUPED";
 	},
 ): GeometryFixture => {
 	const { rows, columns, pixelSpacing } = options;
@@ -118,6 +121,9 @@ export const writeGeometryFixture = (
 		encodeElement(0x0008, 0x0060, "CS", "DX"),
 		encodeElement(0x0010, 0x0010, "PN", "Geometry^Fixture"),
 		encodeElement(0x0010, 0x0020, "LO", `GEO${options.uid}`),
+		...(options.anatomicalOrientationType
+			? [encodeElement(0x0010, 0x2210, "CS", options.anatomicalOrientationType)]
+			: []),
 		encodeElement(
 			0x0020,
 			0x000d,
@@ -131,6 +137,9 @@ export const writeGeometryFixture = (
 			`1.2.826.0.1.3680043.10.999.${options.uid}.3`,
 		),
 		encodeElement(0x0020, 0x0013, "IS", "1"),
+		...(options.patientOrientation
+			? [encodeElement(0x0020, 0x0020, "CS", options.patientOrientation)]
+			: []),
 		encodeElement(0x0028, 0x0002, "US", 1),
 		encodeElement(0x0028, 0x0004, "CS", "MONOCHROME2"),
 		encodeElement(0x0028, 0x0010, "US", rows),

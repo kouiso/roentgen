@@ -3,12 +3,13 @@ import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DicomFileInfo } from "@/types/dicom";
+import { setDirectionSpecies } from "../use-direction-species";
 import { useViewerPane } from "../use-viewer-pane";
 
 const loadAndDisplayImageMock = vi.hoisted(() => vi.fn());
 const setupTileDrawingBridgeMock = vi.hoisted(() => vi.fn());
 const useMouseInteractionMock = vi.hoisted(() => vi.fn());
-const calculateImageDirectionMock = vi.hoisted(() => vi.fn(() => null));
+const resolveImageDirectionMock = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("../use-cornerstone", () => ({
 	useCornerstone: () => ({
@@ -171,7 +172,7 @@ vi.mock("../use-mouse-interaction", () => ({
 }));
 
 vi.mock("@/utils/image-direction", () => ({
-	calculateImageDirection: calculateImageDirectionMock,
+	resolveImageDirection: resolveImageDirectionMock,
 }));
 
 const makeFileInfo = (imageId: string): DicomFileInfo => ({
@@ -195,6 +196,8 @@ const makeFileInfo = (imageId: string): DicomFileInfo => ({
 	pixelSpacing: null,
 	imageOrientationPatient: null,
 	imagePositionPatient: null,
+	patientOrientation: null,
+	anatomicalOrientationType: "BIPED",
 	sliceThickness: null,
 	sliceLocation: null,
 	instanceNumber: null,
@@ -212,7 +215,8 @@ describe("useViewerPane", () => {
 		loadAndDisplayImageMock.mockClear();
 		setupTileDrawingBridgeMock.mockClear();
 		useMouseInteractionMock.mockClear();
-		calculateImageDirectionMock.mockClear();
+		resolveImageDirectionMock.mockClear();
+		setDirectionSpecies("equine");
 	});
 
 	afterEach(() => {
@@ -286,16 +290,25 @@ describe("useViewerPane", () => {
 		expect(options.signal.aborted).toBe(true);
 	});
 
-	it("方向マーカーの種別は馬をデフォルトにして切替できる", () => {
+	it("方向マーカーの種別は馬をデフォルトにして切替でき、全ペインで共有する", () => {
 		const file = makeFileInfo("roentgen:/test/species.dcm");
 		file.imageOrientationPatient = [1, 0, 0, 0, 1, 0];
+		const viewTransform = {
+			rotation: 0,
+			flipHorizontal: false,
+			flipVertical: false,
+		};
 
 		const { result } = renderHook(() => useViewerPane("pane-0", [file]));
+		const { result: otherPane } = renderHook(() =>
+			useViewerPane("pane-1", [file]),
+		);
 
 		expect(result.current.species).toBe("equine");
-		expect(calculateImageDirectionMock).toHaveBeenLastCalledWith(
-			file.imageOrientationPatient,
+		expect(resolveImageDirectionMock).toHaveBeenLastCalledWith(
+			file,
 			"equine",
+			viewTransform,
 		);
 
 		act(() => {
@@ -303,9 +316,11 @@ describe("useViewerPane", () => {
 		});
 
 		expect(result.current.species).toBe("human");
-		expect(calculateImageDirectionMock).toHaveBeenLastCalledWith(
-			file.imageOrientationPatient,
+		expect(otherPane.current.species).toBe("human");
+		expect(resolveImageDirectionMock).toHaveBeenLastCalledWith(
+			file,
 			"human",
+			viewTransform,
 		);
 	});
 

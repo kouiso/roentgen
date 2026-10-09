@@ -30,6 +30,8 @@ const makeFileInfo = (fileName: string): DicomFileInfo => ({
 	pixelSpacing: [1, 1],
 	imageOrientationPatient: null,
 	imagePositionPatient: null,
+	patientOrientation: null,
+	anatomicalOrientationType: "BIPED",
 	sliceThickness: null,
 	sliceLocation: null,
 	instanceNumber: null,
