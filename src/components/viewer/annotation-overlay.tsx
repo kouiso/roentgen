@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Annotation, AnnotationPoint } from "@/types/annotation";
+import type { ImageGeometry } from "@/utils/image-geometry";
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
 const ANNOTATION_COLOR = "#FFD700";
@@ -12,6 +13,7 @@ type AnnotationOverlayProps = {
 	pendingTextPosition: AnnotationPoint | null;
 	imageWidth: number;
 	imageHeight: number;
+	geometry?: ImageGeometry | null;
 	containerId: string;
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any;
@@ -29,6 +31,7 @@ const useCoordConverter = (
 	imageHeight: number,
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any,
+	geometry: ImageGeometry | null | undefined,
 ) => {
 	const convert = useCallback(
 		(point: AnnotationPoint): AnnotationPoint | null => {
@@ -41,9 +44,10 @@ const useCoordConverter = (
 				imageHeight,
 				rect,
 				viewport,
+				geometry,
 			);
 		},
-		[containerId, imageWidth, imageHeight, viewport],
+		[containerId, imageWidth, imageHeight, viewport, geometry],
 	);
 	return convert;
 };
@@ -395,6 +399,7 @@ export const AnnotationOverlay = ({
 	pendingTextPosition,
 	imageWidth,
 	imageHeight,
+	geometry,
 	containerId,
 	viewport,
 	onRemoveAnnotation,
@@ -408,6 +413,7 @@ export const AnnotationOverlay = ({
 		imageWidth,
 		imageHeight,
 		viewport,
+		geometry,
 	);
 	const lastDeletedAnnotationRef = useRef<Annotation | null>(null);
 	// ビューポート変更時に再描画するためのカウンター

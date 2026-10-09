@@ -6,6 +6,7 @@ import {
 	DEFAULT_ANGLE_COLOR,
 	DEFAULT_DISTANCE_COLOR,
 } from "@/utils/annotation-storage";
+import type { ImageGeometry } from "@/utils/image-geometry";
 import { imageToContainerCoord } from "@/utils/measurement-math";
 
 const UNCALIBRATED_MEASUREMENT_COLOR = "#ef4444";
@@ -23,6 +24,8 @@ type MeasurementOverlayProps = {
 	measurements: Measurement[];
 	activePoints: MeasurementPoint[];
 	imageWidth: number;
+	imageHeight: number;
+	geometry?: ImageGeometry | null;
 	containerId: string;
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any;
@@ -35,17 +38,26 @@ type MeasurementOverlayProps = {
 const useCoordConverter = (
 	containerId: string,
 	imageWidth: number,
+	imageHeight: number,
 	// biome-ignore lint/suspicious/noExplicitAny: OSD viewport
 	viewport: any,
+	geometry: ImageGeometry | null | undefined,
 ) => {
 	const convert = useCallback(
 		(point: MeasurementPoint): MeasurementPoint | null => {
 			const container = document.getElementById(containerId);
 			if (!container || !viewport) return null;
 			const rect = container.getBoundingClientRect();
-			return imageToContainerCoord(point, imageWidth, rect, viewport);
+			return imageToContainerCoord(
+				point,
+				imageWidth,
+				imageHeight,
+				rect,
+				viewport,
+				geometry,
+			);
 		},
-		[containerId, imageWidth, viewport],
+		[containerId, imageWidth, imageHeight, viewport, geometry],
 	);
 	return convert;
 };
@@ -264,13 +276,21 @@ export const MeasurementOverlay = ({
 	measurements,
 	activePoints,
 	imageWidth,
+	imageHeight,
+	geometry,
 	containerId,
 	viewport,
 	onRemoveMeasurement,
 	onRestoreMeasurement,
 	visible,
 }: MeasurementOverlayProps) => {
-	const convert = useCoordConverter(containerId, imageWidth, viewport);
+	const convert = useCoordConverter(
+		containerId,
+		imageWidth,
+		imageHeight,
+		viewport,
+		geometry,
+	);
 	const lastDeletedMeasurementRef = useRef<Measurement | null>(null);
 	// ビューポート変更時に再描画するためのカウンター
 	const [, setRedrawCount] = useState(0);

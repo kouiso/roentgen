@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MeasurementPoint } from "@/types/measurement";
+import { createImageGeometry, getPixelAspect } from "./image-geometry";
 import {
-	applyViewportTransform,
 	calculateAngleDeg,
 	calculateDistanceMm,
 	containerToImageCoord,
 	imageToContainerCoord,
-	invertViewportTransform,
 } from "./measurement-math";
 
 describe("calculateDistanceMm", () => {
@@ -121,43 +120,6 @@ describe("calculateAngleDeg", () => {
 	});
 });
 
-describe("viewport transforms", () => {
-	it.each([
-		{ rotation: 0, flip: false },
-		{ rotation: 90, flip: false },
-		{ rotation: 180, flip: false },
-		{ rotation: 270, flip: false },
-		{ rotation: 0, flip: true },
-		{ rotation: 90, flip: true },
-		{ rotation: 180, flip: true },
-		{ rotation: 270, flip: true },
-	])("round-trips rotation $rotation and flip $flip", ({ rotation, flip }) => {
-		const center: MeasurementPoint = { x: 0.5, y: 1 };
-		const point: MeasurementPoint = { x: 0.73, y: 1.42 };
-
-		const transformed = applyViewportTransform(point, center, rotation, flip);
-		const roundTripped = invertViewportTransform(
-			transformed,
-			center,
-			rotation,
-			flip,
-		);
-
-		expect(roundTripped.x).toBeCloseTo(point.x, 10);
-		expect(roundTripped.y).toBeCloseTo(point.y, 10);
-	});
-
-	it("applies rotation before horizontal flip", () => {
-		const center: MeasurementPoint = { x: 0, y: 0 };
-		const point: MeasurementPoint = { x: 1, y: 0 };
-
-		const transformed = applyViewportTransform(point, center, 90, true);
-
-		expect(transformed.x).toBeCloseTo(0, 10);
-		expect(transformed.y).toBeCloseTo(1, 10);
-	});
-});
-
 // ---------------------------------------------------------------------------
 // Mock DOMRect and viewport helpers
 // ---------------------------------------------------------------------------
@@ -180,24 +142,18 @@ function makeContainerRect(
 	};
 }
 
+// OSD のビューポート座標は表示タイル幅 = 1.0 の等方座標。
+// 例: 2048x1024 の画像は高さ 0.5、ホーム位置の中心は (0.5, 0.25)。
 function makeViewport(
 	zoom = 1,
 	centerX = 0.5,
 	centerY = 0.5,
-	boundsWidth = 1,
-	boundsHeight = 1,
 	rotation = 0,
 	flip = false,
 ) {
 	return {
 		getZoom: () => zoom,
 		getCenter: () => ({ x: centerX, y: centerY }),
-		getHomeBounds: () => ({
-			x: 0,
-			y: 0,
-			width: boundsWidth,
-			height: boundsHeight,
-		}),
 		getRotation: () => rotation,
 		getFlip: () => flip,
 	};
@@ -214,7 +170,7 @@ describe("containerToImageCoord", () => {
 
 	it("converts center of container to image coordinates", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
-		const viewport = makeViewport(1, 0.5, 0.5, 1);
+		const viewport = makeViewport(1, 0.5, 0.5);
 
 		const result = containerToImageCoord(400, 400, rect, 512, 512, viewport);
 		expect(result).not.toBeNull();
@@ -226,7 +182,7 @@ describe("containerToImageCoord", () => {
 	it("returns null when coordinates are outside image bounds", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
 		// Viewport zoomed out so much that click maps outside image
-		const viewport = makeViewport(0.1, 0.5, 0.5, 1);
+		const viewport = makeViewport(0.1, 0.5, 0.5);
 
 		// Click at (0,0) in container → maps to negative image coordinates
 		const result = containerToImageCoord(0, 0, rect, 512, 512, viewport);
@@ -239,7 +195,7 @@ describe("containerToImageCoord", () => {
 
 	it("handles container with offset position", () => {
 		const rect = makeContainerRect(100, 50, 800, 800);
-		const viewport = makeViewport(1, 0.5, 0.5, 1);
+		const viewport = makeViewport(1, 0.5, 0.5);
 
 		// Click at center of the offset container
 		const result = containerToImageCoord(500, 450, rect, 512, 512, viewport);
@@ -249,9 +205,9 @@ describe("containerToImageCoord", () => {
 		expect(result.y).toBeCloseTo(256, 0);
 	});
 
-	it("uses image height and home bounds height for the Y axis", () => {
+	it("uses isotropic viewport units for the Y axis of landscape images", () => {
 		const rect = makeContainerRect(0, 0, 800, 400);
-		const viewport = makeViewport(1, 0.5, 0.5, 1, 1);
+		const viewport = makeViewport(1, 0.5, 0.25);
 
 		const result = containerToImageCoord(400, 300, rect, 2048, 1024, viewport);
 
@@ -261,9 +217,9 @@ describe("containerToImageCoord", () => {
 		expect(result.y).toBeCloseTo(768, 6);
 	});
 
-	it("maps the painted height of portrait images from home bounds", () => {
+	it("maps the painted height of portrait images at the home zoom", () => {
 		const rect = makeContainerRect(0, 0, 800, 600);
-		const viewport = makeViewport(1, 0.5, 1, 1, 2);
+		const viewport = makeViewport(0.375, 0.5, 1);
 
 		const result = containerToImageCoord(400, 590, rect, 1024, 2048, viewport);
 
@@ -287,7 +243,7 @@ describe("imageToContainerCoord", () => {
 
 	it("converts center of image to container center", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
-		const viewport = makeViewport(1, 0.5, 0.5, 1);
+		const viewport = makeViewport(1, 0.5, 0.5);
 
 		const result = imageToContainerCoord(
 			{ x: 256, y: 256 },
@@ -304,7 +260,7 @@ describe("imageToContainerCoord", () => {
 
 	it("converts top-left of image (0,0) to container coordinates", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
-		const viewport = makeViewport(1, 0.5, 0.5, 1);
+		const viewport = makeViewport(1, 0.5, 0.5);
 
 		const result = imageToContainerCoord(
 			{ x: 0, y: 0 },
@@ -319,9 +275,9 @@ describe("imageToContainerCoord", () => {
 		expect(result.y).toBeCloseTo(0, 0);
 	});
 
-	it("uses image height and home bounds height for the Y axis", () => {
+	it("uses isotropic viewport units for the Y axis of landscape images", () => {
 		const rect = makeContainerRect(0, 0, 800, 400);
-		const viewport = makeViewport(1, 0.5, 0.5, 1, 1);
+		const viewport = makeViewport(1, 0.5, 0.25);
 
 		const result = imageToContainerCoord(
 			{ x: 1024, y: 768 },
@@ -339,7 +295,7 @@ describe("imageToContainerCoord", () => {
 
 	it("projects portrait image points using the painted image height", () => {
 		const rect = makeContainerRect(0, 0, 800, 600);
-		const viewport = makeViewport(1, 0.5, 1, 1, 2);
+		const viewport = makeViewport(0.375, 0.5, 1);
 
 		const result = imageToContainerCoord(
 			{ x: 512, y: 2047 },
@@ -357,7 +313,7 @@ describe("imageToContainerCoord", () => {
 
 	it("round-trips with containerToImageCoord", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
-		const viewport = makeViewport(1, 0.5, 0.5, 1);
+		const viewport = makeViewport(1, 0.5, 0.5);
 		const imageWidth = 512;
 		const imageHeight = 512;
 
@@ -406,7 +362,7 @@ describe("imageToContainerCoord", () => {
 		expected,
 	}) => {
 		const rect = makeContainerRect(0, 0, 800, 400);
-		const viewport = makeViewport(1, 0.5, 0.25, 1, 0.5, rotation, flip);
+		const viewport = makeViewport(1, 0.5, 0.25, rotation, flip);
 		const imagePoint = { x: 1536, y: 512 };
 
 		const containerCoord = imageToContainerCoord(
@@ -437,38 +393,141 @@ describe("imageToContainerCoord", () => {
 		expect(roundTripped.y).toBeCloseTo(imagePoint.y, 6);
 	});
 
-	it("uses the image center, not the panned viewport center, for rotation projection", () => {
-		const rect = makeContainerRect(0, 0, 800, 400);
-		const imageWidth = 2048;
-		const imageHeight = 1024;
-		// パンで画像中心から離れたビューポート。回転の基準点が画像中心なら、
-		// ちょうど画像中心にある点は回転させても動かないはず。
-		const pannedViewport = (rotation: number) =>
-			makeViewport(1, 0.8, 0.1, 1, 0.5, rotation, false);
-		const imageCenterPoint = { x: imageWidth / 2, y: imageHeight / 2 };
+	it.each([
+		{
+			label: "rotation 90",
+			geometry: { rotation: 90 },
+			expectedTopLeft: { x: 600, y: 0 },
+		},
+		{
+			label: "rotation 90 + horizontal flip (screen space)",
+			geometry: { rotation: 90, flipHorizontal: true },
+			expectedTopLeft: { x: 200, y: 0 },
+		},
+		{
+			label: "rotation 270 + vertical flip (screen space)",
+			geometry: { rotation: 270, flipVertical: true },
+			expectedTopLeft: { x: 200, y: 0 },
+		},
+	])("projects stored points through the display geometry ($label)", ({
+		geometry,
+		expectedTopLeft,
+	}) => {
+		// 回転すると表示タイルは 1024x2048 になり、正方コンテナではホームズーム 0.5
+		const rect = makeContainerRect(0, 0, 800, 800);
+		const viewport = makeViewport(0.5, 0.5, 1);
+		const imageGeometry = createImageGeometry(2048, 1024, geometry);
 
-		const unrotated = imageToContainerCoord(
-			imageCenterPoint,
-			imageWidth,
-			imageHeight,
+		const topLeft = imageToContainerCoord(
+			{ x: 0, y: 0 },
+			2048,
+			1024,
 			rect,
-			pannedViewport(0),
+			viewport,
+			imageGeometry,
 		);
-		const rotated90 = imageToContainerCoord(
-			imageCenterPoint,
-			imageWidth,
-			imageHeight,
+		const center = imageToContainerCoord(
+			{ x: 1024, y: 512 },
+			2048,
+			1024,
 			rect,
-			pannedViewport(90),
+			viewport,
+			imageGeometry,
 		);
-
-		expect(unrotated).not.toBeNull();
-		expect(rotated90).not.toBeNull();
-		if (!unrotated || !rotated90) {
+		if (!topLeft || !center) {
 			throw new Error("container coordinate should be present");
 		}
-		expect(rotated90.x).toBeCloseTo(unrotated.x, 6);
-		expect(rotated90.y).toBeCloseTo(unrotated.y, 6);
+		expect(topLeft.x).toBeCloseTo(expectedTopLeft.x, 6);
+		expect(topLeft.y).toBeCloseTo(expectedTopLeft.y, 6);
+		expect(center.x).toBeCloseTo(400, 6);
+		expect(center.y).toBeCloseTo(400, 6);
+
+		const imagePoint = { x: 1500.25, y: 200.5 };
+		const container = imageToContainerCoord(
+			imagePoint,
+			2048,
+			1024,
+			rect,
+			viewport,
+			imageGeometry,
+		);
+		if (!container) throw new Error("container coordinate should be present");
+		const roundTripped = containerToImageCoord(
+			container.x,
+			container.y,
+			rect,
+			2048,
+			1024,
+			viewport,
+			imageGeometry,
+		);
+		if (!roundTripped) throw new Error("image coordinate should be present");
+		expect(roundTripped.x).toBeCloseTo(imagePoint.x, 6);
+		expect(roundTripped.y).toBeCloseTo(imagePoint.y, 6);
+	});
+
+	it("stretches non-square pixels so the overlay matches the corrected display", () => {
+		// 行間隔 0.2mm / 列間隔 0.1mm → 1000x500 px の画像は表示上 1000x1000 の正方形
+		const rect = makeContainerRect(0, 0, 800, 800);
+		const viewport = makeViewport(1, 0.5, 0.5);
+		const imageGeometry = createImageGeometry(1000, 500, {
+			pixelAspect: getPixelAspect([0.2, 0.1]),
+		});
+
+		const bottomLeft = imageToContainerCoord(
+			{ x: 0, y: 500 },
+			1000,
+			500,
+			rect,
+			viewport,
+			imageGeometry,
+		);
+		const rightMiddle = imageToContainerCoord(
+			{ x: 1000, y: 250 },
+			1000,
+			500,
+			rect,
+			viewport,
+			imageGeometry,
+		);
+		if (!bottomLeft || !rightMiddle) {
+			throw new Error("container coordinate should be present");
+		}
+		expect(bottomLeft.x).toBeCloseTo(0, 6);
+		expect(bottomLeft.y).toBeCloseTo(800, 6);
+		expect(rightMiddle.x).toBeCloseTo(800, 6);
+		expect(rightMiddle.y).toBeCloseTo(400, 6);
+
+		const picked = containerToImageCoord(
+			200,
+			600,
+			rect,
+			1000,
+			500,
+			viewport,
+			imageGeometry,
+		);
+		if (!picked) throw new Error("image coordinate should be present");
+		expect(picked.x).toBeCloseTo(250, 6);
+		expect(picked.y).toBeCloseTo(375, 6);
+	});
+
+	it("ignores a geometry whose image size does not match", () => {
+		const rect = makeContainerRect(0, 0, 800, 800);
+		const viewport = makeViewport(1, 0.5, 0.5);
+		const staleGeometry = createImageGeometry(100, 100, { rotation: 90 });
+
+		const result = imageToContainerCoord(
+			{ x: 0, y: 0 },
+			512,
+			512,
+			rect,
+			viewport,
+			staleGeometry,
+		);
+		if (!result) throw new Error("container coordinate should be present");
+		expect(result.x).toBeCloseTo(0, 6);
+		expect(result.y).toBeCloseTo(0, 6);
 	});
 
 	it("round-trips horizontal flip using image-coordinate storage", () => {
@@ -476,7 +535,7 @@ describe("imageToContainerCoord", () => {
 		const rect = makeContainerRect(0, 0, 800, 800);
 		const imageWidth = 512;
 		const imageHeight = 512;
-		const viewport = makeViewport(1, 0.5, 0.5, 1, 1, 0, true);
+		const viewport = makeViewport(1, 0.5, 0.5, 0, true);
 		const imagePoint = { x: 120, y: 340 };
 
 		const containerCoord = imageToContainerCoord(

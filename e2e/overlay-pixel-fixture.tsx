@@ -36,7 +36,6 @@ const createViewport = (stateRef: React.RefObject<ViewportState>) => {
 	return {
 		getZoom: () => stateRef.current?.zoom ?? 1,
 		getCenter: () => stateRef.current?.center ?? { x: 0.5, y: 0.25 },
-		getHomeBounds: () => ({ x: 0, y: 0, width: 1, height: 0.5 }),
 		addHandler: (eventName: string, handler: ViewportHandler) => {
 			const entries = handlers.get(eventName) ?? new Set<ViewportHandler>();
 			entries.add(handler);
@@ -167,6 +166,7 @@ const OverlayPixelFixture = () => {
 					]}
 					activePoints={[]}
 					imageWidth={IMAGE_WIDTH}
+					imageHeight={IMAGE_HEIGHT}
 					containerId={CONTAINER_ID}
 					viewport={viewport}
 					onRemoveMeasurement={() => undefined}

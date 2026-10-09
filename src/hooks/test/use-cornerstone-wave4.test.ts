@@ -127,12 +127,21 @@ const renderOverlayPixel = async (photometricInterpretation: string) => {
 	const context = {
 		getImageData: vi.fn(() => imageData),
 		putImageData: vi.fn(),
+		save: vi.fn(),
+		restore: vi.fn(),
+		setTransform: vi.fn(),
+		fillRect: vi.fn(),
+		drawImage: vi.fn(),
 	};
+	// オーバーレイは作業用キャンバス（document.createElement で生成）に合成されてから
+	// タイルへ転写されるため、全キャンバスの 2D コンテキストを差し替える。
+	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(((
+		contextId: string,
+	) =>
+		contextId === "2d"
+			? (context as unknown as CanvasRenderingContext2D)
+			: null) as HTMLCanvasElement["getContext"]);
 	const canvas = document.createElement("canvas");
-	Object.defineProperty(canvas, "getContext", {
-		configurable: true,
-		value: (contextId: string) => (contextId === "2d" ? context : null),
-	});
 	const handlerRef: { current: ((event: OSDTileEvent) => void) | null } = {
 		current: null,
 	};
@@ -159,6 +168,14 @@ const renderOverlayPixel = async (photometricInterpretation: string) => {
 	act(() => {
 		handler({ rendered: { canvas } });
 	});
+
+	expect(context.putImageData).toHaveBeenCalledTimes(1);
+	expect(context.drawImage).toHaveBeenCalledWith(
+		expect.any(HTMLCanvasElement),
+		0,
+		0,
+	);
+	expect(context.drawImage.mock.calls[0]?.[0]).not.toBe(canvas);
 
 	return imageData.data;
 };

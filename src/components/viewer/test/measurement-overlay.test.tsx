@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DistanceMeasurement } from "@/types/measurement";
+import { createImageGeometry } from "@/utils/image-geometry";
 import { MeasurementOverlay } from "../measurement-overlay";
 
-const makeMeasurement = () => ({
+const makeMeasurement = (): DistanceMeasurement => ({
 	id: "m1",
 	type: "distance" as const,
 	points: [
@@ -100,6 +102,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={viewport}
 					onRemoveMeasurement={vi.fn()}
@@ -156,6 +159,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[measurement]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={vi.fn()}
@@ -180,6 +184,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={vi.fn()}
@@ -193,6 +198,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={vi.fn()}
@@ -216,6 +222,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={onRemoveMeasurement}
@@ -229,6 +236,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={onRemoveMeasurement}
@@ -252,6 +260,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={onRemoveMeasurement}
@@ -265,6 +274,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={onRemoveMeasurement}
@@ -290,6 +300,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[measurement]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={onRemoveMeasurement}
@@ -304,6 +315,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[measurement]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={onRemoveMeasurement}
@@ -336,6 +348,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={vi.fn()}
@@ -374,6 +387,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={viewport}
 					onRemoveMeasurement={vi.fn()}
@@ -396,57 +410,90 @@ describe("MeasurementOverlay", () => {
 		expect(numAttr(line(), "y1")).toBeCloseTo(40, 6);
 	});
 
-	it("projects stored measurements through rotation around the image center while panned", () => {
+	it.each([
+		{
+			label: "rotation 90",
+			options: { rotation: 90 },
+			expected: { x: 90, y: 10 },
+		},
+		{
+			label: "rotation 180",
+			options: { rotation: 180 },
+			expected: { x: 90, y: 90 },
+		},
+		{
+			label: "rotation 270",
+			options: { rotation: 270 },
+			expected: { x: 10, y: 90 },
+		},
+		{
+			label: "rotation 90 + horizontal flip",
+			options: { rotation: 90, flipHorizontal: true },
+			expected: { x: 10, y: 10 },
+		},
+		{
+			label: "vertical flip",
+			options: { flipVertical: true },
+			expected: { x: 10, y: 90 },
+		},
+	])("projects stored measurements through the display geometry ($label)", ({
+		options,
+		expected,
+	}) => {
 		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
 			mockRect(100, 100),
 		);
-		// パンで画像中心から離れたビューポート。画像中心ちょうどにある点は
-		// 回転しても動かないはず（回転の基準点が画像中心である場合）。
-		const measurement = {
-			...makeMeasurement(),
-			points: [
-				{ x: 50, y: 50 },
-				{ x: 80, y: 50 },
-			] as [{ x: number; y: number }, { x: number; y: number }],
-		};
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					imageHeight={100}
+					geometry={createImageGeometry(100, 100, options)}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { container, rerender } = render(renderOverlay());
+		rerender(renderOverlay());
 
-		const renderWithRotation = (rotation: number) => {
-			const renderOverlay = () => (
-				<div id="osd-test">
-					<MeasurementOverlay
-						measurements={[measurement]}
-						activePoints={[]}
-						imageWidth={100}
-						containerId="osd-test"
-						viewport={makeViewport({
-							center: { x: 0.8, y: 0.2 },
-							rotation,
-						})}
-						onRemoveMeasurement={vi.fn()}
-						visible={true}
-					/>
-				</div>
-			);
-			const result = render(renderOverlay());
-			result.rerender(renderOverlay());
-			return result;
-		};
+		const line = container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line, "x1")).toBeCloseTo(expected.x, 6);
+		expect(numAttr(line, "y1")).toBeCloseTo(expected.y, 6);
+	});
 
-		const unrotated = renderWithRotation(0);
-		const unrotatedLine = unrotated.container.querySelector(
-			"line",
-		) as SVGLineElement;
-		expect(numAttr(unrotatedLine, "x1")).toBeCloseTo(20, 6);
-		expect(numAttr(unrotatedLine, "y1")).toBeCloseTo(80, 6);
-		unrotated.unmount();
+	it("projects non-square pixel measurements onto the aspect-corrected display", () => {
+		// 100x50 px・行間隔が列間隔の2倍 → 表示は 100x100 の正方形
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+			mockRect(100, 100),
+		);
+		const renderOverlay = () => (
+			<div id="osd-test">
+				<MeasurementOverlay
+					measurements={[makeMeasurement()]}
+					activePoints={[]}
+					imageWidth={100}
+					imageHeight={50}
+					geometry={createImageGeometry(100, 50, { pixelAspect: 2 })}
+					containerId="osd-test"
+					viewport={makeViewport()}
+					onRemoveMeasurement={vi.fn()}
+					visible={true}
+				/>
+			</div>
+		);
+		const { container, rerender } = render(renderOverlay());
+		rerender(renderOverlay());
 
-		const rotated = renderWithRotation(90);
-		const rotatedLine = rotated.container.querySelector(
-			"line",
-		) as SVGLineElement;
-		expect(numAttr(rotatedLine, "x1")).toBeCloseTo(20, 6);
-		expect(numAttr(rotatedLine, "y1")).toBeCloseTo(80, 6);
-		rotated.unmount();
+		const line = container.querySelector("line") as SVGLineElement;
+		expect(numAttr(line, "x1")).toBeCloseTo(10, 6);
+		expect(numAttr(line, "y1")).toBeCloseTo(20, 6);
+		expect(numAttr(line, "x2")).toBeCloseTo(20, 6);
+		expect(numAttr(line, "y2")).toBeCloseTo(40, 6);
 	});
 
 	it("projects stored measurements through horizontal flip", () => {
@@ -460,6 +507,7 @@ describe("MeasurementOverlay", () => {
 					measurements={[makeMeasurement()]}
 					activePoints={[]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport({ flip: true })}
 					onRemoveMeasurement={vi.fn()}
@@ -494,6 +542,7 @@ describe("MeasurementOverlay", () => {
 						{ x: 30, y: 10 },
 					]}
 					imageWidth={100}
+					imageHeight={100}
 					containerId="osd-test"
 					viewport={makeViewport()}
 					onRemoveMeasurement={vi.fn()}
