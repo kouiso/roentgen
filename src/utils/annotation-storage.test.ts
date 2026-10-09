@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Annotation } from "@/types/annotation";
+import type { DicomFileInfo } from "@/types/dicom";
 import type { Measurement } from "@/types/measurement";
 import {
 	createAnnotationStoragePayload,
@@ -7,7 +8,67 @@ import {
 	DEFAULT_ANNOTATION_COLOR,
 	DEFAULT_DISTANCE_COLOR,
 	deserializeAnnotationStorage,
+	getDicomFileSopInstanceUid,
 } from "./annotation-storage";
+
+describe("getDicomFileSopInstanceUid", () => {
+	const makeFile = (
+		frameIndex: number,
+		tags: Record<string, string>,
+	): DicomFileInfo => ({
+		imageId:
+			frameIndex === 0
+				? "roentgen:/ct.dcm"
+				: `roentgen:/ct.dcm#frame=${frameIndex}`,
+		filePath: "/ct.dcm",
+		fileName: "ct.dcm",
+		frameIndex,
+		totalFrames: 3,
+		rows: 2,
+		columns: 2,
+		bitsAllocated: 16,
+		bitsStored: 12,
+		highBit: 11,
+		pixelRepresentation: 0,
+		samplesPerPixel: 1,
+		photometricInterpretation: "MONOCHROME2",
+		rescaleIntercept: -1024,
+		rescaleSlope: 1,
+		windowCenter: 40,
+		windowWidth: 400,
+		pixelSpacing: null,
+		imageOrientationPatient: null,
+		imagePositionPatient: null,
+		sliceThickness: null,
+		sliceLocation: null,
+		instanceNumber: 1,
+		modalityLutSequence: null,
+		voiLutSequence: null,
+		studyInstanceUID: null,
+		seriesInstanceUID: null,
+		overlayData: [],
+		tags,
+		thumbnailData: null,
+	});
+
+	it("keeps the plain SOP UID for the first frame so saved annotations still match", () => {
+		expect(
+			getDicomFileSopInstanceUid(makeFile(0, { SOPInstanceUID: "1.2.3" })),
+		).toBe("1.2.3");
+	});
+
+	it("separates later frames of one multi-frame instance", () => {
+		expect(
+			getDicomFileSopInstanceUid(makeFile(2, { SOPInstanceUID: "1.2.3" })),
+		).toBe("1.2.3#frame=2");
+	});
+
+	it("falls back to the frame-specific imageId without a SOP UID", () => {
+		expect(getDicomFileSopInstanceUid(makeFile(2, {}))).toBe(
+			"roentgen:/ct.dcm#frame=2",
+		);
+	});
+});
 
 describe("annotation-storage", () => {
 	it("注釈と計測をJSON保存形式へ変換し、アプリ状態へ復元する", () => {

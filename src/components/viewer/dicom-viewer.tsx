@@ -444,12 +444,12 @@ export const DicomViewer = ({
 	const handleClearSelected = useCallback(() => {
 		const file = activePane.currentFile;
 		if (file) {
-			const filePath = file.imageId.replace("roentgen:", "");
-			pane0.unregisterImageData(filePath);
+			// 元データの解放は onRemoveFile 側で行う。ここで解放するとマルチフレームの
+			// 残りのフレームまで表示できなくなる。
 			const globalIdx = files.findIndex((f) => f.imageId === file.imageId);
 			if (globalIdx !== -1) onRemoveFile(globalIdx);
 		}
-	}, [activePane.currentFile, files, pane0.unregisterImageData, onRemoveFile]);
+	}, [activePane.currentFile, files, onRemoveFile]);
 
 	// キーボードショートカット（アクティブペインに適用）
 	const shortcutActions = useMemo(

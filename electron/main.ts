@@ -3,10 +3,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import {
 	lstat,
 	mkdir,
+	open,
 	readdir,
 	readFile,
 	realpath,
 	rename,
+	stat,
 	unlink,
 	writeFile,
 } from "node:fs/promises";
@@ -110,6 +112,65 @@ export const resolveAllowedReadPath = async (
 
 	log.warn(`Blocked file access: ${requestedPath}`);
 	throw new Error(`許可されていないファイルパス: ${requestedPath}`);
+};
+
+// 小さいファイルは Node の共有プールに載るため切り出しが必要だが、大きいファイルは
+// 専用の ArrayBuffer に読み込まれる。そのまま渡せば数百 MB の CT でもコピーが 1 つ減る。
+export const toTransferableArrayBuffer = (buffer: Buffer): ArrayBuffer => {
+	const backing = buffer.buffer;
+	if (
+		backing instanceof ArrayBuffer &&
+		buffer.byteOffset === 0 &&
+		buffer.byteLength === backing.byteLength
+	) {
+		return backing;
+	}
+	const copy = new ArrayBuffer(buffer.byteLength);
+	new Uint8Array(copy).set(buffer);
+	return copy;
+};
+
+// IPC の構造化クローンは転送中に一時的に数倍のメモリを使うため、
+// 大きいファイルはこの上限以下に分割してレンダラーへ渡す。
+export const MAX_FILE_RANGE_BYTES = 64 * 1024 * 1024;
+
+export const getAllowedFileSize = async (
+	filePath: unknown,
+	allowedPathEntries: Iterable<string> = allowedPaths,
+): Promise<number> => {
+	const resolved = await resolveAllowedReadPath(filePath, allowedPathEntries);
+	return (await stat(resolved)).size;
+};
+
+export const readAllowedFileRange = async (
+	filePath: unknown,
+	offset: unknown,
+	length: unknown,
+	allowedPathEntries: Iterable<string> = allowedPaths,
+): Promise<ArrayBuffer> => {
+	if (
+		typeof offset !== "number" ||
+		!Number.isSafeInteger(offset) ||
+		offset < 0 ||
+		typeof length !== "number" ||
+		!Number.isSafeInteger(length) ||
+		length <= 0 ||
+		length > MAX_FILE_RANGE_BYTES
+	) {
+		throw new Error("読み込み範囲が不正です");
+	}
+	const resolved = await resolveAllowedReadPath(filePath, allowedPathEntries);
+	const handle = await open(resolved, "r");
+	try {
+		const buffer = Buffer.allocUnsafeSlow(length);
+		const { bytesRead } = await handle.read(buffer, 0, length, offset);
+		// 未初期化領域を渡さないよう、実際に読めた分だけを返す
+		return toTransferableArrayBuffer(
+			bytesRead === length ? buffer : buffer.subarray(0, bytesRead),
+		);
+	} finally {
+		await handle.close();
+	}
 };
 
 export const isDicomFilePath = (filePath: string): boolean => {
@@ -553,10 +614,7 @@ const registerGdriveHandlers = async () => {
 				const buffer = await readFileFn(filePath);
 				files.push({
 					path: filePath,
-					data: buffer.buffer.slice(
-						buffer.byteOffset,
-						buffer.byteOffset + buffer.byteLength,
-					),
+					data: toTransferableArrayBuffer(buffer),
 				});
 			}
 
@@ -677,11 +735,18 @@ ipcMain.handle(
 ipcMain.handle("read-file", async (_event, filePath: string) => {
 	const resolved = await resolveAllowedReadPath(filePath);
 	const buffer = await readFile(resolved);
-	return buffer.buffer.slice(
-		buffer.byteOffset,
-		buffer.byteOffset + buffer.byteLength,
-	);
+	return toTransferableArrayBuffer(buffer);
 });
+
+ipcMain.handle("get-file-size", async (_event, filePath: string) =>
+	getAllowedFileSize(filePath),
+);
+
+ipcMain.handle(
+	"read-file-range",
+	async (_event, filePath: string, offset: number, length: number) =>
+		readAllowedFileRange(filePath, offset, length),
+);
 
 ipcMain.handle("save-screenshot", async (_event, dataUrl: string) => {
 	if (!mainWindow) return false;
@@ -769,10 +834,7 @@ if (process.env.VITE_DEV_SERVER_URL) {
 				const buffer = await readFile(filePath);
 				results.push({
 					path: filePath,
-					data: buffer.buffer.slice(
-						buffer.byteOffset,
-						buffer.byteOffset + buffer.byteLength,
-					),
+					data: toTransferableArrayBuffer(buffer),
 				});
 			}
 			return results.length > 0 ? results : null;

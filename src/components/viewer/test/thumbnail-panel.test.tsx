@@ -88,6 +88,24 @@ describe("ThumbnailPanel", () => {
 		).toBeTruthy();
 	});
 
+	it("labels frames of one multi-frame file by frame number, not the shared instance number", () => {
+		render(
+			<ThumbnailPanel
+				files={[0, 1, 2].map((frameIndex) =>
+					makeFile(frameIndex, { instanceNumber: 7, totalFrames: 3 }),
+				)}
+				currentIndex={0}
+				onSelect={vi.fn()}
+			/>,
+		);
+
+		expect(
+			screen
+				.getAllByRole("option")
+				.map((option) => option.getAttribute("aria-label")),
+		).toEqual(["フレーム 1 (1/3)", "フレーム 2 (2/3)", "フレーム 3 (3/3)"]);
+	});
+
 	it("selects and focuses adjacent frames from arrow keys", () => {
 		const onSelect = vi.fn();
 		render(
