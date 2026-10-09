@@ -9,7 +9,7 @@ import {
 } from "@playwright/test";
 import {
 	buildElectronApp,
-	electronMainPath,
+	electronLaunchArgs,
 	type RendererDevServer,
 	repoRoot,
 	startRendererDevServer,
@@ -70,7 +70,7 @@ test.describe("real Electron freehand annotation", () => {
 		try {
 			rendererServer = await startRendererDevServer();
 			electronApp = await electron.launch({
-				args: [electronMainPath, "--no-sandbox"],
+				args: electronLaunchArgs(),
 				env: {
 					...process.env,
 					ELECTRON_RUN_AS_NODE: "",
