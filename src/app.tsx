@@ -16,6 +16,7 @@ import { useDicomLoader } from "./hooks/use-dicom-loader";
 import { useGoogleDrive } from "./hooks/use-google-drive";
 import type { DicomFileError } from "./types/dicom";
 import { formatPersonName } from "./utils/dicom-text";
+import { readLocalFile } from "./utils/read-local-file";
 
 const getDisplayFileName = (filePath: string) => {
 	const parts = filePath.split(/[\\/]/).filter(Boolean);
@@ -105,7 +106,7 @@ export const App = () => {
 			const loaded: { path: string; data: ArrayBuffer }[] = [];
 			for (const filePath of filePaths) {
 				try {
-					const data = await api.readFile(filePath);
+					const data = await readLocalFile(api, filePath);
 					loaded.push({ path: filePath, data });
 				} catch (err) {
 					console.warn("[open-file]", err);

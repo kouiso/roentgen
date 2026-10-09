@@ -12,6 +12,7 @@ import {
 	useCallback,
 	useState,
 } from "react";
+import { readLocalFile } from "@/utils/read-local-file";
 
 type FileDropZoneProps = {
 	onFilesLoaded: (files: { path: string; data: ArrayBuffer }[]) => void;
@@ -58,7 +59,7 @@ export const FileDropZone = ({ onFilesLoaded }: FileDropZoneProps) => {
 					try {
 						const api = window.electronAPI;
 						if (!api) throw new Error("Electron API not available");
-						const data = await api.readFile(filePath);
+						const data = await readLocalFile(api, filePath);
 						loaded.push({ path: filePath, data });
 					} catch (err) {
 						errors.push(toReadErrorMessage(filePath, err));

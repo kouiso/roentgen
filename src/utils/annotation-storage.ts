@@ -548,7 +548,13 @@ export const getDicomFileSopInstanceUid = (
 	file: DicomFileInfo | null,
 ): string | null => {
 	if (!file) return null;
-	return file.tags.SOPInstanceUID ?? file.imageId;
+	const sopInstanceUid = file.tags.SOPInstanceUID;
+	if (!sopInstanceUid) return file.imageId;
+	// マルチフレームは 1 つの SOP Instance に全フレームが入るため、フレームごとに注釈を分ける。
+	// 先頭フレームは従来どおり UID のみにして、保存済みの注釈をそのまま読めるようにする。
+	return file.frameIndex > 0
+		? `${sopInstanceUid}#frame=${file.frameIndex}`
+		: sopInstanceUid;
 };
 
 export const matchesSopInstanceUid = (

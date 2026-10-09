@@ -369,6 +369,63 @@ describe("useDicomLoader — F12-F15 異常系", () => {
 		expect(getSharedImageDataMapSize()).toBe(0);
 	});
 
+	it("マルチフレームをフレームごとに展開し、全フレームを閉じるまで元データを保持する", async () => {
+		const mockParseDicom = vi.mocked(dicomParser.parseDicom);
+		mockParseDicom.mockReturnValue({
+			string: () => undefined,
+			uint16: () => undefined,
+			elements: {},
+		});
+		const mockBuildDicomFileInfo = vi.mocked(buildDicomFileInfo);
+		const buildSingleFrame = mockBuildDicomFileInfo.getMockImplementation();
+		if (!buildSingleFrame) throw new Error("buildDicomFileInfo mock missing");
+		mockBuildDicomFileInfo.mockImplementationOnce((...args) => ({
+			...buildSingleFrame(...args),
+			totalFrames: 3,
+			instanceNumber: 1,
+		}));
+
+		const loader = renderHook(() => useDicomLoader());
+		const cornerstone = renderHook(() => useCornerstone());
+		act(() => {
+			cornerstone.result.current.clearAllImageData();
+			loader.result.current.setImageDataRegistrar(
+				cornerstone.result.current.registerImageData,
+			);
+		});
+
+		await act(async () => {
+			await loader.result.current.loadFiles([makeFakeFileData("/test/ct.dcm")]);
+		});
+
+		expect(
+			loader.result.current.dicomFiles.map((file) => [
+				file.imageId,
+				file.frameIndex,
+			]),
+		).toEqual([
+			["roentgen:/test/ct.dcm", 0],
+			["roentgen:/test/ct.dcm#frame=1", 1],
+			["roentgen:/test/ct.dcm#frame=2", 2],
+		]);
+		expect(getSharedImageDataMapSize()).toBe(1);
+
+		act(() => {
+			loader.result.current.removeFile(1);
+		});
+		expect(loader.result.current.dicomFiles).toHaveLength(2);
+		expect(getSharedImageDataMapSize()).toBe(1);
+
+		act(() => {
+			loader.result.current.removeFile(0);
+		});
+		act(() => {
+			loader.result.current.removeFile(0);
+		});
+		expect(loader.result.current.dicomFiles).toHaveLength(0);
+		expect(getSharedImageDataMapSize()).toBe(0);
+	});
+
 	it("空ファイルリスト → エラー状態", async () => {
 		const { result } = renderHook(() => useDicomLoader());
 

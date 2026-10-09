@@ -29,7 +29,11 @@ const ThumbnailImage = ({
 	onNavigate: (index: number) => void;
 }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const frameNumber = file.instanceNumber ?? index + 1;
+	// マルチフレームは全フレームが同じ InstanceNumber を持つため、フレーム番号で区別する
+	const frameNumber =
+		file.totalFrames > 1
+			? file.frameIndex + 1
+			: (file.instanceNumber ?? index + 1);
 	const frameLabel = `フレーム ${frameNumber} (${index + 1}/${totalCount})`;
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {

@@ -460,6 +460,24 @@ const warnIfOversizedDicom = (
 	return nextCumulativeBytes;
 };
 
+// マルチフレーム（CT など）は 1 ファイルに全スライスが入っているため、
+// フレームごとに一覧へ展開しないと 2 枚目以降を表示できない。
+// 画素データは元ファイルの ArrayBuffer を共有し、フレーム番号だけを変える。
+export const expandDicomFrames = (fileInfo: DicomFileInfo): DicomFileInfo[] => {
+	if (fileInfo.totalFrames <= 1) return [fileInfo];
+	const frames: DicomFileInfo[] = [fileInfo];
+	for (let frameIndex = 1; frameIndex < fileInfo.totalFrames; frameIndex++) {
+		frames.push({
+			...fileInfo,
+			frameIndex,
+			imageId: `${fileInfo.imageId}#frame=${frameIndex}`,
+			// サムネイルは 1 枚目から作っているため、他のフレームに流用すると取り違える
+			thumbnailData: null,
+		});
+	}
+	return frames;
+};
+
 export const useDicomLoader = () => {
 	const [loadState, setLoadState] = useState<DicomLoadState>({
 		status: "idle",
@@ -552,7 +570,7 @@ export const useDicomLoader = () => {
 						pendingDataRef.current.set(fileData.path, parsed.rawData);
 					}
 
-					loaded.push(parsed.fileInfo);
+					loaded.push(...expandDicomFrames(parsed.fileInfo));
 				} catch (error) {
 					const fileError = classifyParseError(
 						fileData.path,
@@ -610,10 +628,11 @@ export const useDicomLoader = () => {
 	const removeFile = useCallback((index: number) => {
 		setDicomFiles((prev) => {
 			const removed = prev[index];
-			if (removed) {
+			const next = prev.filter((_, i) => i !== index);
+			// 同じファイルの別フレームが残っている間は元データを解放しない
+			if (removed && !next.some((file) => file.filePath === removed.filePath)) {
 				releaseImage(removed.imageId);
 			}
-			const next = prev.filter((_, i) => i !== index);
 			if (next.length === 0) {
 				setLoadState({ status: "idle" });
 			}

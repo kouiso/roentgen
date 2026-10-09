@@ -23,6 +23,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.invoke("read-directory-recursive", directoryPath),
 	readFile: (filePath: string): Promise<ArrayBuffer> =>
 		ipcRenderer.invoke("read-file", filePath),
+	getFileSize: (filePath: string): Promise<number> =>
+		ipcRenderer.invoke("get-file-size", filePath),
+	readFileRange: (
+		filePath: string,
+		offset: number,
+		length: number,
+	): Promise<ArrayBuffer> =>
+		ipcRenderer.invoke("read-file-range", filePath, offset, length),
 	onOpenDicomFiles: (callback: (filePaths: string[]) => void): (() => void) => {
 		const handler = (_event: Electron.IpcRendererEvent, filePaths: string[]) =>
 			callback(filePaths);

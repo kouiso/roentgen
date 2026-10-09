@@ -117,6 +117,9 @@ let _cornerstoneWadoModule: CornerstoneWadoImageLoader | null = null;
 // 全ペインで共有するimageDataMap（rawDataのキャッシュ）
 const _sharedImageDataMap = new Map<string, ArrayBuffer>();
 const _sharedWadoImageIdMap = new Map<string, string>();
+// マルチフレームはフレームごとに別 ID でキャッシュされ、各画素配列は元ファイルの
+// ArrayBuffer を参照し続ける。解放時に全フレーム分を消さないと元データが残る。
+const _loadedImageIdsBySharedKey = new Map<string, Set<string>>();
 
 const CORNERSTONE_CODEC_PUBLIC_PATH = `${import.meta.env.BASE_URL}cornerstone-wado/`;
 
@@ -142,6 +145,7 @@ const drainInitCallbacks = (error?: unknown) => {
 export const disposeCornerstoneHmrState = (): void => {
 	_sharedImageDataMap.clear();
 	_sharedWadoImageIdMap.clear();
+	_loadedImageIdsBySharedKey.clear();
 	_cornerstoneWadoModule?.webWorkerManager?.terminate?.();
 	_cornerstoneWadoModule?.wadouri?.fileManager?.purge?.();
 	_cornerstoneWadoModule?.wadouri?.dataSetCacheManager?.purge?.();
@@ -194,6 +198,13 @@ const parsePixelSpacingValue = (
 	return [parts[0] ?? 1, parts[1] ?? 1];
 };
 
+// フック内で作ると、V8 がフック内の全クロージャと同じスコープを共有するため、
+// これを保持し続ける読込側（App 常駐）経由で閉じたビューアの表示中画像
+// （= 元ファイル全体の ArrayBuffer）まで解放されなくなる。
+const registerSharedImageData = (filePath: string, data: ArrayBuffer) => {
+	_sharedImageDataMap.set(filePath, data);
+};
+
 export const getSharedImageDataMapSize = (): number => {
 	return _sharedImageDataMap.size;
 };
@@ -222,11 +233,15 @@ export const releaseImage = (imageId: string): void => {
 	}
 
 	const cs = _cornerstoneModule;
+	const loadedImageIds = _loadedImageIdsBySharedKey.get(sharedKey);
+	_loadedImageIdsBySharedKey.delete(sharedKey);
 	if (!cs) return;
-	cs.imageLoader?.purge?.(imageId);
-	const loadObject = cs.imageCache?.getImageLoadObject?.(imageId);
-	if (loadObject) {
-		cs.imageCache?.removeImageLoadObject?.(imageId);
+	for (const loadedImageId of new Set([imageId, ...(loadedImageIds ?? [])])) {
+		cs.imageLoader?.purge?.(loadedImageId);
+		const loadObject = cs.imageCache?.getImageLoadObject?.(loadedImageId);
+		if (loadObject) {
+			cs.imageCache?.removeImageLoadObject?.(loadedImageId);
+		}
 	}
 };
 
@@ -430,9 +445,14 @@ const ensureWadoImageId = (fileInfo: DicomFileInfo): string => {
 	return wadoImageId;
 };
 
-const getLoadImageId = (fileInfo: DicomFileInfo): string => {
+const resolveLoadImageId = (fileInfo: DicomFileInfo): string => {
 	if (isEncapsulatedTransferSyntax(fileInfo.tags.TransferSyntaxUID)) {
-		return ensureWadoImageId(fileInfo);
+		const wadoImageId = ensureWadoImageId(fileInfo);
+		// WADO ローダーは 0 始まりの frame クエリでフレームを選ぶ
+		if (fileInfo.frameIndex > 0 && wadoImageId.startsWith("dicomfile:")) {
+			return `${wadoImageId}?frame=${fileInfo.frameIndex}`;
+		}
+		return wadoImageId;
 	}
 	if (
 		fileInfo.imageId.startsWith("roentgen:") &&
@@ -442,6 +462,18 @@ const getLoadImageId = (fileInfo: DicomFileInfo): string => {
 		return `${fileInfo.imageId}#frame=${fileInfo.frameIndex}`;
 	}
 	return fileInfo.imageId;
+};
+
+const getLoadImageId = (fileInfo: DicomFileInfo): string => {
+	const loadImageId = resolveLoadImageId(fileInfo);
+	const sharedKey = getSharedImageDataKey(fileInfo.imageId);
+	let loadedImageIds = _loadedImageIdsBySharedKey.get(sharedKey);
+	if (!loadedImageIds) {
+		loadedImageIds = new Set();
+		_loadedImageIdsBySharedKey.set(sharedKey, loadedImageIds);
+	}
+	loadedImageIds.add(loadImageId);
+	return loadImageId;
 };
 
 export const useCornerstone = () => {
@@ -502,13 +534,7 @@ export const useCornerstone = () => {
 		};
 	}, []);
 
-	// 画像データの登録（共有マップへ書き込む）
-	const registerImageData = useCallback(
-		(filePath: string, data: ArrayBuffer) => {
-			_sharedImageDataMap.set(filePath, data);
-		},
-		[],
-	);
+	const registerImageData = registerSharedImageData;
 
 	const unregisterImageData = useCallback((filePath: string) => {
 		releaseImage(filePath);

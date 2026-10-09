@@ -463,4 +463,119 @@ describe("useCornerstone", () => {
 		expect(Array.from(frame0.getPixelData())).toEqual([1, 2, 3, 4]);
 		expect(Array.from(frame1.getPixelData())).toEqual([101, 102, 103, 104]);
 	});
+
+	const mockLoadedImage = (imageId: string) => ({
+		imageId,
+		rows: 1,
+		columns: 1,
+		width: 1,
+		height: 1,
+		getPixelData: () => new Uint16Array([1]),
+		windowCenter: 1,
+		windowWidth: 1,
+		slope: 1,
+		intercept: 0,
+		invert: false,
+		minPixelValue: 1,
+		maxPixelValue: 1,
+	});
+
+	it("releases every loaded frame of a multi-frame file from the cornerstone cache", async () => {
+		cornerstoneMock.loadImage.mockImplementation(async (imageId: string) =>
+			mockLoadedImage(imageId),
+		);
+		cornerstoneMock.imageCache.getImageLoadObject.mockImplementation(
+			(imageId: string) => ({ imageId }),
+		);
+		cornerstoneMock.imageCache.removeImageLoadObject.mockClear();
+
+		const { result } = renderHook(() => useCornerstone());
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData("/test/ct.dcm", new ArrayBuffer(8));
+		});
+		const frames = [0, 1, 2].map((frameIndex) => ({
+			...makeFileInfo(1, 1),
+			filePath: "/test/ct.dcm",
+			imageId:
+				frameIndex === 0
+					? "roentgen:/test/ct.dcm"
+					: `roentgen:/test/ct.dcm#frame=${frameIndex}`,
+			frameIndex,
+			totalFrames: 3,
+		}));
+		for (const frame of frames) {
+			await act(async () => {
+				await result.current.loadAndDisplayImage(frame);
+			});
+		}
+
+		const sizeBeforeRelease = getSharedImageDataMapSize();
+		releaseImage("roentgen:/test/ct.dcm");
+
+		expect(getSharedImageDataMapSize()).toBe(sizeBeforeRelease - 1);
+		const removed = cornerstoneMock.imageCache.removeImageLoadObject.mock.calls
+			.map(([imageId]) => imageId)
+			.sort();
+		expect(removed).toEqual([
+			"roentgen:/test/ct.dcm",
+			"roentgen:/test/ct.dcm#frame=1",
+			"roentgen:/test/ct.dcm#frame=2",
+		]);
+	});
+
+	it("selects compressed multi-frame frames through the WADO frame query", async () => {
+		cornerstoneMock.loadImage.mockImplementation(async (imageId: string) =>
+			mockLoadedImage(imageId),
+		);
+		cornerstoneMock.loadImage.mockClear();
+		cornerstoneMock.imageCache.getImageLoadObject.mockImplementation(
+			(imageId: string) => ({ imageId }),
+		);
+		cornerstoneMock.imageCache.removeImageLoadObject.mockClear();
+		wadoMock.wadouri.fileManager.add.mockReturnValueOnce("dicomfile:7");
+
+		const { result } = renderHook(() => useCornerstone());
+		await waitFor(() => {
+			expect(result.current.cornerstoneReady).toBe(true);
+		});
+
+		act(() => {
+			result.current.registerImageData("/test/jpeg-ct.dcm", new ArrayBuffer(8));
+		});
+		const frames = [0, 3].map((frameIndex) => {
+			const fileInfo = makeFileInfo(1, 1);
+			fileInfo.filePath = "/test/jpeg-ct.dcm";
+			fileInfo.imageId =
+				frameIndex === 0
+					? "roentgen:/test/jpeg-ct.dcm"
+					: `roentgen:/test/jpeg-ct.dcm#frame=${frameIndex}`;
+			fileInfo.frameIndex = frameIndex;
+			fileInfo.totalFrames = 4;
+			fileInfo.tags.TransferSyntaxUID = ENCAPSULATED_TRANSFER_SYNTAX_UIDS[0];
+			return fileInfo;
+		});
+		for (const frame of frames) {
+			await act(async () => {
+				await result.current.loadAndDisplayImage(frame);
+			});
+		}
+
+		expect(cornerstoneMock.loadImage.mock.calls.map(([id]) => id)).toEqual([
+			"dicomfile:7",
+			"dicomfile:7?frame=3",
+		]);
+
+		releaseImage("roentgen:/test/jpeg-ct.dcm#frame=3");
+
+		expect(
+			cornerstoneMock.imageCache.removeImageLoadObject,
+		).toHaveBeenCalledWith("dicomfile:7?frame=3");
+		expect(wadoMock.wadouri.dataSetCacheManager.unload).toHaveBeenCalledWith(
+			"dicomfile:7",
+		);
+	});
 });
