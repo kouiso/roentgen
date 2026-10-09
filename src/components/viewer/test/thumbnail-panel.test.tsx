@@ -28,6 +28,8 @@ const makeFile = (
 	pixelSpacing: null,
 	imageOrientationPatient: null,
 	imagePositionPatient: null,
+	patientOrientation: null,
+	anatomicalOrientationType: "BIPED",
 	sliceThickness: null,
 	sliceLocation: null,
 	instanceNumber: index + 1,

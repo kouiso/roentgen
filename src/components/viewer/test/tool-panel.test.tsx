@@ -188,6 +188,31 @@ describe("ToolPanel", () => {
 		).toBe("true");
 	});
 
+	it("shows the equine direction-term toggle with a legend of the abbreviations", () => {
+		const onToggleSpecies = vi.fn();
+		const { rerender } = render(
+			<ToolPanel {...makeProps({ species: "equine", onToggleSpecies })} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
+
+		const toggle = screen.getByRole("button", {
+			name: "方向を馬の用語で表示",
+		});
+		expect(toggle.getAttribute("aria-pressed")).toBe("true");
+		expect(toggle.getAttribute("title")).toContain("Do=背側");
+		fireEvent.click(toggle);
+		expect(onToggleSpecies).toHaveBeenCalledOnce();
+
+		rerender(
+			<ToolPanel {...makeProps({ species: "human", onToggleSpecies })} />,
+		);
+		expect(
+			screen
+				.getByRole("button", { name: "方向を馬の用語で表示" })
+				.getAttribute("aria-pressed"),
+		).toBe("false");
+	});
+
 	it("exposes named FPS stepper controls", () => {
 		const onDecreaseFps = vi.fn();
 		const onIncreaseFps = vi.fn();

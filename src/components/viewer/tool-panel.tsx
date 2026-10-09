@@ -177,6 +177,7 @@ const RowButton = ({
 	icon,
 	label,
 	ariaLabel,
+	hint,
 	onClick,
 	active,
 	tone = "default",
@@ -184,6 +185,7 @@ const RowButton = ({
 	icon: ReactNode;
 	label: string;
 	ariaLabel?: string;
+	hint?: string;
 	onClick: () => void;
 	active?: boolean;
 	tone?: "default" | "danger";
@@ -192,6 +194,7 @@ const RowButton = ({
 		type="button"
 		aria-label={ariaLabel ?? label}
 		aria-pressed={active}
+		title={hint}
 		onClick={onClick}
 		className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150 ${
 			tone === "danger"
@@ -615,7 +618,12 @@ export const ToolPanel = ({
 						/>
 						<RowButton
 							icon={<PawPrint size={16} />}
-							label={species === "equine" ? "馬モード" : "人体モード"}
+							label="方向を馬の用語で表示"
+							hint={
+								species === "equine"
+									? "Do=背側 Pa=掌側 Pl=底側 Lat=外側 Med=内側 Pr=近位 Di=遠位（オフにするとDICOMの略号）"
+									: "オンにすると Do/Pa/Lat/Med/Pr/Di などの馬の用語で表示します"
+							}
 							active={species === "equine"}
 							onClick={onToggleSpecies}
 						/>

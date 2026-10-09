@@ -1,8 +1,10 @@
 // DICOMタグパースユーティリティ
 import type {
+	AnatomicalOrientationType,
 	DicomFileInfo,
 	ModalityLutData,
 	OverlayPlaneData,
+	PatientOrientation,
 	VoiLutData,
 } from "@/types/dicom";
 import { decodeDicomText } from "@/utils/dicom-text";
@@ -133,6 +135,27 @@ export const parseImageOrientation = (
 	const parts = value.split("\\").map(Number);
 	if (parts.length !== 6 || parts.some(Number.isNaN)) return null;
 	return parts;
+};
+
+export const parseAnatomicalOrientationType = (
+	dataSet: DicomDataSet,
+): AnatomicalOrientationType =>
+	dataSet.string("x00102210")?.trim().toUpperCase() === "QUADRUPED"
+		? "QUADRUPED"
+		: "BIPED";
+
+// Patient Orientation (0020,0020) のパース
+// 値の妥当性（略号として読めるか）は方向計算側で判定し、ここでは形だけ揃える
+export const parsePatientOrientation = (
+	dataSet: DicomDataSet,
+): PatientOrientation | null => {
+	const value = dataSet.string("x00200020");
+	if (!value) return null;
+	const [row, column, ...rest] = value
+		.split("\\")
+		.map((part) => part.trim().toUpperCase());
+	if (!row || !column || rest.length > 0) return null;
+	return { row, column };
 };
 
 // Image Position Patient (0020,0032) のパース
@@ -519,6 +542,8 @@ export const buildDicomFileInfo = (
 		pixelSpacing: parsePixelSpacing(dataSet),
 		imageOrientationPatient: parseImageOrientation(dataSet),
 		imagePositionPatient: parseImagePosition(dataSet),
+		patientOrientation: parsePatientOrientation(dataSet),
+		anatomicalOrientationType: parseAnatomicalOrientationType(dataSet),
 		sliceThickness: dataSet.floatString("x00180050") ?? null,
 		sliceLocation: dataSet.floatString("x00201041") ?? null,
 		instanceNumber: dataSet.intString("x00200013") ?? null,

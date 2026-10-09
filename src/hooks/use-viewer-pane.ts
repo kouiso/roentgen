@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAnnotation } from "@/hooks/use-annotation";
 import { useCineMode } from "@/hooks/use-cine-mode";
 import { useCornerstone } from "@/hooks/use-cornerstone";
+import { useDirectionSpecies } from "@/hooks/use-direction-species";
 import { useImageOverlay } from "@/hooks/use-image-overlay";
 import { useMeasurement } from "@/hooks/use-measurement";
 import { useMouseInteraction } from "@/hooks/use-mouse-interaction";
@@ -17,7 +18,7 @@ import {
 	getDicomFileSopInstanceUid,
 	matchesSopInstanceUid,
 } from "@/utils/annotation-storage";
-import { calculateImageDirection, type Species } from "@/utils/image-direction";
+import { resolveImageDirection } from "@/utils/image-direction";
 import {
 	createImageGeometry,
 	getDisplaySize,
@@ -36,7 +37,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 装置の撮影パラメータ一覧は飼い主には読めない情報なので、必要な人だけが出す
 	const [showOverlay, setShowOverlay] = useState(false);
 	const [showDirection, setShowDirection] = useState(true);
-	const [species, setSpecies] = useState<Species>("equine");
+	const { species, toggleSpecies } = useDirectionSpecies();
 	const [isOsdReady, setIsOsdReady] = useState(false);
 	const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 	const loadedFileRef = useRef<DicomFileInfo | null>(null);
@@ -111,9 +112,23 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		worldInfo.windowCenter,
 	);
 
-	const directionInfo = currentFile
-		? calculateImageDirection(currentFile.imageOrientationPatient, species)
-		: null;
+	const directionInfo = useMemo(
+		() =>
+			currentFile
+				? resolveImageDirection(currentFile, species, {
+						rotation: worldInfo.rotation,
+						flipHorizontal: worldInfo.flipHorizontal,
+						flipVertical: worldInfo.flipVertical,
+					})
+				: null,
+		[
+			currentFile,
+			species,
+			worldInfo.rotation,
+			worldInfo.flipHorizontal,
+			worldInfo.flipVertical,
+		],
+	);
 
 	const controls = useViewerControls({
 		setWorldInfo,
@@ -527,8 +542,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			showDirection,
 			onToggleDirection: () => setShowDirection((v) => !v),
 			species,
-			onToggleSpecies: () =>
-				setSpecies((current) => (current === "equine" ? "human" : "equine")),
+			onToggleSpecies: toggleSpecies,
 			onSetWwWc: controls.setWwWc,
 			onAutoContrast: autoContrast,
 			baseWW: initialWindow?.ww,
@@ -566,6 +580,7 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 			showOverlay,
 			showDirection,
 			species,
+			toggleSpecies,
 			controls.setWwWc,
 			autoContrast,
 			initialWindow,
