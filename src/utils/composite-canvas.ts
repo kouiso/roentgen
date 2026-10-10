@@ -2,8 +2,18 @@ const SVG_ARIA_LABELS = ["注釈オーバーレイ", "計測オーバーレイ"]
 
 const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
 	new Promise((resolve, reject) => {
+		// 画面内SVGは viewBox も width/height 属性も持たず、<img>化すると
+		// intrinsic size 未定でラスタライズが既定サイズになる。そのまま canvas 全面に
+		// 引き延ばすと、ペインCSSピクセル座標の内容が左上に1:1で置かれてしまう。
+		// クローンへ viewBox=CSSサイズと width/height を付け直してからシリアライズし、
+		// 表示座標系を保ったままキャンバスピクセルへ写せるようにする。
+		const rect = svgElement.getBoundingClientRect();
+		const clone = svgElement.cloneNode(true) as SVGSVGElement;
+		clone.setAttribute("width", String(rect.width));
+		clone.setAttribute("height", String(rect.height));
+		clone.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
 		const serializer = new XMLSerializer();
-		const svgStr = serializer.serializeToString(svgElement);
+		const svgStr = serializer.serializeToString(clone);
 		const img = new Image();
 		img.onload = () => resolve(img);
 		img.onerror = () => reject(new Error("SVG load failed"));
