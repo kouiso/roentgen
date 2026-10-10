@@ -2,20 +2,28 @@ const SVG_ARIA_LABELS = ["注釈オーバーレイ", "計測オーバーレイ"]
 
 const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
 	new Promise((resolve, reject) => {
+		// 画面内SVGは viewBox も width/height 属性も持たず、<img>化すると
+		// intrinsic size 未定でラスタライズが既定サイズになる。そのまま canvas 全面に
+		// 引き延ばすと、ペインCSSピクセル座標の内容が左上に1:1で置かれてしまう。
+		// クローンへ viewBox=CSSサイズと width/height を付け直してからシリアライズし、
+		// 表示座標系を保ったままキャンバスピクセルへ写せるようにする。
+		const rect = svgElement.getBoundingClientRect();
+		const clone = svgElement.cloneNode(true) as SVGSVGElement;
+		// 削除ボタン等の foreignObject は画面で opacity-0 のため非表示だが、
+		// 切り出したSVGでは Tailwind クラスが効かず「×」として焼き込まれるため除去する
+		for (const fo of Array.from(clone.querySelectorAll("foreignObject"))) {
+			fo.remove();
+		}
+		clone.setAttribute("width", String(rect.width));
+		clone.setAttribute("height", String(rect.height));
+		clone.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
 		const serializer = new XMLSerializer();
-		const svgStr = serializer.serializeToString(svgElement);
-		const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-		const url = URL.createObjectURL(blob);
+		const svgStr = serializer.serializeToString(clone);
 		const img = new Image();
-		img.onload = () => {
-			URL.revokeObjectURL(url);
-			resolve(img);
-		};
-		img.onerror = () => {
-			URL.revokeObjectURL(url);
-			reject(new Error("SVG load failed"));
-		};
-		img.src = url;
+		img.onload = () => resolve(img);
+		img.onerror = () => reject(new Error("SVG load failed"));
+		// blob: だと CSP/img-src と canvas taint に引っかかるため data: URI で読む
+		img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
 	});
 
 const compositeWithRelativeWrapper = async (
