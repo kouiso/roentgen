@@ -9,6 +9,11 @@ const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
 		// 表示座標系を保ったままキャンバスピクセルへ写せるようにする。
 		const rect = svgElement.getBoundingClientRect();
 		const clone = svgElement.cloneNode(true) as SVGSVGElement;
+		// 削除ボタン等の foreignObject は画面で opacity-0 のため非表示だが、
+		// 切り出したSVGでは Tailwind クラスが効かず「×」として焼き込まれるため除去する
+		for (const fo of Array.from(clone.querySelectorAll("foreignObject"))) {
+			fo.remove();
+		}
 		clone.setAttribute("width", String(rect.width));
 		clone.setAttribute("height", String(rect.height));
 		clone.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
