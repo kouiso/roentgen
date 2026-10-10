@@ -4,18 +4,11 @@ const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
 	new Promise((resolve, reject) => {
 		const serializer = new XMLSerializer();
 		const svgStr = serializer.serializeToString(svgElement);
-		const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-		const url = URL.createObjectURL(blob);
 		const img = new Image();
-		img.onload = () => {
-			URL.revokeObjectURL(url);
-			resolve(img);
-		};
-		img.onerror = () => {
-			URL.revokeObjectURL(url);
-			reject(new Error("SVG load failed"));
-		};
-		img.src = url;
+		img.onload = () => resolve(img);
+		img.onerror = () => reject(new Error("SVG load failed"));
+		// blob: だと CSP/img-src と canvas taint に引っかかるため data: URI で読む
+		img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
 	});
 
 const compositeWithRelativeWrapper = async (

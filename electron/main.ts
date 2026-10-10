@@ -530,7 +530,7 @@ const createWindow = async () => {
 			responseHeaders: {
 				...details.responseHeaders,
 				"Content-Security-Policy": [
-					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; ${connectSrc}`,
+					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; ${connectSrc}`,
 				],
 			},
 		});

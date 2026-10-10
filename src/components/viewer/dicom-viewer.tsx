@@ -507,6 +507,18 @@ export const DicomViewer = ({
 		allPanes,
 	]);
 
+	// WW/WCを次回起動の復元用にメインへ保存する。
+	// ドラッグ連打でIPCが詰まらないよう、値が1秒静止した時だけ送る
+	useEffect(() => {
+		const ww = activePane.worldInfo.windowWidth;
+		const wc = activePane.worldInfo.windowCenter;
+		if (!Number.isFinite(ww) || !Number.isFinite(wc)) return;
+		const timer = setTimeout(() => {
+			void window.electronAPI?.windowState.setWwwc(ww, wc);
+		}, 1000);
+		return () => clearTimeout(timer);
+	}, [activePane.worldInfo.windowWidth, activePane.worldInfo.windowCenter]);
+
 	// ズーム/パン同期: アクティブペインのOSD viewport-changeを他のペインへ伝播
 	useEffect(() => {
 		if (!syncZoom || paneCount <= 1) return;

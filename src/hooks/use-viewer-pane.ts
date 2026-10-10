@@ -135,6 +135,42 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		getViewport,
 	});
 
+	// 前回終了時のWW/WCを新しく開いた画像へ復元する。
+	// get-wwwc は起動直後に1回だけ問い合わせ、以後はメモリ上の値を使う
+	const [savedWwwc, setSavedWwwc] = useState<
+		{ ww: number; wc: number } | null | undefined
+	>(undefined);
+	useEffect(() => {
+		const api = window.electronAPI;
+		if (!api) return;
+		let cancelled = false;
+		void api.windowState
+			.getWwwc()
+			.then((saved) => {
+				if (!cancelled) setSavedWwwc(saved ?? null);
+			})
+			.catch(() => {
+				if (!cancelled) setSavedWwwc(null);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	// worldInfo は画像ロード時にDICOM既定で初期化されるため、
+	// initialWindow が埋まった後でなければ保存値で上書きできない
+	const appliedWwwcForRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (!currentFile) {
+			appliedWwwcForRef.current = null;
+			return;
+		}
+		if (!savedWwwc || !initialWindow) return;
+		if (appliedWwwcForRef.current === currentFile.imageId) return;
+		appliedWwwcForRef.current = currentFile.imageId;
+		controls.setWwWc(savedWwwc.ww, savedWwwc.wc);
+	}, [savedWwwc, initialWindow, currentFile, controls]);
+
 	const cine = useCineMode({
 		nextFrame,
 		setFrame,
