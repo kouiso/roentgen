@@ -9,6 +9,7 @@ import { useImageOverlay } from "@/hooks/use-image-overlay";
 import { useMeasurement } from "@/hooks/use-measurement";
 import { useMouseInteraction } from "@/hooks/use-mouse-interaction";
 import { useOpenSeaDragon } from "@/hooks/use-open-sea-dragon";
+import { usePersistedWwwc } from "@/hooks/use-persisted-wwwc";
 import { useViewerControls } from "@/hooks/use-viewer-controls";
 import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
@@ -130,46 +131,20 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		],
 	);
 
+	// WW/WC 永続化: 保存(IPC)・復元・セッション中の変更追跡を usePersistedWwwc に集約。
+	// ユーザーが選んだ値は後続の全画像へ DICOM 既定より優先適用されるため、
+	// WW/WC を変える全経路がこの controls を通るように差し替える。
+	const persistedWwwc = usePersistedWwwc(
+		window.electronAPI?.windowState,
+		setWorldInfo,
+	);
+
 	const controls = useViewerControls({
 		setWorldInfo,
 		getViewport,
+		persistedSetWwWc: persistedWwwc.setWwWc,
+		persistedAdjustWwWc: persistedWwwc.adjustWwWc,
 	});
-
-	// 前回終了時のWW/WCを新しく開いた画像へ復元する。
-	// get-wwwc は起動直後に1回だけ問い合わせ、以後はメモリ上の値を使う
-	const [savedWwwc, setSavedWwwc] = useState<
-		{ ww: number; wc: number } | null | undefined
-	>(undefined);
-	useEffect(() => {
-		const api = window.electronAPI;
-		if (!api) return;
-		let cancelled = false;
-		void api.windowState
-			.getWwwc()
-			.then((saved) => {
-				if (!cancelled) setSavedWwwc(saved ?? null);
-			})
-			.catch(() => {
-				if (!cancelled) setSavedWwwc(null);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	// worldInfo は画像ロード時にDICOM既定で初期化されるため、
-	// initialWindow が埋まった後でなければ保存値で上書きできない
-	const appliedWwwcForRef = useRef<string | null>(null);
-	useEffect(() => {
-		if (!currentFile) {
-			appliedWwwcForRef.current = null;
-			return;
-		}
-		if (!savedWwwc || !initialWindow) return;
-		if (appliedWwwcForRef.current === currentFile.imageId) return;
-		appliedWwwcForRef.current = currentFile.imageId;
-		controls.setWwWc(savedWwwc.ww, savedWwwc.wc);
-	}, [savedWwwc, initialWindow, currentFile, controls]);
 
 	const cine = useCineMode({
 		nextFrame,
@@ -496,6 +471,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		).then((success) => {
 			if (controller.signal.aborted) return;
 			loadedFileRef.current = success !== false ? currentFile : null;
+			// ロード完了をトリガーに保持中のWW/WCを適用する。
+			// DICOM既定値で初期化された後なので、2枚目以降にも確実に効く
+			if (success !== false) persistedWwwc.notifyImageLoaded();
 			setImageLoadError(
 				success !== false
 					? null
@@ -505,7 +483,13 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		return () => {
 			controller.abort();
 		};
-	}, [currentFile, isOsdReady, cornerstoneReady, loadAndDisplayImage]);
+	}, [
+		currentFile,
+		isOsdReady,
+		cornerstoneReady,
+		loadAndDisplayImage,
+		persistedWwwc.notifyImageLoaded,
+	]);
 
 	// 画像プリロード
 	useEffect(() => {
@@ -539,11 +523,12 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// ビューアリセット
 	const resetImage = useCallback(() => {
 		if (!currentFile) return;
-		controls.resetImage(
-			initialWindow?.ww ?? currentFile.windowWidth,
-			initialWindow?.wc ?? currentFile.windowCenter,
-		);
-	}, [controls, currentFile, initialWindow]);
+		const ww = initialWindow?.ww ?? currentFile.windowWidth;
+		const wc = initialWindow?.wc ?? currentFile.windowCenter;
+		controls.resetImage(ww, wc);
+		// リセットで選んだ画像既定値も「ユーザーが選んだWW/WC」として後続画像へ引き継ぐ
+		persistedWwwc.recordUserChoice(ww, wc);
+	}, [controls, currentFile, initialWindow, persistedWwwc.recordUserChoice]);
 
 	const autoContrast = useCallback(() => {
 		if (!initialWindow) return;

@@ -21,14 +21,20 @@ type OSDViewport = {
 type UseViewerControlsProps = {
 	setWorldInfo: React.Dispatch<React.SetStateAction<ViewerWorldInfo>>;
 	getViewport: () => OSDViewport | null;
+	// WW/WCの永続化経路。指定時は既定の setWorldInfo 版を差し替えて返す
+	// （usePersistedWwwc の setWwWc/adjustWwWc を渡す想定）
+	persistedSetWwWc?: (ww: number, wc: number) => void;
+	persistedAdjustWwWc?: (deltaWW: number, deltaWC: number) => void;
 };
 
 export const useViewerControls = ({
 	setWorldInfo,
 	getViewport,
+	persistedSetWwWc,
+	persistedAdjustWwWc,
 }: UseViewerControlsProps) => {
 	// WW/WC変更
-	const setWwWc = useCallback(
+	const defaultSetWwWc = useCallback(
 		(ww: number, wc: number) => {
 			setWorldInfo((prev) => ({
 				...prev,
@@ -38,9 +44,10 @@ export const useViewerControls = ({
 		},
 		[setWorldInfo],
 	);
+	const setWwWc = persistedSetWwWc ?? defaultSetWwWc;
 
 	// WW/WCをデルタ値で変更（マウスドラッグ用）
-	const adjustWwWc = useCallback(
+	const defaultAdjustWwWc = useCallback(
 		(deltaWW: number, deltaWC: number) => {
 			setWorldInfo((prev) => ({
 				...prev,
@@ -50,6 +57,7 @@ export const useViewerControls = ({
 		},
 		[setWorldInfo],
 	);
+	const adjustWwWc = persistedAdjustWwWc ?? defaultAdjustWwWc;
 
 	// 白黒反転
 	const toggleInvert = useCallback(() => {

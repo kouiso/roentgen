@@ -37,7 +37,10 @@ const compositeWithRelativeWrapper = async (
 		return el ? [el] : [];
 	});
 
-	if (svgElements.length === 0) return canvas.toDataURL("image/png");
+	if (svgElements.length === 0) {
+		console.warn("[composite-canvas] no overlay SVG under relativeWrapper");
+		return canvas.toDataURL("image/png");
+	}
 
 	const offscreen = document.createElement("canvas");
 	offscreen.width = canvas.width;
@@ -51,8 +54,10 @@ const compositeWithRelativeWrapper = async (
 		try {
 			const img = await loadSvgAsImage(svg);
 			ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-		} catch {
-			// Non-fatal: skip this SVG layer
+		} catch (error) {
+			// オーバーレイ1層の失敗でPNG保存全体を落とさないが、
+			// CSP/シリアライズ系の障害を表面化させるため警告は出す
+			console.warn("[composite-canvas] overlay SVG layer skipped:", error);
 		}
 	}
 
@@ -70,6 +75,9 @@ export const compositeCanvasById = async (
 	osdContainer: HTMLElement,
 ): Promise<string> => {
 	const relativeWrapper = osdContainer.parentElement?.parentElement;
-	if (!relativeWrapper) return canvas.toDataURL("image/png");
+	if (!relativeWrapper) {
+		console.warn("[composite-canvas] relativeWrapper not found");
+		return canvas.toDataURL("image/png");
+	}
 	return compositeWithRelativeWrapper(canvas, relativeWrapper);
 };

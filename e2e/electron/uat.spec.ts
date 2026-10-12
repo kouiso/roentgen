@@ -1,12 +1,14 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+	type ElectronApplication,
 	_electron as electron,
 	expect,
 	type Page,
 	test,
 } from "@playwright/test";
+import { writeGeometryFixture } from "./dicom-fixture";
 import {
 	buildElectronApp,
 	createIsolatedUserDataDir,
@@ -38,6 +40,100 @@ const getWwwc = (page: Page) =>
 const getGdriveHasCredentials = (page: Page) =>
 	page.evaluate(() =>
 		(window as unknown as RendererWindow).electronAPI.gdrive.hasCredentials(),
+	);
+
+// 書き出した PNG をオーバーレイ有り/無しで差分比較する。
+// 外部デコーダを増やさず、nativeImage の BMP 化で比較する
+const analyzeExportedPair = (
+	app: ElectronApplication,
+	withOverlay: string,
+	plain: string,
+) =>
+	app.evaluate(
+		({ nativeImage }, args) => {
+			const a = nativeImage.createFromPath(args.withOverlay);
+			const b = nativeImage.createFromPath(args.plain);
+			const { width: w, height: h } = a.getSize();
+			const ba = a.getBitmap();
+			const bb = b.getBitmap();
+			if (bb.length !== ba.length) {
+				return {
+					w,
+					h,
+					diff: -1,
+					greenDiff: 0,
+					orangeDiff: 0,
+					centroidX: -1,
+					centroidY: -1,
+					whiteOnDark: -1,
+				};
+			}
+			let diff = 0;
+			let greenDiff = 0;
+			let orangeDiff = 0;
+			let sumX = 0;
+			let sumY = 0;
+			const whiteIdx: number[] = [];
+			for (let y = 0; y < h; y++) {
+				for (let x = 0; x < w; x++) {
+					const i = (y * w + x) * 4;
+					const mag =
+						Math.abs(ba[i] - bb[i]) +
+						Math.abs(ba[i + 1] - bb[i + 1]) +
+						Math.abs(ba[i + 2] - bb[i + 2]);
+					if (mag < 40) continue;
+					diff++;
+					sumX += x;
+					sumY += y;
+					const blue = ba[i];
+					const green = ba[i + 1];
+					const red = ba[i + 2];
+					if (green > 190 && red < 140 && green - red > 60) greenDiff++;
+					if (red > 200 && green > 120 && green < 200 && blue < 90)
+						orangeDiff++;
+					if (red > 245 && green > 245 && blue > 245) whiteIdx.push(i);
+				}
+			}
+			// 「×」ボタンの白文字は暗いボタン背景の上にしか現れない。
+			// 明るい画像上のAAは除外するため、近傍が暗い白画素だけを数える
+			let whiteOnDark = 0;
+			for (const i of whiteIdx) {
+				const p = i / 4;
+				const x = p % w;
+				const y = (p - x) / w;
+				let dark = 0;
+				let n = 0;
+				for (const [dx, dy] of [
+					[-4, 0],
+					[4, 0],
+					[0, -4],
+					[0, 4],
+					[-4, -4],
+					[4, -4],
+					[-4, 4],
+					[4, 4],
+				]) {
+					const nx = x + dx;
+					const ny = y + dy;
+					if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+					const j = (ny * w + nx) * 4;
+					if ((ba[j] + ba[j + 1] + ba[j + 2]) / 3 < 80) dark++;
+					n++;
+				}
+				if (n > 0 && dark / n >= 0.5) whiteOnDark++;
+			}
+			return {
+				w,
+				h,
+				diff,
+				greenDiff,
+				orangeDiff,
+				centroidX: diff > 0 ? sumX / diff / w : -1,
+				centroidY: diff > 0 ? sumY / diff / h : -1,
+				whiteOnDark,
+			};
+		},
+		{ withOverlay, plain },
 	);
 
 const canvasSignature = async (page: Page) =>
@@ -91,12 +187,12 @@ const canvasAverageChannel = async (page: Page) =>
 		return count === 0 ? 0 : sum / count;
 	});
 
-const waitForAutoloadedFixture = async (page: Page) => {
+const waitForAutoloadedFixture = async (page: Page, minRatio = 0.3) => {
 	await expect(page.locator("header")).toBeVisible({ timeout: 60_000 });
 	await expect(page.getByText(/\d+ 枚/)).toBeVisible({ timeout: 60_000 });
 	await expect
 		.poll(() => canvasNonBlackRatio(page), { timeout: 60_000 })
-		.toBeGreaterThan(0.3);
+		.toBeGreaterThan(minRatio);
 };
 
 const clickViewerPoint = async (page: Page, xRatio: number, yRatio: number) => {
@@ -280,6 +376,41 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			expect(png.length).toBeGreaterThan(10_000);
 			console.info(`[uat] exported PNG bytes: ${png.length}`);
 
+			// オーバーレイがPNGに焼き込まれているかを、計測を消した対照PNGとの
+			// 画素差分で検査する（viewBox/foreignObject の退化はここで検出できる）
+			const plainPath = join(uatEvidenceDir, "uat-export-plain.png");
+			await app.evaluate(({ dialog }, filePath) => {
+				dialog.showSaveDialog = () =>
+					Promise.resolve({ canceled: false, filePath });
+			}, plainPath);
+			// 「測った線を消す」は window.confirm を挟む — Playwright 既定は
+			// ダイアログを dismiss するので、accept しないと消去が発火しない
+			page.on("dialog", (dialog) => void dialog.accept());
+			await page.getByRole("button", { name: "測った線を消す" }).click();
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(0, { timeout: 5_000 });
+			await page.getByRole("button", { name: "画像で保存" }).click();
+			await expect
+				.poll(() => existsSync(plainPath), { timeout: 15_000 })
+				.toBe(true);
+
+			const stats = await analyzeExportedPair(app, savePath, plainPath);
+			console.info(`[uat] export pixel diff: ${JSON.stringify(stats)}`);
+			// 線・丸・ラベル分の面積が差分として現れる
+			expect(stats.diff).toBeGreaterThan(100);
+			// 距離グリーン(#00ff88)・角度オレンジ(#ffaa00)の両方が入っている
+			expect(stats.greenDiff).toBeGreaterThan(20);
+			expect(stats.orangeDiff).toBeGreaterThan(10);
+			// 差分の重心が計測位置（画面中央帯）にある — viewBox 無しで
+			// 左上1:1スタンプに退化すると重心が画面左上へ寄って落ちる
+			expect(stats.centroidX).toBeGreaterThan(0.32);
+			expect(stats.centroidX).toBeLessThan(0.68);
+			expect(stats.centroidY).toBeGreaterThan(0.35);
+			expect(stats.centroidY).toBeLessThan(0.75);
+			// 「×」削除ボタンの白文字が混入していないこと
+			expect(stats.whiteOnDark).toBe(0);
+
 			// ---- U8: WW/WC を変更して終了 → 同プロファイルで再起動して復元
 			await page
 				.getByRole("button", { name: /馬・骨/ })
@@ -305,6 +436,132 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await page.screenshot({ path: join(screenshotDir, "u8-restored.png") });
 
 			// コンソール error は既知の allowlist を除きゼロであること
+			const realErrors = errors.filter(
+				(e) =>
+					!e.includes("removeImageLoadObject") &&
+					!e.toLowerCase().includes("react"),
+			);
+			expect(realErrors).toEqual([]);
+			expect(pageErrors.map((e) => e.message)).toEqual([]);
+		} finally {
+			await app.close();
+			await rendererServer.close();
+		}
+	});
+
+	test("U9: WW/WC persists across frame switch, second pane, and restart", async () => {
+		// 同シリーズ2枚（スタック）+ 別シリーズ1枚（2ペイン自動レイアウト）で、
+		// ユーザーが選んだ WW/WC が後続の全画像へ DICOM 既定より優先されること
+		test.setTimeout(300_000);
+		const errors: string[] = [];
+		const pageErrors: Error[] = [];
+		const fixtureDir = mkdtempSync(join(tmpdir(), "roentgen-u9-"));
+		const common = {
+			rows: 256,
+			columns: 256,
+			pixelSpacing: [0.3, 0.3] as [number, number],
+		};
+		writeGeometryFixture(join(fixtureDir, "stack-1.dcm"), {
+			...common,
+			uid: "3101",
+		});
+		writeGeometryFixture(join(fixtureDir, "stack-2.dcm"), {
+			...common,
+			uid: "3101",
+		});
+		writeGeometryFixture(join(fixtureDir, "other-series.dcm"), {
+			...common,
+			uid: "3102",
+		});
+		const rendererServer = await startRendererDevServer();
+		const userDataDir = createIsolatedUserDataDir();
+		const launch = () =>
+			electron.launch({
+				args: electronLaunchArgs(userDataDir),
+				env: {
+					...process.env,
+					ELECTRON_RUN_AS_NODE: "",
+					NODE_ENV: "development",
+					ROENTGEN_TEST_DICOM_DIR: fixtureDir,
+					VITE_DEV_SERVER_URL: rendererServer.url,
+				},
+			});
+
+		let app = await launch();
+		let page = await app.firstWindow();
+		trackConsole(page, errors, pageErrors);
+		try {
+			// 2シリーズ → 2ペイン自動レイアウト
+			// リング+マーカーの疎な図形なので非黒率の閾値は実DICOMより低く取る
+			await waitForAutoloadedFixture(page, 0.02);
+			await expect(page.locator("#osd-pane-1")).toBeVisible({
+				timeout: 30_000,
+			});
+			await page.screenshot({ path: join(screenshotDir, "u9-two-panes.png") });
+
+			// プリセット適用（アクティブは pane-0）→ IPC 保存値を確認
+			await page
+				.getByRole("button", { name: /くわしい設定/ })
+				.first()
+				.click();
+			await page
+				.getByRole("button", { name: /馬・骨/ })
+				.first()
+				.click();
+			await expect
+				.poll(() => getWwwc(page), { timeout: 15_000 })
+				.toEqual({ ww: 2500, wc: 500 });
+			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
+				timeout: 10_000,
+			});
+
+			// スタック送り — fixture の DICOM 既定(3600/2150)でなく保持値が効く
+			await page.locator("#osd-pane-0").click();
+			await page.getByRole("button", { name: "次のフレーム" }).first().click();
+			await expect(page.getByText("2 / 2")).toBeVisible({
+				timeout: 10_000,
+			});
+			await page.locator("#osd-pane-0").click();
+			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
+				timeout: 10_000,
+			});
+			await page.screenshot({
+				path: join(screenshotDir, "u9-frame2-wwwc.png"),
+			});
+
+			// pane-1 の画像はプリセット適用前から表示済みなので DICOM 既定のまま
+			// （保持値は「後続に読み込まれる画像」へ適用される仕様の確認）
+			await page.locator("#osd-pane-1").click();
+			await expect(page.getByText(/WW 3600 \/ WC 2150/)).toBeVisible({
+				timeout: 10_000,
+			});
+			await app.close();
+
+			// 再起動 — pane-0 の2枚目送りでも pane-1 にも保存値が復元される
+			app = await launch();
+			page = await app.firstWindow();
+			trackConsole(page, errors, pageErrors);
+			await waitForAutoloadedFixture(page, 0.02);
+			await expect(page.locator("#osd-pane-1")).toBeVisible({
+				timeout: 30_000,
+			});
+			await page
+				.getByRole("button", { name: "くわしい設定（獣医さん向け）" })
+				.click();
+			await page.getByRole("button", { name: "次のフレーム" }).first().click();
+			await page.locator("#osd-pane-0").click();
+			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
+				timeout: 10_000,
+			});
+			// ペイン切替 — pane-1 にも同じ保存値がロード完了起点で適用されている
+			await page.locator("#osd-pane-1").click();
+			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
+				timeout: 10_000,
+			});
+			await page.screenshot({
+				path: join(screenshotDir, "u9-restored-pane1.png"),
+			});
+
 			const realErrors = errors.filter(
 				(e) =>
 					!e.includes("removeImageLoadObject") &&
