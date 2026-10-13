@@ -67,7 +67,7 @@ describe("useViewerControls", () => {
 		expect(result.current.worldInfo.windowWidth).toBe(1);
 	});
 
-	it("applySyncedWwWc は表示だけ更新し、永続化側の setWwWc は呼ばない", () => {
+	it("applyDisplayWwWc は表示だけ更新し、永続化側の setWwWc は呼ばない", () => {
 		const persistedSetWwWc = vi.fn();
 		const { result } = renderHook(() => {
 			const [worldInfo, setWorldInfo] = useState<ViewerWorldInfo>({
@@ -83,7 +83,7 @@ describe("useViewerControls", () => {
 			return { controls, worldInfo };
 		});
 
-		act(() => result.current.controls.applySyncedWwWc(3600, 2150));
+		act(() => result.current.controls.applyDisplayWwWc(3600, 2150));
 		expect(result.current.worldInfo.windowWidth).toBe(3600);
 		expect(result.current.worldInfo.windowCenter).toBe(2150);
 		expect(persistedSetWwWc).not.toHaveBeenCalled();

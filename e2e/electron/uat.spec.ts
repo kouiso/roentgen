@@ -539,12 +539,6 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				path: join(screenshotDir, "u9-frame2-wwwc.png"),
 			});
 
-			// pane-1 の画像はプリセット適用前から表示済みなので DICOM 既定のまま
-			// （保持値は「後続に読み込まれる画像」へ適用される仕様の確認）
-			await page.locator("#osd-pane-1").click();
-			await expect(page.getByText(/WW 3600 \/ WC 2150/)).toBeVisible({
-				timeout: 10_000,
-			});
 			await app.close();
 
 			// 再起動 — pane-0 の2枚目送りでも pane-1 にも保存値が復元される
@@ -572,6 +566,26 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await page.screenshot({
 				path: join(screenshotDir, "u9-restored-pane1.png"),
 			});
+
+			// 「最初の状態に戻す」— 選んだ値と保存値を破棄し、DICOM 既定値へ戻る
+			await page
+				.getByRole("button", { name: /最初の状態に戻す/ })
+				.first()
+				.click();
+			await expect
+				.poll(() => getWwwc(page), { timeout: 15_000 })
+				.toBeUndefined();
+			await expect(page.getByText(/WW 3600 \/ WC 2150/)).toBeVisible({
+				timeout: 10_000,
+			});
+			// 戻した後に読み込む画像(前のフレーム)も DICOM 既定値のまま
+			await page.locator("#osd-pane-0").click();
+			await page.getByRole("button", { name: "前のフレーム" }).first().click();
+			await expect(page.getByText("1 / 2")).toBeVisible({ timeout: 10_000 });
+			await expect(page.getByText(/WW 3600 \/ WC 2150/)).toBeVisible({
+				timeout: 10_000,
+			});
+			await expect(page.getByText(/WW 2500 \/ WC 500/)).toHaveCount(0);
 
 			const realErrors = errors.filter(
 				(e) =>

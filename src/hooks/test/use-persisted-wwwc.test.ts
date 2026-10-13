@@ -11,6 +11,7 @@ const SAVED = { ww: 2500, wc: 500 };
 const makeIpc = (saved?: { ww: number; wc: number }): WwwcIpc => ({
 	getWwwc: vi.fn(() => Promise.resolve(saved)),
 	setWwwc: vi.fn(() => Promise.resolve()),
+	clearWwwc: vi.fn(() => Promise.resolve()),
 });
 
 const setup = (ipc: WwwcIpc | undefined) =>
@@ -202,31 +203,110 @@ describe("usePersistedWwwc", () => {
 		expect(result.current.worldInfo.windowCenter).toBe(550);
 	});
 
-	it("recordUserChoice は表示更新を伴わず保持・保存のみ行う", async () => {
+	it("clearUserChoice は保持値と保存値を消し、以後の画像は既定値のまま", async () => {
 		vi.useFakeTimers();
-		const ipc = makeIpc(undefined);
+		const ipc = makeIpc(SAVED);
 		const { result } = setup(ipc);
 		await act(async () => Promise.resolve());
 
-		act(() => result.current.persisted.recordUserChoice(1800, 300));
-		// worldInfo は変えない（リセット経路が別途更新する想定）
-		expect(result.current.worldInfo.windowWidth).toBe(DICOM_DEFAULT.ww);
+		act(() => result.current.persisted.notifyImageLoaded());
+		expect(result.current.worldInfo.windowWidth).toBe(SAVED.ww);
 
+		act(() => result.current.persisted.setWwWc(1800, 300));
+		act(() => result.current.persisted.clearUserChoice());
+		expect(ipc.clearWwwc).toHaveBeenCalledTimes(1);
+
+		// 次の画像ロード: DICOM 既定値がそのまま残る
 		act(() =>
 			result.current.setWorldInfo((prev) => ({
 				...prev,
-				windowWidth: 4000,
-				windowCenter: 1800,
+				windowWidth: DICOM_DEFAULT.ww,
+				windowCenter: DICOM_DEFAULT.wc,
 			})),
 		);
 		act(() => result.current.persisted.notifyImageLoaded());
-		expect(result.current.worldInfo.windowWidth).toBe(1800);
+		expect(result.current.worldInfo.windowWidth).toBe(DICOM_DEFAULT.ww);
 
+		// 破棄した保存待ちの値は送信されない
 		await act(async () => {
 			vi.advanceTimersByTime(1100);
 			await Promise.resolve();
 		});
-		expect(ipc.setWwwc).toHaveBeenCalledWith(1800, 300);
+		expect(ipc.setWwwc).not.toHaveBeenCalled();
+	});
+
+	it("リセット後に遅れて届いた起動時の保存値で復活しない", async () => {
+		let resolveGet: (v: { ww: number; wc: number } | undefined) => void = () =>
+			undefined;
+		const ipc: WwwcIpc = {
+			getWwwc: vi.fn(
+				() =>
+					new Promise((resolve) => {
+						resolveGet = resolve;
+					}),
+			),
+			setWwwc: vi.fn(() => Promise.resolve()),
+			clearWwwc: vi.fn(() => Promise.resolve()),
+		};
+		const { result } = setup(ipc);
+		act(() => result.current.persisted.notifyImageLoaded());
+		act(() => result.current.persisted.clearUserChoice());
+		await act(async () => {
+			resolveGet(SAVED);
+			await Promise.resolve();
+		});
+		expect(result.current.worldInfo.windowWidth).toBe(DICOM_DEFAULT.ww);
+	});
+
+	it("別ペインの取得が先に保存値を埋めても、取得前にロード済みのペインへ適用する", async () => {
+		const resolvers: Array<(v: { ww: number; wc: number }) => void> = [];
+		const ipc: WwwcIpc = {
+			getWwwc: vi.fn(
+				() =>
+					new Promise((resolve) => {
+						resolvers.push(resolve);
+					}),
+			),
+			setWwwc: vi.fn(() => Promise.resolve()),
+			clearWwwc: vi.fn(() => Promise.resolve()),
+		};
+		const paneA = setup(ipc);
+		const paneB = setup(ipc);
+		act(() => paneB.result.current.persisted.notifyImageLoaded());
+
+		await act(async () => {
+			resolvers[0]?.(SAVED);
+			await Promise.resolve();
+		});
+		await act(async () => {
+			resolvers[1]?.(SAVED);
+			await Promise.resolve();
+		});
+		expect(paneB.result.current.worldInfo.windowWidth).toBe(SAVED.ww);
+		expect(paneA.result.current.worldInfo.windowWidth).toBe(DICOM_DEFAULT.ww);
+	});
+
+	it("同じ IPC を使う別ペインでも、選んだ値が後続画像へ共有される", async () => {
+		const ipc = makeIpc(undefined);
+		const paneA = setup(ipc);
+		const paneB = setup(ipc);
+		await act(async () => Promise.resolve());
+
+		act(() => paneA.result.current.persisted.setWwWc(2500, 500));
+		// paneB に画像が新たにロードされたとき、paneA で選んだ値が適用される
+		act(() => paneB.result.current.persisted.notifyImageLoaded());
+		expect(paneB.result.current.worldInfo.windowWidth).toBe(2500);
+		expect(paneB.result.current.worldInfo.windowCenter).toBe(500);
+
+		act(() => paneA.result.current.persisted.clearUserChoice());
+		act(() =>
+			paneB.result.current.setWorldInfo((prev) => ({
+				...prev,
+				windowWidth: DICOM_DEFAULT.ww,
+			})),
+		);
+		act(() => paneB.result.current.persisted.notifyImageLoaded());
+		expect(paneB.result.current.worldInfo.windowWidth).toBe(DICOM_DEFAULT.ww);
 	});
 
 	it("getWwwc 失敗時は警告を出して復元なしで継続する", async () => {

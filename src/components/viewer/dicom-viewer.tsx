@@ -496,7 +496,7 @@ export const DicomViewer = ({
 		const wc = activePane.worldInfo.windowCenter;
 		for (const pane of allPanes.slice(0, paneCount)) {
 			if (pane.containerId === activePane.containerId) continue;
-			pane.controls.applySyncedWwWc(ww, wc);
+			pane.controls.applyDisplayWwWc(ww, wc);
 		}
 	}, [
 		syncWwWc,

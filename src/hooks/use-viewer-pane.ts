@@ -526,14 +526,17 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		const ww = initialWindow?.ww ?? currentFile.windowWidth;
 		const wc = initialWindow?.wc ?? currentFile.windowCenter;
 		controls.resetImage(ww, wc);
-		// リセットで選んだ画像既定値も「ユーザーが選んだWW/WC」として後続画像へ引き継ぐ
-		persistedWwwc.recordUserChoice(ww, wc);
-	}, [controls, currentFile, initialWindow, persistedWwwc.recordUserChoice]);
+		// リセットは「ユーザーが選んだ値」を破棄し、以後の画像は各自の DICOM 既定値を使う
+		persistedWwwc.clearUserChoice();
+	}, [controls, currentFile, initialWindow, persistedWwwc.clearUserChoice]);
 
 	const autoContrast = useCallback(() => {
 		if (!initialWindow) return;
-		controls.setWwWc(initialWindow.ww, initialWindow.wc);
-	}, [controls, initialWindow]);
+		// 自動調整は画像ごとに算出する値。リセットと同じく「選んだ値」を破棄して
+		// その画像の値を表示し、以後に読み込む画像もそれぞれの値で表示する
+		controls.applyDisplayWwWc(initialWindow.ww, initialWindow.wc);
+		persistedWwwc.clearUserChoice();
+	}, [controls, initialWindow, persistedWwwc.clearUserChoice]);
 
 	const handleFrameChange = useCallback(
 		(frame: number) => setFrame(frame),

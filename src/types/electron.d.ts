@@ -41,6 +41,7 @@ interface ElectronAPI {
 	windowState: {
 		getWwwc: () => Promise<{ ww: number; wc: number } | undefined>;
 		setWwwc: (ww: number, wc: number) => Promise<void>;
+		clearWwwc: () => Promise<void>;
 	};
 
 	crashReporter: {

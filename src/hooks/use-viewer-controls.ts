@@ -154,9 +154,10 @@ export const useViewerControls = ({
 	return {
 		setWwWc,
 		adjustWwWc,
-		// 他ペインからの同期専用。永続化の「ユーザー選択値」には記録しない
-		// （同期元の DICOM 既定値や未ロードペインの 0/0 を保存値にしないため）
-		applySyncedWwWc: defaultSetWwWc,
+		// 表示だけ更新し、永続化の「ユーザー選択値」には記録しない。
+		// 他ペインからの同期（同期元の DICOM 既定値や未ロードペインの 0/0 を
+		// 保存値にしない）と、画像ごとの自動調整に使う
+		applyDisplayWwWc: defaultSetWwWc,
 		toggleInvert,
 		fitSize,
 		oneToOneSize,

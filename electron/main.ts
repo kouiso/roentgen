@@ -448,20 +448,35 @@ const loadWindowState = async (): Promise<WindowState> => {
 	}
 };
 
-const saveWindowState = async (
+// 連続する保存が同じファイルへ並行して書き込み、順序の逆転や破損を起こさないよう直列化する
+let windowStateWriteQueue: Promise<void> = Promise.resolve();
+
+const saveWindowState = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): Promise<void> => {
-	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
-	const bounds = win.getBounds();
-	const state: WindowState = {
-		width: bounds.width,
-		height: bounds.height,
-		x: bounds.x,
-		y: bounds.y,
-		wwwc,
-	};
+	windowStateWriteQueue = windowStateWriteQueue
+		.then(() => writeWindowState(win, wwwc))
+		.catch((err: unknown) => {
+			log.warn("[window-state] 保存失敗:", err);
+		});
+	return windowStateWriteQueue;
+};
+
+const writeWindowState = async (
+	win: BrowserWindow,
+	wwwc?: { ww: number; wc: number },
+): Promise<void> => {
 	try {
+		// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
+		const bounds = win.getNormalBounds();
+		const state: WindowState = {
+			width: bounds.width,
+			height: bounds.height,
+			x: bounds.x,
+			y: bounds.y,
+			wwwc,
+		};
 		await mkdir(app.getPath("userData"), { recursive: true });
 		await writeFile(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
 	} catch (err) {
@@ -473,8 +488,8 @@ const saveWindowStateSync = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): void => {
-	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
-	const bounds = win.getBounds();
+	// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
+	const bounds = win.getNormalBounds();
 	const state: WindowState = {
 		width: bounds.width,
 		height: bounds.height,
@@ -818,6 +833,11 @@ ipcMain.handle("window-state:get-wwwc", () => lastWwwc);
 
 ipcMain.handle("window-state:set-wwwc", (_event, ww: number, wc: number) => {
 	lastWwwc = { ww, wc };
+	if (mainWindow) saveWindowState(mainWindow, lastWwwc);
+});
+
+ipcMain.handle("window-state:clear-wwwc", () => {
+	lastWwwc = undefined;
 	if (mainWindow) saveWindowState(mainWindow, lastWwwc);
 });
 
