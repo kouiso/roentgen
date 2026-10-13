@@ -25,6 +25,7 @@ export const usePersistedWwwc = (
 	const persistedRef = useRef<WwwcValue | null>(null);
 	const imageLoadedRef = useRef(false);
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingSaveRef = useRef<WwwcValue | null>(null);
 	const ipcRef = useRef(ipc);
 	ipcRef.current = ipc;
 
@@ -64,9 +65,15 @@ export const usePersistedWwwc = (
 		};
 	}, [ipc, applyPersisted]);
 
+	// アンマウント時は未送信の保存を捨てず即送信する（変更直後の終了で値を失わない）
 	useEffect(
 		() => () => {
 			if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+			const pending = pendingSaveRef.current;
+			if (pending) {
+				pendingSaveRef.current = null;
+				ipcRef.current?.setWwwc(pending.ww, pending.wc).catch(() => {});
+			}
 		},
 		[],
 	);
@@ -74,7 +81,9 @@ export const usePersistedWwwc = (
 	// ドラッグ連打でIPCが詰まらないよう、値が1秒静止した時だけ保存する
 	const scheduleSave = useCallback((value: WwwcValue) => {
 		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+		pendingSaveRef.current = value;
 		saveTimerRef.current = setTimeout(() => {
+			pendingSaveRef.current = null;
 			ipcRef.current?.setWwwc(value.ww, value.wc).catch((error: unknown) => {
 				console.warn("[usePersistedWwwc] failed to persist WW/WC:", error);
 			});

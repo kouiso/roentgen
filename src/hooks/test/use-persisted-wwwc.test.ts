@@ -156,6 +156,40 @@ describe("usePersistedWwwc", () => {
 		expect(ipc.setWwwc).toHaveBeenCalledWith(2600, 550);
 	});
 
+	it("デバウンス待ちのままアンマウントしても最後の値を保存する", async () => {
+		vi.useFakeTimers();
+		const ipc = makeIpc(undefined);
+		const { result, unmount } = setup(ipc);
+		await act(async () => Promise.resolve());
+
+		act(() => result.current.persisted.setWwWc(2500, 500));
+		expect(ipc.setWwwc).not.toHaveBeenCalled();
+		unmount();
+		expect(ipc.setWwwc).toHaveBeenCalledTimes(1);
+		expect(ipc.setWwwc).toHaveBeenCalledWith(2500, 500);
+
+		await act(async () => {
+			vi.advanceTimersByTime(1100);
+			await Promise.resolve();
+		});
+		expect(ipc.setWwwc).toHaveBeenCalledTimes(1);
+	});
+
+	it("デバウンス送信済みならアンマウントで二重送信しない", async () => {
+		vi.useFakeTimers();
+		const ipc = makeIpc(undefined);
+		const { result, unmount } = setup(ipc);
+		await act(async () => Promise.resolve());
+
+		act(() => result.current.persisted.setWwWc(2500, 500));
+		await act(async () => {
+			vi.advanceTimersByTime(1100);
+			await Promise.resolve();
+		});
+		unmount();
+		expect(ipc.setWwwc).toHaveBeenCalledTimes(1);
+	});
+
 	it("adjustWwWc は現在値にデルタを累積する", async () => {
 		const ipc = makeIpc(undefined);
 		const { result } = setup(ipc);

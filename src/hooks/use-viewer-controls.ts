@@ -154,6 +154,9 @@ export const useViewerControls = ({
 	return {
 		setWwWc,
 		adjustWwWc,
+		// 他ペインからの同期専用。永続化の「ユーザー選択値」には記録しない
+		// （同期元の DICOM 既定値や未ロードペインの 0/0 を保存値にしないため）
+		applySyncedWwWc: defaultSetWwWc,
 		toggleInvert,
 		fitSize,
 		oneToOneSize,

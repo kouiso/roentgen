@@ -9,11 +9,14 @@ const loadSvgAsImage = (svgElement: SVGSVGElement): Promise<HTMLImageElement> =>
 		// 表示座標系を保ったままキャンバスピクセルへ写せるようにする。
 		const rect = svgElement.getBoundingClientRect();
 		const clone = svgElement.cloneNode(true) as SVGSVGElement;
-		// 削除ボタン等の foreignObject は画面で opacity-0 のため非表示だが、
-		// 切り出したSVGでは Tailwind クラスが効かず「×」として焼き込まれるため除去する
+		// 削除ボタン等の foreignObject は、切り出したSVGでは Tailwind クラスが
+		// 効かず「×」として焼き込まれるため除去する
 		for (const fo of Array.from(clone.querySelectorAll("foreignObject"))) {
 			fo.remove();
 		}
+		// ルートの inline style (width/height:100%) が width/height 属性を上書きして
+		// 固有サイズが未定に戻るため、属性で指定した寸法を有効にする
+		clone.removeAttribute("style");
 		clone.setAttribute("width", String(rect.width));
 		clone.setAttribute("height", String(rect.height));
 		clone.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);

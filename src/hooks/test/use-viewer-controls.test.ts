@@ -67,6 +67,31 @@ describe("useViewerControls", () => {
 		expect(result.current.worldInfo.windowWidth).toBe(1);
 	});
 
+	it("applySyncedWwWc は表示だけ更新し、永続化側の setWwWc は呼ばない", () => {
+		const persistedSetWwWc = vi.fn();
+		const { result } = renderHook(() => {
+			const [worldInfo, setWorldInfo] = useState<ViewerWorldInfo>({
+				...INITIAL_WORLD_INFO,
+				windowWidth: 400,
+				windowCenter: 40,
+			});
+			const controls = useViewerControls({
+				setWorldInfo,
+				getViewport: () => null,
+				persistedSetWwWc,
+			});
+			return { controls, worldInfo };
+		});
+
+		act(() => result.current.controls.applySyncedWwWc(3600, 2150));
+		expect(result.current.worldInfo.windowWidth).toBe(3600);
+		expect(result.current.worldInfo.windowCenter).toBe(2150);
+		expect(persistedSetWwWc).not.toHaveBeenCalled();
+
+		act(() => result.current.controls.setWwWc(2500, 500));
+		expect(persistedSetWwWc).toHaveBeenCalledWith(2500, 500);
+	});
+
 	it("adjustWwWc applies delta to current values", () => {
 		const { result } = renderViewerControls();
 

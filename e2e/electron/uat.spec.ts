@@ -525,6 +525,16 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
 				timeout: 10_000,
 			});
+			// 2枚目のロード完了後も DICOM 既定値(3600)が出ていないこと（素通り防止）
+			await expect
+				.poll(
+					async () => {
+						await page.waitForTimeout(300);
+						return page.getByText(/WW 3600 \/ WC 2150/).count();
+					},
+					{ timeout: 10_000 },
+				)
+				.toBe(0);
 			await page.screenshot({
 				path: join(screenshotDir, "u9-frame2-wwwc.png"),
 			});
@@ -549,6 +559,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				.getByRole("button", { name: "くわしい設定（獣医さん向け）" })
 				.click();
 			await page.getByRole("button", { name: "次のフレーム" }).first().click();
+			await expect(page.getByText("2 / 2")).toBeVisible({ timeout: 10_000 });
 			await page.locator("#osd-pane-0").click();
 			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
 				timeout: 10_000,
