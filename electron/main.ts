@@ -463,10 +463,14 @@ const saveWindowState = (
 	return windowStateWriteQueue;
 };
 
+// 終了時の同期保存が最終状態。以後に実行される待機中の非同期保存は古い値で上書きし得るため捨てる
+let windowStateFinalized = false;
+
 const writeWindowState = async (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): Promise<void> => {
+	if (windowStateFinalized) return;
 	try {
 		// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
 		const bounds = win.getNormalBounds();
@@ -488,6 +492,7 @@ const saveWindowStateSync = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): void => {
+	windowStateFinalized = true;
 	// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
 	const bounds = win.getNormalBounds();
 	const state: WindowState = {
@@ -512,6 +517,8 @@ let lastWwwc: { ww: number; wc: number } | undefined;
 const createWindow = async () => {
 	const state = await loadWindowState();
 	lastWwwc = state.wwwc;
+	// macOS ではウィンドウを閉じてもアプリが残り、再作成後は保存を再開する
+	windowStateFinalized = false;
 
 	mainWindow = new BrowserWindow({
 		width: state.width,
