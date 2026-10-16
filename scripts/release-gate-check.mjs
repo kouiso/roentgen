@@ -4,9 +4,198 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { builtinModules } from "node:module";
+import { pathToFileURL } from "node:url";
+import { parseDocument } from "yaml";
+import { commandPlan } from "../.github/ci/run.mjs";
 import os from "node:os";
 import { dirname, relative, resolve } from "node:path";
 import process from "node:process";
+
+// なぜ: 同じコードへの検査は依存 job の成功で共有する。未知の条件は証拠にしない。
+export function verifyReleaseQuality(workflowText, plan = commandPlan) {
+	try {
+		const document = parseDocument(workflowText, { uniqueKeys: true });
+		if (document.errors.length) return false;
+		const workflow = document.toJS();
+		const jobs = workflow?.jobs;
+		const quality = jobs?.["quality-gates"];
+		const linux = jobs?.["build-linux"];
+		const empty = (value) =>
+			value === undefined ||
+			(value && typeof value === "object" && Object.keys(value).length === 0);
+		const unconditional = (value) =>
+			value &&
+			value.if === undefined &&
+			(value["continue-on-error"] === undefined ||
+				value["continue-on-error"] === false) &&
+			empty(value.env) &&
+			value["working-directory"] === undefined &&
+			(value.shell === undefined || value.shell === "bash");
+		if (!jobs || !empty(workflow.env) || !empty(workflow.defaults))
+			return false;
+		for (const job of [quality, linux]) {
+			if (
+				!unconditional(job) ||
+				job["runs-on"] !== "ubuntu-24.04" ||
+				job.strategy !== undefined ||
+				job.container !== undefined ||
+				!empty(job.defaults) ||
+				!Array.isArray(job.steps) ||
+				!job.steps.every(unconditional)
+			)
+				return false;
+		}
+		const once = (job, predicate) => {
+			const matches = job.steps.filter(predicate);
+			return matches.length === 1 ? matches[0] : null;
+		};
+		for (const uses of [
+			"actions/checkout@v4",
+			"pnpm/action-setup@v4",
+			"actions/setup-node@v4",
+		]) {
+			const first = once(quality, (step) => step.uses === uses);
+			const second = once(linux, (step) => step.uses === uses);
+			if (
+				!first ||
+				!second ||
+				JSON.stringify(first.with ?? {}) !== JSON.stringify(second.with ?? {})
+			)
+				return false;
+			if (uses.startsWith("actions/checkout")) {
+				if (
+					Object.keys(first.with ?? {}).some(
+						(key) =>
+							!["ref", "persist-credentials", "fetch-depth"].includes(key),
+					) ||
+					(first.with?.ref !== undefined &&
+						first.with.ref !== "${{ github.sha }}")
+				)
+					return false;
+			} else if (uses.startsWith("actions/setup-node")) {
+				if (
+					JSON.stringify(first.with) !==
+					JSON.stringify({ "node-version": "20", cache: "pnpm" })
+				)
+					return false;
+			} else if (!empty(first.with)) return false;
+		}
+		const allowedActions = [
+			"actions/checkout@v4",
+			"pnpm/action-setup@v4",
+			"actions/setup-node@v4",
+		];
+		if (
+			quality.steps.some(
+				(step) => step.run === undefined && !allowedActions.includes(step.uses),
+			)
+		)
+			return false;
+		const runs = [
+			"pnpm install --frozen-lockfile",
+			"node --test .github/ci/*.test.mjs",
+			"node .github/ci/run.mjs quality",
+			"pnpm exec playwright install --with-deps chromium",
+			"node .github/ci/run.mjs renderer",
+		];
+		const positions = runs.map((run) =>
+			quality.steps.indexOf(once(quality, (step) => step.run?.trim() === run)),
+		);
+		if (
+			positions.some(
+				(position, index) =>
+					position < 0 || (index > 0 && position <= positions[index - 1]),
+			)
+		)
+			return false;
+		if (
+			quality.steps.some(
+				(step) => step.run !== undefined && !runs.includes(step.run.trim()),
+			)
+		)
+			return false;
+		if (
+			JSON.stringify(plan("quality")) !==
+				JSON.stringify([
+					["pnpm", "lint"],
+					["pnpm", "exec", "tsc", "--noEmit"],
+					["pnpm", "test"],
+				]) ||
+			JSON.stringify(plan("renderer")) !==
+				JSON.stringify([["pnpm", "test:e2e", "--", "--project=renderer"]])
+		)
+			return false;
+		for (const name of ["build-linux", "build-mac", "build-win"]) {
+			const job = jobs[name];
+			if (!unconditional(job)) return false;
+			const needs = typeof job.needs === "string" ? [job.needs] : job.needs;
+			if (!Array.isArray(needs) || !needs.includes("quality-gates"))
+				return false;
+		}
+		const linuxRuns = [
+			"pnpm install --frozen-lockfile",
+			"pnpm exec playwright install-deps chromium",
+			"pnpm build",
+			"pnpm dist --linux --publish never",
+			"pnpm release:checksums\ncp release/SHA256SUMS.txt release/SHA256SUMS-linux.txt",
+			"pnpm release:gate",
+		];
+		for (const [job, expectedRuns] of [
+			[quality, runs],
+			[linux, linuxRuns],
+		]) {
+			const sourceActions = [
+				"actions/checkout@v4",
+				"pnpm/action-setup@v4",
+				"actions/setup-node@v4",
+			];
+			if (
+				!sourceActions.every((uses, index) => job.steps[index]?.uses === uses)
+			)
+				return false;
+			const runPositions = expectedRuns.map((run) =>
+				job.steps.indexOf(once(job, (step) => step.run?.trim() === run)),
+			);
+			if (
+				runPositions.some(
+					(position, index) =>
+						position < 3 || (index > 0 && position <= runPositions[index - 1]),
+				)
+			)
+				return false;
+			if (
+				job.steps.some(
+					(step) =>
+						step.run !== undefined && !expectedRuns.includes(step.run.trim()),
+				)
+			)
+				return false;
+		}
+		if (
+			linux.steps.some(
+				(step) =>
+					step.run === undefined &&
+					![...allowedActions, "softprops/action-gh-release@v2"].includes(
+						step.uses,
+					),
+			)
+		)
+			return false;
+		const libraries = linux.steps.indexOf(
+			once(
+				linux,
+				(step) =>
+					step.run?.trim() === "pnpm exec playwright install-deps chromium",
+			),
+		);
+		const packaging = linux.steps.findIndex(
+			(step) => step.run?.trim() === "pnpm dist --linux --publish never",
+		);
+		return libraries >= 0 && packaging > libraries;
+	} catch {
+		return false;
+	}
+}
 
 const defaults = {
 	output: "docs/verification/2026-05-07/release-gate-check.md",
@@ -599,15 +788,6 @@ const run = async () => {
 		"Package (AppImage)",
 		linuxJobStart,
 	);
-	const linuxWorkflowRunsBeforePackage = (needle) => {
-		const index = releaseWorkflow.indexOf(needle, linuxJobStart);
-		return (
-			linuxJobStart >= 0 &&
-			linuxPackageStart > linuxJobStart &&
-			index > linuxJobStart &&
-			index < linuxPackageStart
-		);
-	};
 	addCheck(
 		checks,
 		"release workflow includes Linux job",
@@ -628,56 +808,11 @@ const run = async () => {
 			releaseWorkflow.includes("fail_on_unmatched_files: true"),
 		".github/workflows/release.yml",
 	);
-	const qualityGateJobStart = releaseWorkflow.indexOf("quality-gates:");
-	const qualityGateRuns = (needle) => {
-		const index = releaseWorkflow.indexOf(needle, qualityGateJobStart);
-		const buildMacStart = releaseWorkflow.indexOf("build-mac:");
-		return (
-			qualityGateJobStart >= 0 &&
-			buildMacStart > qualityGateJobStart &&
-			index > qualityGateJobStart &&
-			index < buildMacStart
-		);
-	};
-	addCheck(
-		checks,
-		"release workflow gates all OS package jobs behind quality-gates",
-		releaseWorkflow.includes("quality-gates:") &&
-			["build-mac:", "build-win:", "build-linux:"].every((jobName) => {
-				const jobStart = releaseWorkflow.indexOf(jobName);
-				const nextJobStart = releaseWorkflow
-					.slice(jobStart + jobName.length)
-					.search(/\n  [a-z0-9_-]+:/);
-				const jobBody =
-					nextJobStart >= 0
-						? releaseWorkflow.slice(
-								jobStart,
-								jobStart + jobName.length + nextJobStart,
-							)
-						: releaseWorkflow.slice(jobStart);
-				return jobBody.includes("needs: quality-gates");
-			}) &&
-			[
-				"pnpm lint",
-				"pnpm typecheck",
-				"pnpm test",
-				"pnpm exec playwright install --with-deps chromium",
-				"pnpm test:e2e -- --project=renderer",
-			].every(qualityGateRuns),
-		".github/workflows/release.yml",
-	);
-	addCheck(
-		checks,
-		"release workflow runs Linux headless gates before AppImage publish",
-		[
-			"pnpm lint",
-			"pnpm typecheck",
-			"pnpm test",
-			"pnpm exec playwright install --with-deps chromium",
-			"pnpm test:e2e -- --project=renderer",
-		].every(linuxWorkflowRunsBeforePackage),
-		".github/workflows/release.yml",
-	);
+	const sharedQualityProven = verifyReleaseQuality(releaseWorkflow);
+	addCheck(checks, "release workflow gates all OS package jobs behind quality-gates",
+		sharedQualityProven, ".github/workflows/release.yml + shared CI command plan");
+	addCheck(checks, "release workflow runs Linux headless gates before AppImage publish",
+		sharedQualityProven, "quality-gates prerequisite + matching source/runtime + local library setup");
 	const linuxReleaseGateStart = releaseWorkflow.indexOf(
 		"Release gate",
 		linuxPackageStart,
@@ -835,7 +970,9 @@ ${manualRows}
 	if (!passed) process.exitCode = 1;
 };
 
-run().catch((error) => {
-	console.error(error instanceof Error ? error.message : error);
-	process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	run().catch((error) => {
+		console.error(error instanceof Error ? error.message : error);
+		process.exitCode = 1;
+	});
+}
