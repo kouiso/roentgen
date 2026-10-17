@@ -448,20 +448,39 @@ const loadWindowState = async (): Promise<WindowState> => {
 	}
 };
 
-const saveWindowState = async (
+// 連続する保存が同じファイルへ並行して書き込み、順序の逆転や破損を起こさないよう直列化する
+let windowStateWriteQueue: Promise<void> = Promise.resolve();
+
+const saveWindowState = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): Promise<void> => {
-	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
-	const bounds = win.getBounds();
-	const state: WindowState = {
-		width: bounds.width,
-		height: bounds.height,
-		x: bounds.x,
-		y: bounds.y,
-		wwwc,
-	};
+	windowStateWriteQueue = windowStateWriteQueue
+		.then(() => writeWindowState(win, wwwc))
+		.catch((err: unknown) => {
+			log.warn("[window-state] 保存失敗:", err);
+		});
+	return windowStateWriteQueue;
+};
+
+// 終了時の同期保存が最終状態。以後に実行される待機中の非同期保存は古い値で上書きし得るため捨てる
+let windowStateFinalized = false;
+
+const writeWindowState = async (
+	win: BrowserWindow,
+	wwwc?: { ww: number; wc: number },
+): Promise<void> => {
+	if (windowStateFinalized) return;
 	try {
+		// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
+		const bounds = win.getNormalBounds();
+		const state: WindowState = {
+			width: bounds.width,
+			height: bounds.height,
+			x: bounds.x,
+			y: bounds.y,
+			wwwc,
+		};
 		await mkdir(app.getPath("userData"), { recursive: true });
 		await writeFile(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
 	} catch (err) {
@@ -473,8 +492,9 @@ const saveWindowStateSync = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): void => {
-	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
-	const bounds = win.getBounds();
+	windowStateFinalized = true;
+	// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
+	const bounds = win.getNormalBounds();
 	const state: WindowState = {
 		width: bounds.width,
 		height: bounds.height,
@@ -497,6 +517,8 @@ let lastWwwc: { ww: number; wc: number } | undefined;
 const createWindow = async () => {
 	const state = await loadWindowState();
 	lastWwwc = state.wwwc;
+	// macOS ではウィンドウを閉じてもアプリが残り、再作成後は保存を再開する
+	windowStateFinalized = false;
 
 	mainWindow = new BrowserWindow({
 		width: state.width,
@@ -530,7 +552,7 @@ const createWindow = async () => {
 			responseHeaders: {
 				...details.responseHeaders,
 				"Content-Security-Policy": [
-					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; ${connectSrc}`,
+					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; ${connectSrc}`,
 				],
 			},
 		});
@@ -818,6 +840,11 @@ ipcMain.handle("window-state:get-wwwc", () => lastWwwc);
 
 ipcMain.handle("window-state:set-wwwc", (_event, ww: number, wc: number) => {
 	lastWwwc = { ww, wc };
+	if (mainWindow) saveWindowState(mainWindow, lastWwwc);
+});
+
+ipcMain.handle("window-state:clear-wwwc", () => {
+	lastWwwc = undefined;
 	if (mainWindow) saveWindowState(mainWindow, lastWwwc);
 });
 
