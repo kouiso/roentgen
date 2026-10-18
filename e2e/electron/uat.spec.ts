@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -66,6 +72,8 @@ const analyzeExportedPair = (
 					centroidX: -1,
 					centroidY: -1,
 					whiteOnDark: -1,
+					greenMinX: -1,
+					greenMaxX: -1,
 				};
 			}
 			let diff = 0;
@@ -73,6 +81,8 @@ const analyzeExportedPair = (
 			let orangeDiff = 0;
 			let sumX = 0;
 			let sumY = 0;
+			let greenMinXPx = w;
+			let greenMaxXPx = -1;
 			const whiteIdx: number[] = [];
 			for (let y = 0; y < h; y++) {
 				for (let x = 0; x < w; x++) {
@@ -88,7 +98,11 @@ const analyzeExportedPair = (
 					const blue = ba[i];
 					const green = ba[i + 1];
 					const red = ba[i + 2];
-					if (green > 190 && red < 140 && green - red > 60) greenDiff++;
+					if (green > 190 && red < 140 && green - red > 60) {
+						greenDiff++;
+						if (x < greenMinXPx) greenMinXPx = x;
+						if (x > greenMaxXPx) greenMaxXPx = x;
+					}
 					if (red > 200 && green > 120 && green < 200 && blue < 90)
 						orangeDiff++;
 					if (red > 245 && green > 245 && blue > 245) whiteIdx.push(i);
@@ -131,6 +145,8 @@ const analyzeExportedPair = (
 				centroidX: diff > 0 ? sumX / diff / w : -1,
 				centroidY: diff > 0 ? sumY / diff / h : -1,
 				whiteOnDark,
+				greenMinX: greenDiff > 0 ? greenMinXPx / w : -1,
+				greenMaxX: greenDiff > 0 ? greenMaxXPx / w : -1,
 			};
 		},
 		{ withOverlay, plain },
@@ -361,6 +377,17 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			// ---- U7: PNG保存（ネイティブ保存ダイアログは stub し、実ファイル書き込みを検証）
 			const savePath = join(uatEvidenceDir, "uat-export.png");
+			const plainPath = join(uatEvidenceDir, "uat-export-plain.png");
+			const zoomedPath = join(uatEvidenceDir, "uat-export-zoomed.png");
+			const zoomedPlainPath = join(
+				uatEvidenceDir,
+				"uat-export-zoomed-plain.png",
+			);
+			// evidence dir はランを跨いで残るため、前回のファイルが
+			// existsSync で誤検出されないよう先に消す
+			for (const p of [savePath, plainPath, zoomedPath, zoomedPlainPath]) {
+				rmSync(p, { force: true });
+			}
 			await app.evaluate(({ dialog }, filePath) => {
 				dialog.showSaveDialog = () =>
 					Promise.resolve({ canceled: false, filePath });
@@ -378,7 +405,6 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			// オーバーレイがPNGに焼き込まれているかを、計測を消した対照PNGとの
 			// 画素差分で検査する（viewBox/foreignObject の退化はここで検出できる）
-			const plainPath = join(uatEvidenceDir, "uat-export-plain.png");
 			await app.evaluate(({ dialog }, filePath) => {
 				dialog.showSaveDialog = () =>
 					Promise.resolve({ canceled: false, filePath });
@@ -410,6 +436,71 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			expect(stats.centroidY).toBeLessThan(0.75);
 			// 「×」削除ボタンの白文字が混入していないこと
 			expect(stats.whiteOnDark).toBe(0);
+
+			// ---- U7b: ズーム状態でのPNG保存 — オーバーレイが画像座標へ正しく写ること
+			// 画面座標のSVGを画像解像度キャンバスへ全面引き延ばす旧実装では、
+			// 線が画像全域へ引き延ばされてずれる退行をここで検出する
+			const sigPreZoom = await canvasSignature(page);
+			await page.locator(".openseadragon-canvas").first().hover();
+			await page.mouse.wheel(0, -600);
+			await page.mouse.wheel(0, -600);
+			await expect
+				.poll(async () => canvasSignature(page), { timeout: 10_000 })
+				.not.toBe(sigPreZoom);
+
+			await page.getByRole("button", { name: "長さを測る" }).click();
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible({ timeout: 5_000 });
+			await clickViewerPoint(page, 0.3, 0.5);
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1, { timeout: 5_000 });
+			await clickViewerPoint(page, 0.7, 0.5);
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(2, { timeout: 5_000 });
+
+			await app.evaluate(({ dialog }, filePath) => {
+				dialog.showSaveDialog = () =>
+					Promise.resolve({ canceled: false, filePath });
+			}, zoomedPath);
+			await page.getByRole("button", { name: "画像で保存" }).click();
+			await expect
+				.poll(() => existsSync(zoomedPath), { timeout: 15_000 })
+				.toBe(true);
+
+			await app.evaluate(({ dialog }, filePath) => {
+				dialog.showSaveDialog = () =>
+					Promise.resolve({ canceled: false, filePath });
+			}, zoomedPlainPath);
+			await page.getByRole("button", { name: "測った線を消す" }).click();
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(0, { timeout: 5_000 });
+			await page.getByRole("button", { name: "画像で保存" }).click();
+			await expect
+				.poll(() => existsSync(zoomedPlainPath), { timeout: 15_000 })
+				.toBe(true);
+
+			const zoomedStats = await analyzeExportedPair(
+				app,
+				zoomedPath,
+				zoomedPlainPath,
+			);
+			console.info(
+				`[uat] zoomed export pixel diff: ${JSON.stringify(zoomedStats)}`,
+			);
+			expect(zoomedStats.greenDiff).toBeGreaterThan(20);
+			// ズーム中は画像がペインより狭く(768/1100程度)なり、線が画像上で
+			// 占める割合は画面比率(30-70%)より広く張る。全面引き延ばしの旧実装なら
+			// 正規化範囲が常に 0.30-0.70 (=幅0.40) に留まりここで落ちる
+			expect(zoomedStats.greenMinX).toBeLessThan(0.28);
+			expect(zoomedStats.greenMaxX).toBeGreaterThan(0.72);
+			expect(zoomedStats.greenMaxX - zoomedStats.greenMinX).toBeGreaterThan(
+				0.45,
+			);
+			expect(zoomedStats.whiteOnDark).toBe(0);
 
 			// ---- U8: WW/WC を変更して終了 → 同プロファイルで再起動して復元
 			await page

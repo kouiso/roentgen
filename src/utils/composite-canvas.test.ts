@@ -66,6 +66,47 @@ const decodeSvgSrc = (src: string): string => {
 	return decodeURIComponent(src.slice(prefix.length));
 };
 
+const rect = (x: number, y: number, width: number, height: number): DOMRect =>
+	({
+		x,
+		y,
+		width,
+		height,
+		top: y,
+		left: x,
+		right: x + width,
+		bottom: y + height,
+		toJSON: () => ({}),
+	}) as DOMRect;
+
+// jsdom の getBoundingClientRect は全て 0 を返すので、
+// 「画面上の表示矩形」をテストごとに差し込む
+const stubRect = (el: HTMLElement | SVGSVGElement, r: DOMRect) => {
+	vi.spyOn(el, "getBoundingClientRect").mockReturnValue(r);
+};
+
+// imageToContainerCoord 経路を通る最小の偽 viewport。
+// 全体表示: 画像(240x160)がコンテナ(0,0,240,160)にぴったり収まる状態
+const fitView = {
+	viewport: {
+		getZoom: () => 1,
+		getCenter: () => ({ x: 0.5, y: 160 / 480 }),
+	},
+	imageWidth: 240,
+	imageHeight: 160,
+};
+
+// 4倍ズーム: 画像の表示矩形がコンテナの4倍に広がる状態
+// (viewportToContainerPoint の逆算で center を決める)
+const zoom4View = {
+	viewport: {
+		getZoom: () => 4,
+		getCenter: () => ({ x: 0.625, y: 0.5 }),
+	},
+	imageWidth: 240,
+	imageHeight: 160,
+};
+
 describe("compositeCanvasById", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -75,7 +116,7 @@ describe("compositeCanvasById", () => {
 	it("falls back to canvas-only when osdContainer has no grandparent", async () => {
 		const canvas = makeCanvas();
 		const detached = document.createElement("div");
-		const result = await compositeCanvasById(canvas, detached);
+		const result = await compositeCanvasById(canvas, detached, fitView);
 		expect(result).toBe(canvas.toDataURL("image/png"));
 	});
 
@@ -84,15 +125,18 @@ describe("compositeCanvasById", () => {
 		const parent = document.createElement("div");
 		const osdContainer = document.createElement("div");
 		parent.appendChild(osdContainer);
-		const result = await compositeCanvasById(canvas, osdContainer);
+		const result = await compositeCanvasById(canvas, osdContainer, fitView);
 		expect(result).toBe(canvas.toDataURL("image/png"));
 	});
 
 	it("falls back to canvas-only when relativeWrapper has no SVG overlays", async () => {
 		const canvas = makeCanvas();
 		const { osdContainer } = makeStructure();
-		const result = await compositeCanvasById(canvas, osdContainer);
+		// オーバーレイが無い保存は正常経路なので警告を出さない
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const result = await compositeCanvasById(canvas, osdContainer, fitView);
 		expect(result).toBe(canvas.toDataURL("image/png"));
+		expect(warn).not.toHaveBeenCalled();
 	});
 
 	it("stamps viewBox + explicit size on the serialized SVG so display coords map to canvas pixels", async () => {
@@ -100,22 +144,14 @@ describe("compositeCanvasById", () => {
 		const { relativeWrapper, osdContainer } = makeStructure();
 		const svg = makeSvg("計測オーバーレイ");
 		// 画面内SVGは属性を持たないため、CSSレイアウト寸法を getBoundingClientRect から取る
-		vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
-			width: 240,
-			height: 160,
-			x: 0,
-			y: 0,
-			top: 0,
-			left: 0,
-			right: 240,
-			bottom: 160,
-			toJSON: () => ({}),
-		});
+		stubRect(svg, rect(0, 0, 240, 160));
 		relativeWrapper.appendChild(svg);
 		const captured = stubImage(false);
 
 		const canvas = makeCanvas(480, 320);
-		await compositeCanvasById(canvas, osdContainer);
+		// 全体表示時はコンテナの矩形とSVGの矩形が一致する
+		stubRect(osdContainer, rect(0, 0, 240, 160));
+		await compositeCanvasById(canvas, osdContainer, fitView);
 
 		expect(captured.src).toBeDefined();
 		const serialized = decodeSvgSrc(captured.src ?? "");
@@ -123,7 +159,61 @@ describe("compositeCanvasById", () => {
 		expect(serialized).toContain('width="240"');
 		expect(serialized).toContain('height="160"');
 		// キャンバス全面へ拡大描画されること（1:1左上スタンプではない）
-		expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 480, 320);
+		expect(drawImage).toHaveBeenCalledWith(
+			expect.anything(),
+			0,
+			0,
+			240,
+			160,
+			0,
+			0,
+			480,
+			320,
+		);
+	});
+
+	it("maps overlay into image coordinates when the view is zoomed or panned", async () => {
+		const { drawImage } = stubCanvasContext();
+		const { relativeWrapper, osdContainer } = makeStructure();
+		const svg = makeSvg("計測オーバーレイ");
+		stubRect(svg, rect(0, 0, 240, 160));
+		relativeWrapper.appendChild(svg);
+		stubImage(false);
+
+		const canvas = makeCanvas(480, 320);
+		stubRect(osdContainer, rect(0, 0, 240, 160));
+		await compositeCanvasById(canvas, osdContainer, zoom4View);
+
+		// 4倍ズームで画像の表示矩形は (-480,-400)-(480,240) に広がる。
+		// 画面全体に見えているのは画像の中央 960x640 のうち (0,0)-(240,160) で、
+		// オーバーレイは画像キャンバスの中央 240..360 × 200..280 に写る
+		expect(drawImage).toHaveBeenCalledWith(
+			expect.anything(),
+			0,
+			0,
+			240,
+			160,
+			240,
+			200,
+			120,
+			80,
+		);
+	});
+
+	it("skips an overlay that lies entirely outside the displayed image", async () => {
+		const { drawImage } = stubCanvasContext();
+		const { relativeWrapper, osdContainer } = makeStructure();
+		const svg = makeSvg("計測オーバーレイ");
+		stubRect(svg, rect(500, 500, 100, 100));
+		relativeWrapper.appendChild(svg);
+		stubImage(false);
+
+		const canvas = makeCanvas(480, 320);
+		stubRect(osdContainer, rect(0, 0, 240, 160));
+		await compositeCanvasById(canvas, osdContainer, fitView);
+
+		// 1回目は元キャンバスの貼り付けのみで、オーバーレイの描画は呼ばれない
+		expect(drawImage).toHaveBeenCalledTimes(1);
 	});
 
 	it("strips foreignObject (×削除ボタン) from the serialized overlay SVG", async () => {
@@ -147,7 +237,9 @@ describe("compositeCanvasById", () => {
 		relativeWrapper.appendChild(svg);
 		const captured = stubImage(false);
 
-		await compositeCanvasById(makeCanvas(), osdContainer);
+		const canvas = makeCanvas();
+		stubRect(osdContainer, rect(0, 0, 240, 160));
+		await compositeCanvasById(canvas, osdContainer, fitView);
 
 		const serialized = decodeSvgSrc(captured.src ?? "");
 		expect(serialized).not.toContain("foreignObject");
@@ -163,7 +255,9 @@ describe("compositeCanvasById", () => {
 		relativeWrapper.appendChild(makeSvg("計測オーバーレイ"));
 		stubImage(true); // 読込失敗を再現（CSP遮断・シリアライズ不能など）
 
-		const result = await compositeCanvasById(makeCanvas(), osdContainer);
+		const canvas = makeCanvas();
+		stubRect(osdContainer, rect(0, 0, 240, 160));
+		const result = await compositeCanvasById(canvas, osdContainer, fitView);
 
 		expect(warn).toHaveBeenCalledOnce();
 		expect(warn.mock.calls[0]?.[0]).toContain("composite-canvas");

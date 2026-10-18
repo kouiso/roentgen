@@ -376,7 +376,12 @@ export const DicomViewer = ({
 		const canvas = activePane.tileCanvasRef?.current;
 		const container = document.getElementById(activePane.containerId);
 		if (!canvas || !container) return;
-		void compositeCanvasById(canvas, container).then((dataUrl) => {
+		void compositeCanvasById(canvas, container, {
+			viewport: activePane.getViewport(),
+			imageWidth: activePane.imageWidth,
+			imageHeight: activePane.imageHeight,
+			geometry: activePane.geometry,
+		}).then((dataUrl) => {
 			const api = (
 				window as {
 					electronAPI?: {
@@ -392,7 +397,14 @@ export const DicomViewer = ({
 				saveScreenshotInBrowser(dataUrl);
 			}
 		});
-	}, [activePane.tileCanvasRef, activePane.containerId]);
+	}, [
+		activePane.tileCanvasRef,
+		activePane.containerId,
+		activePane.getViewport,
+		activePane.imageWidth,
+		activePane.imageHeight,
+		activePane.geometry,
+	]);
 
 	// 印刷（アクティブペインのcanvas + SVG注釈を合成してDICOMメタデータ付き印刷）
 	const handlePrint = useCallback(() => {
@@ -400,7 +412,12 @@ export const DicomViewer = ({
 		const container = document.getElementById(activePane.containerId);
 		if (!canvas || !activePane.currentFile || !container) return;
 		const currentFile = activePane.currentFile;
-		void compositeCanvasById(canvas, container).then((dataUrl) => {
+		void compositeCanvasById(canvas, container, {
+			viewport: activePane.getViewport(),
+			imageWidth: activePane.imageWidth,
+			imageHeight: activePane.imageHeight,
+			geometry: activePane.geometry,
+		}).then((dataUrl) => {
 			const metadata = buildPrintImageMetadata(currentFile);
 			const html = createPrintImageHtml(dataUrl, metadata);
 			if (window.electronAPI?.printImage) {
@@ -416,6 +433,10 @@ export const DicomViewer = ({
 		activePane.currentFile,
 		activePane.tileCanvasRef,
 		activePane.containerId,
+		activePane.getViewport,
+		activePane.imageWidth,
+		activePane.imageHeight,
+		activePane.geometry,
 	]);
 
 	// WW/WCプリセット適用（アクティブペイン）

@@ -463,14 +463,16 @@ const saveWindowState = (
 	return windowStateWriteQueue;
 };
 
-// 終了時の同期保存が最終状態。以後に実行される待機中の非同期保存は古い値で上書きし得るため捨てる
+// 終了時の同期保存が最終状態。以後に実行される待機中の保存は古い値で上書きし得るため捨てる
 let windowStateFinalized = false;
 
-const writeWindowState = async (
+// 全ての書き込みはこれを通る。同期的に書き切るため、実行が始まった保存は
+// 終了時の最終保存に割り込まれず、待機中の分は windowStateFinalized で捨てる。
+// これにより「実行中の非同期 writeFile が最終保存の後に着地する」残存レースを塞ぐ
+const writeWindowStateNow = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
-): Promise<void> => {
-	if (windowStateFinalized) return;
+): void => {
 	try {
 		// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
 		const bounds = win.getNormalBounds();
@@ -481,11 +483,19 @@ const writeWindowState = async (
 			y: bounds.y,
 			wwwc,
 		};
-		await mkdir(app.getPath("userData"), { recursive: true });
-		await writeFile(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
+		mkdirSync(app.getPath("userData"), { recursive: true });
+		writeFileSync(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
 	} catch (err) {
 		log.warn("[window-state] 保存失敗:", err);
 	}
+};
+
+const writeWindowState = (
+	win: BrowserWindow,
+	wwwc?: { ww: number; wc: number },
+): void => {
+	if (windowStateFinalized) return;
+	writeWindowStateNow(win, wwwc);
 };
 
 const saveWindowStateSync = (
@@ -493,21 +503,7 @@ const saveWindowStateSync = (
 	wwwc?: { ww: number; wc: number },
 ): void => {
 	windowStateFinalized = true;
-	// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
-	const bounds = win.getNormalBounds();
-	const state: WindowState = {
-		width: bounds.width,
-		height: bounds.height,
-		x: bounds.x,
-		y: bounds.y,
-		wwwc,
-	};
-	try {
-		mkdirSync(app.getPath("userData"), { recursive: true });
-		writeFileSync(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
-	} catch (err) {
-		log.warn("[window-state] 同期保存失敗:", err);
-	}
+	writeWindowStateNow(win, wwwc);
 };
 
 // --- ウィンドウ作成 ---
