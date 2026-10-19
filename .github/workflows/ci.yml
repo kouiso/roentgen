@@ -37,19 +37,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Shared CI entry contracts
+        if: matrix.check-type == 'lint'
+        run: node --test .github/ci/*.test.mjs
+
       - name: Biome check (format + lint)
         if: matrix.check-type == 'lint'
         # リリース時(biome check .)と同一スコープに統一し、e2e/設定ファイルの
         # lint 崩れが tag 時まで検出されない事故を防ぐ
-        run: pnpm lint
+        run: node .github/ci/run.mjs lint
 
       - name: TypeScript typecheck
         if: matrix.check-type == 'typecheck'
-        run: pnpm exec tsc --noEmit
+        run: node .github/ci/run.mjs typecheck
 
       - name: Unit tests
         if: matrix.check-type == 'test'
-        run: pnpm test
+        run: node .github/ci/run.mjs test
 
   electron-e2e:
     name: Electron E2E
@@ -93,10 +97,10 @@ jobs:
             libgtk-3-0t64
 
       - name: Build
-        run: pnpm build
+        run: node .github/ci/run.mjs build
 
       - name: Run Electron E2E
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" pnpm exec playwright test --project=electron
+        run: node .github/ci/run.mjs electron
 
       - name: Upload Playwright artifacts
         if: failure()

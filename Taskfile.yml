@@ -2,15 +2,15 @@ version: "3"
 
 tasks:
   ci:fast:
-    desc: Run the local equivalent of CI verification.
+    desc: Run the shared lint, typecheck, unit and build verification.
     cmds:
       - pnpm install --frozen-lockfile
-      - pnpm lint
-      - pnpm build
-      - pnpm test
+      - node --test .github/ci/*.test.mjs
+      - node .github/ci/run.mjs fast
 
   ci:
-    desc: Run the full local CI verification.
+    desc: Run shared verification plus renderer and Electron E2E.
     cmds:
-      - task: ci:fast
-      - pnpm exec playwright test --project=electron
+      - pnpm install --frozen-lockfile
+      - node --test .github/ci/*.test.mjs
+      - node .github/ci/run.mjs full

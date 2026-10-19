@@ -33,17 +33,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Shared CI entry contracts
+        run: node --test .github/ci/*.test.mjs
+
       - name: Verify headless gates
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm test
+        run: node .github/ci/run.mjs quality
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Renderer headless E2E
-        run: pnpm test:e2e -- --project=renderer
+        run: node .github/ci/run.mjs renderer
 
   build-mac:
     name: Build (macOS)
@@ -143,17 +143,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify headless gates
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm test
+      # なぜ: バイナリの ldd 検査に必要な共有ライブラリはこのホストにも導入する。
+      - name: Install Linux runtime libraries
+        run: pnpm exec playwright install-deps chromium
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Renderer headless E2E
-        run: pnpm test:e2e -- --project=renderer
+      # なぜ: 同じ SHA と Linux/Node 設定の検査は依存先 quality-gates が済ませる。
+      # OS 別ビルド・配布物検査・公開はこの job のまま維持する。
 
       - name: Build
         run: pnpm build
