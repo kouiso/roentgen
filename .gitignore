@@ -38,4 +38,7 @@ REVIEW.md
 .omc/
 
 # Claude Code のプロジェクト設定（ディスクには残すが追跡しない）
-.claude/
+# なぜ: クラウドセッションは clone しか読まんので、共有設定 settings.json だけは追跡する。
+# ディレクトリ指定 .claude/ では中身を例外にできんため .claude/* で除外する。
+.claude/*
+!.claude/settings.json
