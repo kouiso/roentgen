@@ -237,20 +237,24 @@ const clickViewerPoint = async (page: Page, xRatio: number, yRatio: number) => {
 };
 
 // ツール切替・ズーム直後はリスナーの付け替え前に1点目が取りこぼされることがあるため、
-// オーバーレイの点が増えるまで押し直す（点が入ったら二重に押さない）
-const clickViewerPointUntilCircles = async (
+// 点がちょうど1つ増えるまで押し直す（増えたら二重に押さない）。
+// 人の操作では起きない間隔なので、押し直しは3回までに抑え、超えたら製品側の退行として落とす
+const clickViewerPointAddsCircle = async (
 	page: Page,
 	xRatio: number,
 	yRatio: number,
-	expectedCircles: number,
 ) => {
 	const circles = page.locator("svg[aria-label='計測オーバーレイ'] circle");
+	const baseline = await circles.count();
+	let clicks = 0;
 	await expect(async () => {
-		if ((await circles.count()) < expectedCircles) {
+		if ((await circles.count()) === baseline) {
+			clicks += 1;
 			await clickViewerPoint(page, xRatio, yRatio);
 		}
-		await expect(circles).toHaveCount(expectedCircles, { timeout: 500 });
+		await expect(circles).toHaveCount(baseline + 1, { timeout: 500 });
 	}).toPass({ timeout: 10_000 });
+	expect(clicks).toBeLessThanOrEqual(3);
 };
 
 const trackConsole = (page: Page, errors: string[], pageErrors: Error[]) => {
@@ -369,7 +373,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await expect(
 				page.locator("#osd-pane-0[data-measurement-ready='true']"),
 			).toBeVisible({ timeout: 5_000 });
-			await clickViewerPointUntilCircles(page, 0.38, 0.35, 1);
+			await clickViewerPointAddsCircle(page, 0.38, 0.35);
 			await clickViewerPoint(page, 0.55, 0.6);
 			const overlay = page.getByRole("img", { name: "計測オーバーレイ" });
 			await expect(overlay).toBeVisible({ timeout: 10_000 });
@@ -379,15 +383,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await expect(
 				page.locator("#osd-pane-0[data-measurement-ready='true']"),
 			).toBeVisible({ timeout: 5_000 });
-			const circlesBeforeAngle = await page
-				.locator("svg[aria-label='計測オーバーレイ'] circle")
-				.count();
-			await clickViewerPointUntilCircles(
-				page,
-				0.4,
-				0.6,
-				circlesBeforeAngle + 1,
-			);
+			await clickViewerPointAddsCircle(page, 0.4, 0.6);
 			await clickViewerPoint(page, 0.5, 0.35);
 			await clickViewerPoint(page, 0.6, 0.6);
 			await expect(overlay.locator("text").last()).toContainText(/°/, {
@@ -474,8 +470,8 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await expect(
 				page.locator("#osd-pane-0[data-measurement-ready='true']"),
 			).toBeVisible({ timeout: 5_000 });
-			await clickViewerPointUntilCircles(page, 0.3, 0.5, 1);
-			await clickViewerPointUntilCircles(page, 0.7, 0.5, 2);
+			await clickViewerPointAddsCircle(page, 0.3, 0.5);
+			await clickViewerPointAddsCircle(page, 0.7, 0.5);
 
 			await app.evaluate(({ dialog }, filePath) => {
 				dialog.showSaveDialog = () =>
