@@ -100,6 +100,7 @@ const loadAllAndBrowse = async (page: Page) => {
 const clearAll = async (page: Page) => {
 	page.once("dialog", (dialog) => dialog.accept());
 	await page
+		.getByRole("banner")
 		.getByRole("button", { name: "すべての画像を閉じる", exact: true })
 		.click();
 	await expect(page.getByText("画像なし")).toBeVisible({ timeout: 15_000 });

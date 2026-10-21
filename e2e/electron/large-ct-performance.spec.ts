@@ -241,6 +241,7 @@ test.describe("real Electron large CT performance", () => {
 
 			page.once("dialog", (dialog) => dialog.accept());
 			await page
+				.getByRole("banner")
 				.getByRole("button", { name: "すべての画像を閉じる", exact: true })
 				.click();
 			await expect(page.getByText("画像なし")).toBeVisible({
