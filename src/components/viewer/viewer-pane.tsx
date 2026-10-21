@@ -39,7 +39,7 @@ export const ViewerPane = ({
 	if (files.length === 0) {
 		return (
 			<div className="relative flex min-h-0 flex-1 items-center justify-center bg-viewport">
-				<span className="select-none text-[11px] text-ink-3">シリーズなし</span>
+				<span className="select-none text-[11px] text-ink-3">画像なし</span>
 			</div>
 		);
 	}
