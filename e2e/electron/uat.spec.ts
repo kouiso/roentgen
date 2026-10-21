@@ -26,8 +26,25 @@ import {
 
 // UAT(#111) は同一 userDataDir で再起動まで跨ぐため、生成したパスを保持する
 const screenshotDir = resolve(repoRoot, "test-results/uat");
-const uatEvidenceDir = join(tmpdir(), "roentgen-uat-evidence");
+// 同じマシンの別クローンや並行ランと書き出し先を取り合わないよう、プロセスごとに分ける
+const uatEvidenceDir = join(tmpdir(), `roentgen-uat-evidence-${process.pid}`);
 const corruptFixtureDirPath = resolve(repoRoot, "public/corrupt-fixture");
+
+// PNG は IEND チャンク（長さ0 + "IEND" + 固定CRC）で終わる。保存が原子的でないと
+// 書き込み途中のファイルがパスに現れ、末尾が欠けてここで落ちる
+const PNG_IEND_TRAILER = Buffer.from([
+	0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+]);
+
+const waitForExportedPng = async (filePath: string): Promise<Buffer> => {
+	await expect.poll(() => existsSync(filePath), { timeout: 15_000 }).toBe(true);
+	const png = readFileSync(filePath);
+	expect(
+		png.subarray(-PNG_IEND_TRAILER.length),
+		`${filePath} が書き込み途中の状態で見えている (${png.length} bytes)`,
+	).toEqual(PNG_IEND_TRAILER);
+	return png;
+};
 
 type RendererWindow = Window & {
 	electronAPI: {
@@ -169,6 +186,24 @@ const canvasSignature = async (page: Page) =>
 		return `${w}x${h}:${acc}`;
 	});
 
+// 回転やズームの描き直しは数フレームに分かれて届く。描画途中の指紋を基準にすると、
+// 次の操作の前に描画が終わっただけで「変化なし」に見えるため、同じ指紋が続くまで待つ
+const settledCanvasSignature = async (page: Page): Promise<string> => {
+	let previous = await canvasSignature(page);
+	await expect
+		.poll(
+			async () => {
+				const current = await canvasSignature(page);
+				const stable = current === previous;
+				previous = current;
+				return stable;
+			},
+			{ intervals: [250], timeout: 10_000 },
+		)
+		.toBe(true);
+	return previous;
+};
+
 const canvasNonBlackRatio = async (page: Page) =>
 	page.evaluate(() => {
 		const canvas = document.querySelector(
@@ -202,6 +237,9 @@ const canvasAverageChannel = async (page: Page) =>
 		}
 		return count === 0 ? 0 : sum / count;
 	});
+
+// 疎な幾何フィクスチャ（リング+マーカー）の描画確認用。縮んだペインでも約0.9%ある
+const SPARSE_FIXTURE_MIN_RATIO = 0.004;
 
 const waitForAutoloadedFixture = async (page: Page, minRatio = 0.3) => {
 	await expect(page.locator("header")).toBeVisible({ timeout: 60_000 });
@@ -337,18 +375,18 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				page.getByRole("button", { name: "数値で合わせる・連続再生" }),
 			).toHaveAttribute("aria-expanded", "false");
 			await expect(page.getByText(/獣医|くわしい設定/)).toHaveCount(0);
-			const sig0 = await canvasSignature(page);
+			const sig0 = await settledCanvasSignature(page);
 			await page.getByRole("button", { name: "右90°回転" }).click();
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
 				.not.toBe(sig0);
-			const sigRotated = await canvasSignature(page);
+			const sigRotated = await settledCanvasSignature(page);
 			await page.locator(".openseadragon-canvas").first().hover();
 			await page.mouse.wheel(0, -600);
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
 				.not.toBe(sigRotated);
-			const sigZoomed = await canvasSignature(page);
+			const sigZoomed = await settledCanvasSignature(page);
 			await page.getByRole("button", { name: "全体を表示" }).click();
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
@@ -358,6 +396,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			// ---- U3: オーナー向け見やすさプリセット
 			for (const name of ["骨", "腱・筋肉", "蹄"]) {
+				await settledCanvasSignature(page);
 				const before = await canvasAverageChannel(page);
 				await page.getByRole("button", { name: `${name}を見やすく` }).click();
 				await expect
@@ -412,10 +451,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 					Promise.resolve({ canceled: false, filePath });
 			}, savePath);
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(savePath), { timeout: 15_000 })
-				.toBe(true);
-			const png = readFileSync(savePath);
+			const png = await waitForExportedPng(savePath);
 			expect(png.subarray(0, 8)).toEqual(
 				Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
 			);
@@ -436,9 +472,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
 			).toHaveCount(0, { timeout: 5_000 });
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(plainPath), { timeout: 15_000 })
-				.toBe(true);
+			await waitForExportedPng(plainPath);
 
 			const stats = await analyzeExportedPair(app, savePath, plainPath);
 			console.info(`[uat] export pixel diff: ${JSON.stringify(stats)}`);
@@ -459,13 +493,15 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			// ---- U7b: ズーム状態でのPNG保存 — オーバーレイが画像座標へ正しく写ること
 			// 画面座標のSVGを画像解像度キャンバスへ全面引き延ばす旧実装では、
 			// 線が画像全域へ引き延ばされてずれる退行をここで検出する
-			const sigPreZoom = await canvasSignature(page);
+			const sigPreZoom = await settledCanvasSignature(page);
 			await page.locator(".openseadragon-canvas").first().hover();
 			await page.mouse.wheel(0, -600);
 			await page.mouse.wheel(0, -600);
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
 				.not.toBe(sigPreZoom);
+			// ズームの描き直しが終わってから測る（途中だとクリック位置が画像上でずれる）
+			await settledCanvasSignature(page);
 
 			await page.getByRole("button", { name: "長さを測る" }).click();
 			await expect(
@@ -479,9 +515,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 					Promise.resolve({ canceled: false, filePath });
 			}, zoomedPath);
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(zoomedPath), { timeout: 15_000 })
-				.toBe(true);
+			await waitForExportedPng(zoomedPath);
 
 			await app.evaluate(({ dialog }, filePath) => {
 				dialog.showSaveDialog = () =>
@@ -492,9 +526,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
 			).toHaveCount(0, { timeout: 5_000 });
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(zoomedPlainPath), { timeout: 15_000 })
-				.toBe(true);
+			await waitForExportedPng(zoomedPlainPath);
 
 			const zoomedStats = await analyzeExportedPair(
 				app,
@@ -599,8 +631,11 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 		trackConsole(page, errors, pageErrors);
 		try {
 			// 2シリーズ → 2ペイン自動レイアウト
-			// リング+マーカーの疎な図形なので非黒率の閾値は実DICOMより低く取る
-			await waitForAutoloadedFixture(page, 0.02);
+			// リング+マーカーの疎な図形なので非黒率の閾値は実DICOMより低く取る。
+			// pane-0 が1ペイン幅でフィットした後に2ペインへ縮むと図形が小さく描かれ
+			// 非黒率が 1% を切る（この PR の対象外の既存挙動）。ここで見たいのは
+			// 「描画された」ことだけなので、黒一色(0)と区別できる値にする
+			await waitForAutoloadedFixture(page, SPARSE_FIXTURE_MIN_RATIO);
 			await expect(page.locator("#osd-pane-1")).toBeVisible({
 				timeout: 30_000,
 			});
@@ -651,7 +686,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			app = await launch();
 			page = await app.firstWindow();
 			trackConsole(page, errors, pageErrors);
-			await waitForAutoloadedFixture(page, 0.02);
+			await waitForAutoloadedFixture(page, SPARSE_FIXTURE_MIN_RATIO);
 			await expect(page.locator("#osd-pane-1")).toBeVisible({
 				timeout: 30_000,
 			});

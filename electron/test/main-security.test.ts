@@ -1,4 +1,13 @@
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -150,5 +159,74 @@ describe("read-directory-recursive allow-list", () => {
 		await expect(
 			resolveAllowedRecursiveReadPath(arbitraryPath),
 		).rejects.toThrow("許可されていないファイルパス");
+	});
+});
+
+describe("writeScreenshotFileAtomically", () => {
+	const withDir = async (run: (dirPath: string) => Promise<void>) => {
+		const dirPath = await mkdtemp(join(tmpdir(), "roentgen-shot-"));
+		try {
+			await run(dirPath);
+		} finally {
+			await rm(dirPath, { recursive: true, force: true });
+		}
+	};
+
+	it("replaces the destination with the full bytes and leaves no temp file", async () => {
+		const { writeScreenshotFileAtomically } = await import("../main");
+		await withDir(async (dirPath) => {
+			const filePath = join(dirPath, "shot.png");
+			await writeFile(filePath, Buffer.from("old"));
+			const data = Buffer.alloc(3 * 1024 * 1024, 7);
+
+			await writeScreenshotFileAtomically(filePath, data);
+
+			expect((await readFile(filePath)).equals(data)).toBe(true);
+			expect(await readdir(dirPath)).toEqual(["shot.png"]);
+		});
+	});
+
+	it("never exposes a partially written file at the destination", async () => {
+		const { writeScreenshotFileAtomically } = await import("../main");
+		await withDir(async (dirPath) => {
+			const filePath = join(dirPath, "shot.png");
+			const old = Buffer.from("old");
+			await writeFile(filePath, old);
+			// Node の writeFile は 512KiB ごとに書くので、直接書くと途中サイズが見える
+			const data = Buffer.alloc(8 * 1024 * 1024, 7);
+			const seenSizes = new Set<number>();
+			let done = false;
+
+			const writing = writeScreenshotFileAtomically(filePath, data).finally(
+				() => {
+					done = true;
+				},
+			);
+			while (!done) {
+				seenSizes.add((await stat(filePath)).size);
+			}
+			await writing;
+
+			for (const size of seenSizes) {
+				expect([old.length, data.length]).toContain(size);
+			}
+		});
+	});
+
+	it("rejects and removes the temp file when the rename fails", async () => {
+		const { writeScreenshotFileAtomically } = await import("../main");
+		await withDir(async (dirPath) => {
+			// 中身のあるディレクトリへはファイルを rename できない
+			const filePath = join(dirPath, "occupied");
+			await mkdir(filePath);
+			await writeFile(join(filePath, "keep.txt"), "keep");
+
+			await expect(
+				writeScreenshotFileAtomically(filePath, Buffer.from("png")),
+			).rejects.toThrow();
+
+			expect(await readdir(dirPath)).toEqual(["occupied"]);
+			expect(await readFile(join(filePath, "keep.txt"), "utf-8")).toBe("keep");
+		});
 	});
 });

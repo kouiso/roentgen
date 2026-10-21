@@ -102,7 +102,14 @@ export const usePersistedWwwc = (
 			const pending = shared.pendingSave;
 			if (pending) {
 				shared.pendingSave = null;
-				ipcRef.current?.setWwwc(pending.ww, pending.wc).catch(() => {});
+				ipcRef.current
+					?.setWwwc(pending.ww, pending.wc)
+					.catch((error: unknown) => {
+						console.warn(
+							"[usePersistedWwwc] failed to flush WW/WC on unmount:",
+							error,
+						);
+					});
 			}
 		},
 		[shared],
