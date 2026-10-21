@@ -69,6 +69,9 @@ export const writeGeometryFixture = (
 		// 指定時だけ Patient Orientation (0020,0020) / Anatomical Orientation Type (0010,2210) を書く
 		patientOrientation?: string;
 		anatomicalOrientationType?: "BIPED" | "QUADRUPED";
+		// true なら Pixel Spacing (0028,0030) を書かない。図形は pixelSpacing で描くので
+		// [1, 1] を渡すと、ピクセル単位で寸法が分かる校正なし画像になる
+		omitPixelSpacing?: boolean;
 	},
 ): GeometryFixture => {
 	const { rows, columns, pixelSpacing } = options;
@@ -144,7 +147,16 @@ export const writeGeometryFixture = (
 		encodeElement(0x0028, 0x0004, "CS", "MONOCHROME2"),
 		encodeElement(0x0028, 0x0010, "US", rows),
 		encodeElement(0x0028, 0x0011, "US", columns),
-		encodeElement(0x0028, 0x0030, "DS", `${rowSpacing}\\${columnSpacing}`),
+		...(options.omitPixelSpacing
+			? []
+			: [
+					encodeElement(
+						0x0028,
+						0x0030,
+						"DS",
+						`${rowSpacing}\\${columnSpacing}`,
+					),
+				]),
 		encodeElement(0x0028, 0x0100, "US", 16),
 		encodeElement(0x0028, 0x0101, "US", 12),
 		encodeElement(0x0028, 0x0102, "US", 11),

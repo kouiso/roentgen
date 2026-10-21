@@ -171,6 +171,15 @@ const measuredMm = async (page: Page) => {
 	return Number.parseFloat(text);
 };
 
+// PixelSpacing が無い画像は mm に換算できないので、値は px で「(未校正)」付きになる
+const measuredUncalibratedPx = async (page: Page) => {
+	const label = page.locator("svg[aria-label='計測オーバーレイ'] text").first();
+	await expect(label).toContainText("px");
+	await expect(label).toContainText("未校正");
+	const text = (await label.textContent()) ?? "";
+	return Number.parseFloat(text);
+};
+
 const launch = async (
 	rendererUrl: string,
 	fixtureDir: string,
@@ -208,6 +217,26 @@ test.beforeAll(() => {
 		pixelSpacing: [0.6, 0.3],
 		uid: "20261008",
 	});
+});
+
+let uncalibratedFixture: GeometryFixture;
+let uncalibratedFixtureDir: string;
+
+test.beforeAll(() => {
+	// 縦長 (200 × 300) で PixelSpacing を書かない。1 ピクセル = 1 単位で図形を描く
+	uncalibratedFixtureDir = mkdtempSync(
+		join(tmpdir(), "roentgen-geometry-uncalibrated-"),
+	);
+	uncalibratedFixture = writeGeometryFixture(
+		join(uncalibratedFixtureDir, "no-pixel-spacing.dcm"),
+		{
+			rows: 300,
+			columns: 200,
+			pixelSpacing: [1, 1],
+			uid: "20261020",
+			omitPixelSpacing: true,
+		},
+	);
 });
 
 test.describe("real Electron image geometry", () => {
@@ -359,6 +388,75 @@ test.describe("real Electron image geometry", () => {
 			).toHaveCount(1, { timeout: 15_000 });
 			await expectArrowOnMarker(second.page, "after restart");
 			expect(second.pageErrors.map((error) => error.message)).toEqual([]);
+		} finally {
+			await electronApp?.close();
+			await rendererServer?.close();
+		}
+	});
+
+	test("images without PixelSpacing keep square pixels and measure in uncalibrated px", async () => {
+		let rendererServer: RendererDevServer | undefined;
+		let electronApp: ElectronApplication | undefined;
+		try {
+			rendererServer = await startRendererDevServer();
+			const userDataDir = mkdtempSync(join(tmpdir(), "roentgen-geo-user-"));
+			const { app, page, pageErrors } = await launch(
+				rendererServer.url,
+				uncalibratedFixtureDir,
+				userDataDir,
+			);
+			electronApp = app;
+			await waitForFixture(page);
+
+			const features = await readFeatures(page);
+			if (!features) throw new Error("fixture features not found");
+			const ringWidth = features.ring.right - features.ring.left;
+			const ringHeight = features.ring.bottom - features.ring.top;
+			// 校正が無いときは縦横 1:1 で表示する。縦長の画像でも円は円のまま
+			expect(ringWidth / ringHeight).toBeGreaterThan(0.97);
+			expect(ringWidth / ringHeight).toBeLessThan(1.03);
+
+			const outerDiameterPx =
+				2 *
+				(uncalibratedFixture.ringRadiusMm +
+					uncalibratedFixture.ringHalfThicknessMm);
+			const center = ringCenter(features);
+			await page.getByRole("button", { name: "長さを測る" }).click();
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible();
+			await dispatchViewerClick(page, { x: features.ring.left, y: center.y });
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1);
+			await dispatchViewerClick(page, { x: features.ring.right, y: center.y });
+			const horizontalPx = await measuredUncalibratedPx(page);
+			await page.screenshot({
+				path: resolve(screenshotDir, "geometry-no-pixel-spacing.png"),
+			});
+
+			// 縦長の画像で縦方向だけ伸び縮みしていないことも、縦に測って確かめる
+			await page.getByRole("button", { name: "測った線を消す" }).click();
+			const distanceButton = page.getByRole("button", { name: "長さを測る" });
+			if ((await distanceButton.getAttribute("aria-pressed")) !== "true") {
+				await distanceButton.click();
+			}
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible();
+			await dispatchViewerClick(page, { x: center.x, y: features.ring.top });
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1);
+			await dispatchViewerClick(page, {
+				x: center.x,
+				y: features.ring.bottom,
+			});
+			const verticalPx = await measuredUncalibratedPx(page);
+
+			expect(Math.abs(horizontalPx - outerDiameterPx)).toBeLessThan(3);
+			expect(Math.abs(verticalPx - outerDiameterPx)).toBeLessThan(3);
+			expect(pageErrors.map((error) => error.message)).toEqual([]);
 		} finally {
 			await electronApp?.close();
 			await rendererServer?.close();

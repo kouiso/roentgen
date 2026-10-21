@@ -600,8 +600,6 @@ export const DicomViewer = ({
 			</div>
 			<StatusBar
 				activeMode={activePane.activeMode}
-				currentWW={activePane.worldInfo.windowWidth}
-				currentWC={activePane.worldInfo.windowCenter}
 				isInverted={activePane.worldInfo.invert}
 				layout={layout}
 				activePaneIndex={activePaneIndex}
