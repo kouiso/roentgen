@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { commandPlan } from "../../.github/ci/run.mjs";
 
 const repoFile = (path: string) =>
 	readFileSync(resolve(process.cwd(), path), "utf-8");
@@ -50,13 +51,21 @@ describe("release packaging static gates", () => {
 		expect(releaseWorkflow).toContain("pnpm dist --linux --publish never");
 		expect(releaseWorkflow).not.toContain("--publish always");
 		expect(releaseWorkflow).toContain("Verify headless gates");
-		expect(releaseWorkflow).toContain("pnpm lint");
-		expect(releaseWorkflow).toContain("pnpm typecheck");
-		expect(releaseWorkflow).toContain("pnpm test");
+		// なぜ: release.yml は検査コマンドを直書きせず共通入口 run.mjs を呼ぶ。
+		// 文字列ではなく、入口が実際に組み立てるコマンド列で中身を確かめる。
+		expect(releaseWorkflow).toContain("node .github/ci/run.mjs quality");
+		expect(releaseWorkflow).toContain("node .github/ci/run.mjs renderer");
+		expect(commandPlan("quality", "linux", {})).toEqual([
+			["pnpm", "lint"],
+			["pnpm", "exec", "tsc", "--noEmit"],
+			["pnpm", "test"],
+		]);
+		expect(commandPlan("renderer", "linux", {})).toEqual([
+			["pnpm", "test:e2e", "--", "--project=renderer"],
+		]);
 		expect(releaseWorkflow).toContain(
 			"pnpm exec playwright install --with-deps chromium",
 		);
-		expect(releaseWorkflow).toContain("pnpm test:e2e -- --project=renderer");
 		expect(releaseWorkflow).toContain("pnpm release:gate");
 		expect(releaseWorkflow).toContain("Publish artifacts and checksums");
 		expect(releaseWorkflow).toContain("fail_on_unmatched_files: true");

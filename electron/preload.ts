@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			ipcRenderer.invoke("window-state:get-wwwc"),
 		setWwwc: (ww: number, wc: number): Promise<void> =>
 			ipcRenderer.invoke("window-state:set-wwwc", ww, wc),
+		clearWwwc: (): Promise<void> =>
+			ipcRenderer.invoke("window-state:clear-wwwc"),
 	},
 
 	// Google Drive DICOM連携

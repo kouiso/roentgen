@@ -13,7 +13,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, join, resolve, sep } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import {
 	app,
 	BrowserWindow,
@@ -317,6 +317,29 @@ const isMissingFileError = (err: unknown): boolean =>
 	"code" in err &&
 	err.code === "ENOENT";
 
+// 保存先を直接書くと、書き込み途中の欠けたPNGが一瞬そのパスに見える。
+// 同じディレクトリの一時ファイルへ書き切ってから rename で置き換える
+export const writeScreenshotFileAtomically = async (
+	filePath: string,
+	data: Buffer,
+): Promise<void> => {
+	const tempPath = join(
+		dirname(filePath),
+		`.${basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+	);
+	try {
+		await writeFile(tempPath, data);
+		await rename(tempPath, filePath);
+	} catch (err) {
+		await unlink(tempPath).catch((cleanupErr: unknown) => {
+			if (!isMissingFileError(cleanupErr)) {
+				log.warn("スクリーンショット一時ファイルの削除に失敗", cleanupErr);
+			}
+		});
+		throw err;
+	}
+};
+
 const PNG_DATA_URL_PREFIX = "data:image/png;base64,";
 
 const isPngDataUrl = (dataUrl: string): boolean =>
@@ -448,46 +471,62 @@ const loadWindowState = async (): Promise<WindowState> => {
 	}
 };
 
-const saveWindowState = async (
+// 連続する保存が同じファイルへ並行して書き込み、順序の逆転や破損を起こさないよう直列化する
+let windowStateWriteQueue: Promise<void> = Promise.resolve();
+
+const saveWindowState = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): Promise<void> => {
-	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
-	const bounds = win.getBounds();
-	const state: WindowState = {
-		width: bounds.width,
-		height: bounds.height,
-		x: bounds.x,
-		y: bounds.y,
-		wwwc,
-	};
+	windowStateWriteQueue = windowStateWriteQueue
+		.then(() => writeWindowState(win, wwwc))
+		.catch((err: unknown) => {
+			log.warn("[window-state] 保存失敗:", err);
+		});
+	return windowStateWriteQueue;
+};
+
+// 終了時の同期保存が最終状態。以後に実行される待機中の保存は古い値で上書きし得るため捨てる
+let windowStateFinalized = false;
+
+// 全ての書き込みはこれを通る。同期的に書き切るため、実行が始まった保存は
+// 終了時の最終保存に割り込まれず、待機中の分は windowStateFinalized で捨てる。
+// これにより「実行中の非同期 writeFile が最終保存の後に着地する」残存レースを塞ぐ
+const writeWindowStateNow = (
+	win: BrowserWindow,
+	wwwc?: { ww: number; wc: number },
+): void => {
 	try {
-		await mkdir(app.getPath("userData"), { recursive: true });
-		await writeFile(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
+		// 最大化・最小化・全画面中でも WW/WC を失わないよう、通常時の矩形で保存する
+		const bounds = win.getNormalBounds();
+		const state: WindowState = {
+			width: bounds.width,
+			height: bounds.height,
+			x: bounds.x,
+			y: bounds.y,
+			wwwc,
+		};
+		mkdirSync(app.getPath("userData"), { recursive: true });
+		writeFileSync(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
 	} catch (err) {
 		log.warn("[window-state] 保存失敗:", err);
 	}
+};
+
+const writeWindowState = (
+	win: BrowserWindow,
+	wwwc?: { ww: number; wc: number },
+): void => {
+	if (windowStateFinalized) return;
+	writeWindowStateNow(win, wwwc);
 };
 
 const saveWindowStateSync = (
 	win: BrowserWindow,
 	wwwc?: { ww: number; wc: number },
 ): void => {
-	if (win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
-	const bounds = win.getBounds();
-	const state: WindowState = {
-		width: bounds.width,
-		height: bounds.height,
-		x: bounds.x,
-		y: bounds.y,
-		wwwc,
-	};
-	try {
-		mkdirSync(app.getPath("userData"), { recursive: true });
-		writeFileSync(WINDOW_STATE_PATH(), JSON.stringify(state, null, 2));
-	} catch (err) {
-		log.warn("[window-state] 同期保存失敗:", err);
-	}
+	windowStateFinalized = true;
+	writeWindowStateNow(win, wwwc);
 };
 
 // --- ウィンドウ作成 ---
@@ -497,6 +536,8 @@ let lastWwwc: { ww: number; wc: number } | undefined;
 const createWindow = async () => {
 	const state = await loadWindowState();
 	lastWwwc = state.wwwc;
+	// macOS ではウィンドウを閉じてもアプリが残り、再作成後は保存を再開する
+	windowStateFinalized = false;
 
 	mainWindow = new BrowserWindow({
 		width: state.width,
@@ -530,7 +571,7 @@ const createWindow = async () => {
 			responseHeaders: {
 				...details.responseHeaders,
 				"Content-Security-Policy": [
-					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; ${connectSrc}`,
+					`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; ${connectSrc}`,
 				],
 			},
 		});
@@ -758,7 +799,10 @@ ipcMain.handle("save-screenshot", async (_event, dataUrl: string) => {
 	if (result.canceled || !result.filePath) return false;
 	if (!isPngDataUrl(dataUrl)) return false;
 	const base64 = dataUrl.slice(PNG_DATA_URL_PREFIX.length);
-	await writeFile(result.filePath, Buffer.from(base64, "base64"));
+	await writeScreenshotFileAtomically(
+		result.filePath,
+		Buffer.from(base64, "base64"),
+	);
 	return true;
 });
 
@@ -818,6 +862,11 @@ ipcMain.handle("window-state:get-wwwc", () => lastWwwc);
 
 ipcMain.handle("window-state:set-wwwc", (_event, ww: number, wc: number) => {
 	lastWwwc = { ww, wc };
+	if (mainWindow) saveWindowState(mainWindow, lastWwwc);
+});
+
+ipcMain.handle("window-state:clear-wwwc", () => {
+	lastWwwc = undefined;
 	if (mainWindow) saveWindowState(mainWindow, lastWwwc);
 });
 

@@ -9,6 +9,7 @@ import { useImageOverlay } from "@/hooks/use-image-overlay";
 import { useMeasurement } from "@/hooks/use-measurement";
 import { useMouseInteraction } from "@/hooks/use-mouse-interaction";
 import { useOpenSeaDragon } from "@/hooks/use-open-sea-dragon";
+import { usePersistedWwwc } from "@/hooks/use-persisted-wwwc";
 import { useViewerControls } from "@/hooks/use-viewer-controls";
 import { useViewerSlider } from "@/hooks/use-viewer-slider";
 import type { DicomFileInfo } from "@/types/dicom";
@@ -130,9 +131,19 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		],
 	);
 
+	// WW/WC 永続化: 保存(IPC)・復元・セッション中の変更追跡を usePersistedWwwc に集約。
+	// ユーザーが選んだ値は後続の全画像へ DICOM 既定より優先適用されるため、
+	// WW/WC を変える全経路がこの controls を通るように差し替える。
+	const persistedWwwc = usePersistedWwwc(
+		window.electronAPI?.windowState,
+		setWorldInfo,
+	);
+
 	const controls = useViewerControls({
 		setWorldInfo,
 		getViewport,
+		persistedSetWwWc: persistedWwwc.setWwWc,
+		persistedAdjustWwWc: persistedWwwc.adjustWwWc,
 	});
 
 	const cine = useCineMode({
@@ -262,25 +273,32 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 計測・注釈クリックイベント登録
 	useEffect(() => {
 		if (!isOsdReady) return;
-		const isMeasurementMode =
-			activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE ||
-			activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE;
+		const expectedTool =
+			activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE
+				? "distance"
+				: activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE
+					? "angle"
+					: null;
+		const isMeasurementMode = expectedTool !== null;
 		const isAnnotationMode =
 			!!annotation.activeAnnotationTool || !!annotation.pendingTextPosition;
 		if (!isAnnotationMode && !isMeasurementMode) return;
-		// For measurement mode, wait until activeTool is propagated — addPoint returns
-		// early if activeTool is null, so setting data-measurement-ready before that
-		// causes the first E2E click to silently drop the point.
-		if (isMeasurementMode && !measurement.activeTool) return;
+		// 長さ→角度の切替直後は activeTool がまだ前の道具のまま残る。
+		// その間にリスナーを張るとクリックが前の道具の点として入り、角度が完成しないことがある
+		if (isMeasurementMode && measurement.activeTool !== expectedTool) return;
 		// Wait for image dimensions — containerToImageCoord returns null when either is 0.
 		if (imageWidth === 0 || imageHeight === 0) return;
 		const container = document.getElementById(containerId);
 		if (!container) return;
 		container.addEventListener("click", addImagePointFromClick);
 		container.setAttribute("data-measurement-ready", "true");
+		// ready だけでは前の道具の受け口と見分けがつかないため、どの道具の受け口かも出す
+		if (expectedTool)
+			container.setAttribute("data-measurement-tool", expectedTool);
 		return () => {
 			container.removeEventListener("click", addImagePointFromClick);
 			container.removeAttribute("data-measurement-ready");
+			container.removeAttribute("data-measurement-tool");
 		};
 	}, [
 		isOsdReady,
@@ -460,6 +478,9 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		).then((success) => {
 			if (controller.signal.aborted) return;
 			loadedFileRef.current = success !== false ? currentFile : null;
+			// ロード完了をトリガーに保持中のWW/WCを適用する。
+			// DICOM既定値で初期化された後なので、2枚目以降にも確実に効く
+			if (success !== false) persistedWwwc.notifyImageLoaded();
 			setImageLoadError(
 				success !== false
 					? null
@@ -469,7 +490,13 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 		return () => {
 			controller.abort();
 		};
-	}, [currentFile, isOsdReady, cornerstoneReady, loadAndDisplayImage]);
+	}, [
+		currentFile,
+		isOsdReady,
+		cornerstoneReady,
+		loadAndDisplayImage,
+		persistedWwwc.notifyImageLoaded,
+	]);
 
 	// 画像プリロード
 	useEffect(() => {
@@ -503,16 +530,20 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// ビューアリセット
 	const resetImage = useCallback(() => {
 		if (!currentFile) return;
-		controls.resetImage(
-			initialWindow?.ww ?? currentFile.windowWidth,
-			initialWindow?.wc ?? currentFile.windowCenter,
-		);
-	}, [controls, currentFile, initialWindow]);
+		const ww = initialWindow?.ww ?? currentFile.windowWidth;
+		const wc = initialWindow?.wc ?? currentFile.windowCenter;
+		controls.resetImage(ww, wc);
+		// リセットは「ユーザーが選んだ値」を破棄し、以後の画像は各自の DICOM 既定値を使う
+		persistedWwwc.clearUserChoice();
+	}, [controls, currentFile, initialWindow, persistedWwwc.clearUserChoice]);
 
 	const autoContrast = useCallback(() => {
 		if (!initialWindow) return;
-		controls.setWwWc(initialWindow.ww, initialWindow.wc);
-	}, [controls, initialWindow]);
+		// 自動調整は画像ごとに算出する値。リセットと同じく「選んだ値」を破棄して
+		// その画像の値を表示し、以後に読み込む画像もそれぞれの値で表示する
+		controls.applyDisplayWwWc(initialWindow.ww, initialWindow.wc);
+		persistedWwwc.clearUserChoice();
+	}, [controls, initialWindow, persistedWwwc.clearUserChoice]);
 
 	const handleFrameChange = useCallback(
 		(frame: number) => setFrame(frame),
