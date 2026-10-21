@@ -127,7 +127,6 @@ const launch = async (
 	await expect
 		.poll(() => readMarkerCorner(page), { timeout: 30_000 })
 		.not.toBeNull();
-	await page.getByRole("button", { name: /くわしい設定/ }).click();
 	return { app, page, pageErrors };
 };
 

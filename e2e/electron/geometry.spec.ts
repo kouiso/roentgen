@@ -289,7 +289,6 @@ test.describe("real Electron image geometry", () => {
 			const page = first.page;
 			await waitForFixture(page);
 
-			await page.getByRole("button", { name: /くわしい設定/ }).click();
 			const before = await readFeatures(page);
 			if (!before) throw new Error("fixture features not found");
 			await page.getByRole("button", { name: "右90°回転" }).click();
