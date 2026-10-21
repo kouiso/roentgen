@@ -26,8 +26,25 @@ import {
 
 // UAT(#111) は同一 userDataDir で再起動まで跨ぐため、生成したパスを保持する
 const screenshotDir = resolve(repoRoot, "test-results/uat");
-const uatEvidenceDir = join(tmpdir(), "roentgen-uat-evidence");
+// 同じマシンの別クローンや並行ランと書き出し先を取り合わないよう、プロセスごとに分ける
+const uatEvidenceDir = join(tmpdir(), `roentgen-uat-evidence-${process.pid}`);
 const corruptFixtureDirPath = resolve(repoRoot, "public/corrupt-fixture");
+
+// PNG は IEND チャンク（長さ0 + "IEND" + 固定CRC）で終わる。保存が原子的でないと
+// 書き込み途中のファイルがパスに現れ、末尾が欠けてここで落ちる
+const PNG_IEND_TRAILER = Buffer.from([
+	0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+]);
+
+const waitForExportedPng = async (filePath: string): Promise<Buffer> => {
+	await expect.poll(() => existsSync(filePath), { timeout: 15_000 }).toBe(true);
+	const png = readFileSync(filePath);
+	expect(
+		png.subarray(-PNG_IEND_TRAILER.length),
+		`${filePath} が書き込み途中の状態で見えている (${png.length} bytes)`,
+	).toEqual(PNG_IEND_TRAILER);
+	return png;
+};
 
 type RendererWindow = Window & {
 	electronAPI: {
@@ -411,10 +428,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 					Promise.resolve({ canceled: false, filePath });
 			}, savePath);
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(savePath), { timeout: 15_000 })
-				.toBe(true);
-			const png = readFileSync(savePath);
+			const png = await waitForExportedPng(savePath);
 			expect(png.subarray(0, 8)).toEqual(
 				Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
 			);
@@ -435,9 +449,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
 			).toHaveCount(0, { timeout: 5_000 });
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(plainPath), { timeout: 15_000 })
-				.toBe(true);
+			await waitForExportedPng(plainPath);
 
 			const stats = await analyzeExportedPair(app, savePath, plainPath);
 			console.info(`[uat] export pixel diff: ${JSON.stringify(stats)}`);
@@ -478,9 +490,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 					Promise.resolve({ canceled: false, filePath });
 			}, zoomedPath);
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(zoomedPath), { timeout: 15_000 })
-				.toBe(true);
+			await waitForExportedPng(zoomedPath);
 
 			await app.evaluate(({ dialog }, filePath) => {
 				dialog.showSaveDialog = () =>
@@ -491,9 +501,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
 			).toHaveCount(0, { timeout: 5_000 });
 			await page.getByRole("button", { name: "画像で保存" }).click();
-			await expect
-				.poll(() => existsSync(zoomedPlainPath), { timeout: 15_000 })
-				.toBe(true);
+			await waitForExportedPng(zoomedPlainPath);
 
 			const zoomedStats = await analyzeExportedPair(
 				app,

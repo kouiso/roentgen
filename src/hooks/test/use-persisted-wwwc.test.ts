@@ -339,6 +339,28 @@ describe("usePersistedWwwc", () => {
 		expect(warn).toHaveBeenCalled();
 	});
 
+	it("アンマウント時の即時保存が失敗しても警告を出し例外を投げない", async () => {
+		vi.useFakeTimers();
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const failure = new Error("ipc closed");
+		const ipc: WwwcIpc = {
+			getWwwc: vi.fn(() => Promise.resolve(undefined)),
+			setWwwc: vi.fn(() => Promise.reject(failure)),
+		};
+		const { result, unmount } = setup(ipc);
+		await act(async () => Promise.resolve());
+
+		act(() => result.current.persisted.setWwWc(2500, 500));
+		unmount();
+		await act(async () => Promise.resolve());
+
+		expect(ipc.setWwwc).toHaveBeenCalledWith(2500, 500);
+		expect(warn).toHaveBeenCalledWith(
+			"[usePersistedWwwc] failed to flush WW/WC on unmount:",
+			failure,
+		);
+	});
+
 	it("IPC が無い環境では取得も保存も行わず破綻しない", async () => {
 		const { result } = setup(undefined);
 		await act(async () => Promise.resolve());

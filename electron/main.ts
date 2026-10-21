@@ -13,7 +13,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, join, resolve, sep } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import {
 	app,
 	BrowserWindow,
@@ -316,6 +316,29 @@ const isMissingFileError = (err: unknown): boolean =>
 	err !== null &&
 	"code" in err &&
 	err.code === "ENOENT";
+
+// 保存先を直接書くと、書き込み途中の欠けたPNGが一瞬そのパスに見える。
+// 同じディレクトリの一時ファイルへ書き切ってから rename で置き換える
+export const writeScreenshotFileAtomically = async (
+	filePath: string,
+	data: Buffer,
+): Promise<void> => {
+	const tempPath = join(
+		dirname(filePath),
+		`.${basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+	);
+	try {
+		await writeFile(tempPath, data);
+		await rename(tempPath, filePath);
+	} catch (err) {
+		await unlink(tempPath).catch((cleanupErr: unknown) => {
+			if (!isMissingFileError(cleanupErr)) {
+				log.warn("スクリーンショット一時ファイルの削除に失敗", cleanupErr);
+			}
+		});
+		throw err;
+	}
+};
 
 const PNG_DATA_URL_PREFIX = "data:image/png;base64,";
 
@@ -776,7 +799,10 @@ ipcMain.handle("save-screenshot", async (_event, dataUrl: string) => {
 	if (result.canceled || !result.filePath) return false;
 	if (!isPngDataUrl(dataUrl)) return false;
 	const base64 = dataUrl.slice(PNG_DATA_URL_PREFIX.length);
-	await writeFile(result.filePath, Buffer.from(base64, "base64"));
+	await writeScreenshotFileAtomically(
+		result.filePath,
+		Buffer.from(base64, "base64"),
+	);
 	return true;
 });
 
