@@ -1,23 +1,31 @@
 import { describe, expect, it } from "vitest";
-import {
-	CLINICAL_WW_WC_PRESETS,
-	EQUINE_WW_WC_PRESETS,
-	WW_WC_PRESETS,
-} from "./ww-wc-presets";
+import { WW_WC_PRESETS } from "./ww-wc-presets";
 
 describe("WW/WC presets", () => {
-	it("clinical presets array is non-empty", () => {
-		expect(CLINICAL_WW_WC_PRESETS.length).toBeGreaterThan(0);
+	it("lists the six equine presets in number-key order", () => {
+		expect(WW_WC_PRESETS.map((p) => p.label)).toEqual([
+			"馬・骨",
+			"馬・軟部",
+			"蹄骨",
+			"舟状骨",
+			"馬・肺",
+			"馬・腹部",
+		]);
 	});
 
-	it("equine presets array is non-empty", () => {
-		expect(EQUINE_WW_WC_PRESETS.length).toBeGreaterThan(0);
-	});
-
-	it("combined array contains all clinical and equine presets", () => {
-		expect(WW_WC_PRESETS.length).toBe(
-			CLINICAL_WW_WC_PRESETS.length + EQUINE_WW_WC_PRESETS.length,
-		);
+	it("does not include human CT presets", () => {
+		const labels = WW_WC_PRESETS.map((p) => p.label);
+		for (const human of [
+			"肺",
+			"脳",
+			"縦隔",
+			"肝臓",
+			"軟部組織",
+			"腹部",
+			"骨",
+		]) {
+			expect(labels).not.toContain(human);
+		}
 	});
 
 	it("every preset has required fields", () => {
@@ -26,37 +34,17 @@ describe("WW/WC presets", () => {
 			expect(preset.key).toBeTruthy();
 			expect(typeof preset.ww).toBe("number");
 			expect(typeof preset.wc).toBe("number");
-			expect(preset.category).toBeTruthy();
 		}
 	});
 
 	it("no duplicate keys across all presets", () => {
 		const keys = WW_WC_PRESETS.map((p) => p.key);
-		const unique = new Set(keys);
-		expect(unique.size).toBe(keys.length);
+		expect(new Set(keys).size).toBe(keys.length);
 	});
 
 	it("all WW values are positive", () => {
 		for (const preset of WW_WC_PRESETS) {
 			expect(preset.ww).toBeGreaterThan(0);
-		}
-	});
-
-	it("category is either clinical or equine", () => {
-		for (const preset of WW_WC_PRESETS) {
-			expect(["clinical", "equine"]).toContain(preset.category);
-		}
-	});
-
-	it("clinical presets all have category=clinical", () => {
-		for (const preset of CLINICAL_WW_WC_PRESETS) {
-			expect(preset.category).toBe("clinical");
-		}
-	});
-
-	it("equine presets all have category=equine", () => {
-		for (const preset of EQUINE_WW_WC_PRESETS) {
-			expect(preset.category).toBe("equine");
 		}
 	});
 });

@@ -463,7 +463,7 @@ describe("Error recovery scenarios", () => {
 
 describe("Keyboard shortcut scenarios", () => {
 	it.each([
-		1, 2, 3, 4, 5, 6, 7,
+		1, 2, 3, 4, 5, 6,
 	])("pressing %i applies the matching WW/WC preset", (keyNumber) => {
 		let ww = 0;
 		let wc = 0;

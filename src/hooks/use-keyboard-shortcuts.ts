@@ -1,5 +1,6 @@
 // キーボードショートカット管理
 import { useEffect, useRef } from "react";
+import { WW_WC_PRESETS } from "@/constants/ww-wc-presets";
 
 type KeyboardShortcutActions = {
 	nextFrame: () => void;
@@ -109,12 +110,17 @@ export const useKeyboardShortcuts = (
 					e.preventDefault();
 					a.toggleFullscreen();
 					break;
-				default:
-					// 数字キー 1-7: WW/WCプリセット
-					if (e.key >= "1" && e.key <= "7") {
-						a.setWwWcPreset(Number.parseInt(e.key, 10) - 1);
+				default: {
+					// 数字キーはプリセットの数だけ割り当てる。範囲をプリセット定義から
+					// 決めて、押しても何も起きないキーを作らない
+					const presetNumber = /^[1-9]$/.test(e.key)
+						? Number.parseInt(e.key, 10)
+						: 0;
+					if (presetNumber >= 1 && presetNumber <= WW_WC_PRESETS.length) {
+						a.setWwWcPreset(presetNumber - 1);
 					}
 					break;
+				}
 			}
 		};
 
