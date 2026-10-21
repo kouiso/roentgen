@@ -371,7 +371,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			// ---- U4: 距離・角度計測
 			await page.getByRole("button", { name: "長さを測る" }).click();
 			await expect(
-				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+				page.locator("#osd-pane-0[data-measurement-tool='distance']"),
 			).toBeVisible({ timeout: 5_000 });
 			await clickViewerPointAddsCircle(page, 0.38, 0.35);
 			await clickViewerPoint(page, 0.55, 0.6);
@@ -381,7 +381,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			await page.getByRole("button", { name: "角度を測る" }).click();
 			await expect(
-				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+				page.locator("#osd-pane-0[data-measurement-tool='angle']"),
 			).toBeVisible({ timeout: 5_000 });
 			await clickViewerPointAddsCircle(page, 0.4, 0.6);
 			await clickViewerPoint(page, 0.5, 0.35);
@@ -468,7 +468,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			await page.getByRole("button", { name: "長さを測る" }).click();
 			await expect(
-				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+				page.locator("#osd-pane-0[data-measurement-tool='distance']"),
 			).toBeVisible({ timeout: 5_000 });
 			await clickViewerPointAddsCircle(page, 0.3, 0.5);
 			await clickViewerPointAddsCircle(page, 0.7, 0.5);

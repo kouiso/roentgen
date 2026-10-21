@@ -3,6 +3,7 @@ import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DicomFileInfo } from "@/types/dicom";
+import { VIEWER_CONTROL_TYPE } from "@/types/viewer";
 import { setDirectionSpecies } from "../use-direction-species";
 import { useViewerPane } from "../use-viewer-pane";
 
@@ -153,17 +154,22 @@ vi.mock("../use-cine-mode", () => ({
 	}),
 }));
 
+// 道具の切替が遅れて届く状況を再現するため、activeTool はテストから書き換える
+const measurementMock = vi.hoisted(() => ({
+	activeTool: null as "distance" | "angle" | null,
+	startDistanceTool: vi.fn(),
+	startAngleTool: vi.fn(),
+	cancelTool: vi.fn(),
+	addPoint: vi.fn(),
+	clearAll: vi.fn(),
+	removeMeasurement: vi.fn(),
+}));
+
 vi.mock("../use-measurement", () => ({
 	useMeasurement: () => ({
-		activeTool: null,
-		startDistanceTool: vi.fn(),
-		startAngleTool: vi.fn(),
-		cancelTool: vi.fn(),
-		addPoint: vi.fn(),
-		clearAll: vi.fn(),
+		...measurementMock,
 		measurements: [],
 		activePoints: [],
-		removeMeasurement: vi.fn(),
 	}),
 }));
 
@@ -216,6 +222,8 @@ describe("useViewerPane", () => {
 		setupTileDrawingBridgeMock.mockClear();
 		useMouseInteractionMock.mockClear();
 		resolveImageDirectionMock.mockClear();
+		measurementMock.activeTool = null;
+		measurementMock.addPoint.mockClear();
 		setDirectionSpecies("equine");
 	});
 
@@ -405,5 +413,51 @@ describe("useViewerPane", () => {
 		expect(result.current.activeAnnotationPoints).toEqual([]);
 		expect(container.setPointerCapture).toHaveBeenCalledWith(7);
 		expect(container.releasePointerCapture).toHaveBeenCalledWith(7);
+	});
+
+	it("長さ→角度の切替中は、前の道具のままの計測にクリックを渡さない", async () => {
+		const file = makeFileInfo("roentgen:/test/switch-tool.dcm");
+		file.rows = 100;
+		file.columns = 100;
+		const container = document.createElement("div");
+		container.id = "osd-pane-0";
+		Object.defineProperty(container, "getBoundingClientRect", {
+			value: () => DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 200 }),
+		});
+		document.body.appendChild(container);
+
+		measurementMock.activeTool = "distance";
+		const { result, rerender } = renderHook(() =>
+			useViewerPane("pane-0", [file]),
+		);
+		await waitFor(() => {
+			expect(result.current.isOsdReady).toBe(true);
+		});
+		act(() => {
+			result.current.controlPanelProps.onModeChange(
+				VIEWER_CONTROL_TYPE.MEASURE_DISTANCE,
+			);
+		});
+		await waitFor(() => {
+			expect(container.getAttribute("data-measurement-ready")).toBe("true");
+		});
+
+		// 角度モードに切り替えたが、activeTool はまだ distance のまま
+		act(() => {
+			result.current.controlPanelProps.onModeChange(
+				VIEWER_CONTROL_TYPE.MEASURE_ANGLE,
+			);
+		});
+		fireEvent.click(container, { clientX: 100, clientY: 100 });
+		expect(measurementMock.addPoint).not.toHaveBeenCalled();
+		expect(container.hasAttribute("data-measurement-ready")).toBe(false);
+
+		measurementMock.activeTool = "angle";
+		rerender();
+		await waitFor(() => {
+			expect(container.getAttribute("data-measurement-tool")).toBe("angle");
+		});
+		fireEvent.click(container, { clientX: 100, clientY: 100 });
+		expect(measurementMock.addPoint).toHaveBeenCalledTimes(1);
 	});
 });

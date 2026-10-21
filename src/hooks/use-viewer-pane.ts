@@ -273,25 +273,32 @@ export const useViewerPane = (paneId: string, files: DicomFileInfo[]) => {
 	// 計測・注釈クリックイベント登録
 	useEffect(() => {
 		if (!isOsdReady) return;
-		const isMeasurementMode =
-			activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE ||
-			activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE;
+		const expectedTool =
+			activeMode === VIEWER_CONTROL_TYPE.MEASURE_DISTANCE
+				? "distance"
+				: activeMode === VIEWER_CONTROL_TYPE.MEASURE_ANGLE
+					? "angle"
+					: null;
+		const isMeasurementMode = expectedTool !== null;
 		const isAnnotationMode =
 			!!annotation.activeAnnotationTool || !!annotation.pendingTextPosition;
 		if (!isAnnotationMode && !isMeasurementMode) return;
-		// For measurement mode, wait until activeTool is propagated — addPoint returns
-		// early if activeTool is null, so setting data-measurement-ready before that
-		// causes the first E2E click to silently drop the point.
-		if (isMeasurementMode && !measurement.activeTool) return;
+		// 長さ→角度の切替直後は activeTool がまだ前の道具のまま残る。
+		// その間にリスナーを張るとクリックが前の道具の点として入り、角度が完成しないことがある
+		if (isMeasurementMode && measurement.activeTool !== expectedTool) return;
 		// Wait for image dimensions — containerToImageCoord returns null when either is 0.
 		if (imageWidth === 0 || imageHeight === 0) return;
 		const container = document.getElementById(containerId);
 		if (!container) return;
 		container.addEventListener("click", addImagePointFromClick);
 		container.setAttribute("data-measurement-ready", "true");
+		// ready だけでは前の道具の受け口と見分けがつかないため、どの道具の受け口かも出す
+		if (expectedTool)
+			container.setAttribute("data-measurement-tool", expectedTool);
 		return () => {
 			container.removeEventListener("click", addImagePointFromClick);
 			container.removeAttribute("data-measurement-ready");
+			container.removeAttribute("data-measurement-tool");
 		};
 	}, [
 		isOsdReady,
