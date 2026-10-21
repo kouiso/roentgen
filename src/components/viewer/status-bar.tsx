@@ -3,8 +3,6 @@ import { VIEWER_CONTROL_TYPE, type ViewerControlType } from "@/types/viewer";
 
 type StatusBarProps = {
 	activeMode: ViewerControlType;
-	currentWW?: number;
-	currentWC?: number;
 	isInverted?: boolean;
 	layout: LayoutType;
 	activePaneIndex: number;
@@ -37,8 +35,6 @@ const MODE_DOT_CLASS: Record<ViewerControlType, string> = {
 
 export const StatusBar = ({
 	activeMode,
-	currentWW,
-	currentWC,
 	isInverted,
 	layout,
 	activePaneIndex,
@@ -54,30 +50,16 @@ export const StatusBar = ({
 				<span className="text-ink-2">{MODE_LABEL[activeMode]}</span>
 			</div>
 
-			{viewerReady &&
-				currentWW != null &&
-				!Number.isNaN(currentWW) &&
-				currentWC != null &&
-				!Number.isNaN(currentWC) && (
-					<>
-						<div className="h-3 w-px bg-white/[0.075]" />
-						<span
-							className="font-mono text-ink-3"
-							title="WW（コントラスト）/ WC（明るさ）"
-						>
-							{"WW "}
-							<span className="text-ink">{Math.round(currentWW)}</span>
-							<span className="mx-1 text-ink-3">·</span>
-							{"WC "}
-							<span className="text-ink">{Math.round(currentWC)}</span>
-						</span>
-						{isInverted && (
-							<span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-ink-3">
-								反転
-							</span>
-						)}
-					</>
-				)}
+			{/* WW/WC の数値は医療の略語なので常時表示の帯には出さず、
+			    ツールパネルの数値の欄だけに置く */}
+			{viewerReady && isInverted && (
+				<>
+					<div className="h-3 w-px bg-white/[0.075]" />
+					<span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-ink-3">
+						白黒反転中
+					</span>
+				</>
+			)}
 
 			<div className="flex-1" />
 
