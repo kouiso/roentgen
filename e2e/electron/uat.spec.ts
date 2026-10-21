@@ -186,6 +186,24 @@ const canvasSignature = async (page: Page) =>
 		return `${w}x${h}:${acc}`;
 	});
 
+// 回転やズームの描き直しは数フレームに分かれて届く。描画途中の指紋を基準にすると、
+// 次の操作の前に描画が終わっただけで「変化なし」に見えるため、同じ指紋が続くまで待つ
+const settledCanvasSignature = async (page: Page): Promise<string> => {
+	let previous = await canvasSignature(page);
+	await expect
+		.poll(
+			async () => {
+				const current = await canvasSignature(page);
+				const stable = current === previous;
+				previous = current;
+				return stable;
+			},
+			{ intervals: [250], timeout: 10_000 },
+		)
+		.toBe(true);
+	return previous;
+};
+
 const canvasNonBlackRatio = async (page: Page) =>
 	page.evaluate(() => {
 		const canvas = document.querySelector(
@@ -353,18 +371,18 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			await page
 				.getByRole("button", { name: "くわしい設定（獣医さん向け）" })
 				.click();
-			const sig0 = await canvasSignature(page);
+			const sig0 = await settledCanvasSignature(page);
 			await page.getByRole("button", { name: "右90°回転" }).click();
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
 				.not.toBe(sig0);
-			const sigRotated = await canvasSignature(page);
+			const sigRotated = await settledCanvasSignature(page);
 			await page.locator(".openseadragon-canvas").first().hover();
 			await page.mouse.wheel(0, -600);
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
 				.not.toBe(sigRotated);
-			const sigZoomed = await canvasSignature(page);
+			const sigZoomed = await settledCanvasSignature(page);
 			await page.getByRole("button", { name: "全体を表示" }).click();
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
@@ -374,6 +392,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			// ---- U3: オーナー向け見やすさプリセット
 			for (const name of ["骨", "腱・筋肉", "蹄"]) {
+				await settledCanvasSignature(page);
 				const before = await canvasAverageChannel(page);
 				await page.getByRole("button", { name: `${name}を見やすく` }).click();
 				await expect
@@ -470,13 +489,15 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			// ---- U7b: ズーム状態でのPNG保存 — オーバーレイが画像座標へ正しく写ること
 			// 画面座標のSVGを画像解像度キャンバスへ全面引き延ばす旧実装では、
 			// 線が画像全域へ引き延ばされてずれる退行をここで検出する
-			const sigPreZoom = await canvasSignature(page);
+			const sigPreZoom = await settledCanvasSignature(page);
 			await page.locator(".openseadragon-canvas").first().hover();
 			await page.mouse.wheel(0, -600);
 			await page.mouse.wheel(0, -600);
 			await expect
 				.poll(async () => canvasSignature(page), { timeout: 10_000 })
 				.not.toBe(sigPreZoom);
+			// ズームの描き直しが終わってから測る（途中だとクリック位置が画像上でずれる）
+			await settledCanvasSignature(page);
 
 			await page.getByRole("button", { name: "長さを測る" }).click();
 			await expect(
