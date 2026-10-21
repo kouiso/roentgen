@@ -37,5 +37,10 @@ REVIEW.md
 # ツール状態（マシンローカル）
 .omc/
 
-# Claude Code のプロジェクト設定（ディスクには残すが追跡しない）
-.claude/
+# Claude Code のプロジェクト設定（直下の共有設定 settings.json だけ追跡し、他は追跡しない）
+# なぜ: クラウドセッションは clone しか読まないため、共有設定は追跡が必要。
+# ディレクトリ指定 .claude/ では中身を例外にできないため、直下は /.claude/* で除外する。
+# 途中にスラッシュがある行は直下にしか効かないため、下の階層の .claude/ は3行目で除外する。
+/.claude/*
+!/.claude/settings.json
+*/**/.claude/
