@@ -436,7 +436,27 @@ test.describe("real Electron image geometry", () => {
 				path: resolve(screenshotDir, "geometry-no-pixel-spacing.png"),
 			});
 
+			// 縦長の画像で縦方向だけ伸び縮みしていないことも、縦に測って確かめる
+			await page.getByRole("button", { name: "測った線を消す" }).click();
+			const distanceButton = page.getByRole("button", { name: "長さを測る" });
+			if ((await distanceButton.getAttribute("aria-pressed")) !== "true") {
+				await distanceButton.click();
+			}
+			await expect(
+				page.locator("#osd-pane-0[data-measurement-ready='true']"),
+			).toBeVisible();
+			await dispatchViewerClick(page, { x: center.x, y: features.ring.top });
+			await expect(
+				page.locator("svg[aria-label='計測オーバーレイ'] circle"),
+			).toHaveCount(1);
+			await dispatchViewerClick(page, {
+				x: center.x,
+				y: features.ring.bottom,
+			});
+			const verticalPx = await measuredUncalibratedPx(page);
+
 			expect(Math.abs(horizontalPx - outerDiameterPx)).toBeLessThan(3);
+			expect(Math.abs(verticalPx - outerDiameterPx)).toBeLessThan(3);
 			expect(pageErrors.map((error) => error.message)).toEqual([]);
 		} finally {
 			await electronApp?.close();
