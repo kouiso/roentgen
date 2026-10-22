@@ -14,7 +14,7 @@
 pnpm install
 ```
 
-Node.js と pnpm は `package.json` の `packageManager` に合わせる。
+pnpm は `package.json` の `packageManager`、Node.js は `engines.node` に合わせる。CI と同じ版は `.node-version`。
 
 ## 品質チェック
 
