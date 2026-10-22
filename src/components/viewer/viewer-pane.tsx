@@ -37,9 +37,12 @@ export const ViewerPane = ({
 	onFocus,
 }: ViewerPaneProps) => {
 	if (files.length === 0) {
+		// ヘッダーの「画像なし」（何も開いていない状態）と同じ文言にすると区別が付かない
 		return (
 			<div className="relative flex min-h-0 flex-1 items-center justify-center bg-viewport">
-				<span className="select-none text-[11px] text-ink-3">シリーズなし</span>
+				<span className="select-none text-[11px] text-ink-3">
+					ここには画像がありません
+				</span>
 			</div>
 		);
 	}

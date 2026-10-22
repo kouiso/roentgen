@@ -63,8 +63,6 @@ describe("ToolPanel", () => {
 		const onClearAll = vi.fn();
 		render(<ToolPanel {...makeProps({ onClearAll })} />);
 
-		// 全部閉じる操作は誤タップを避けるため「くわしい設定」の中に置いている
-		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 		fireEvent.click(
 			screen.getByRole("button", { name: "すべての画像を閉じる" }),
 		);
@@ -80,8 +78,6 @@ describe("ToolPanel", () => {
 		const onClearAll = vi.fn();
 		render(<ToolPanel {...makeProps({ onClearAll })} />);
 
-		// 全部閉じる操作は誤タップを避けるため「くわしい設定」の中に置いている
-		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 		fireEvent.click(
 			screen.getByRole("button", { name: "すべての画像を閉じる" }),
 		);
@@ -193,7 +189,6 @@ describe("ToolPanel", () => {
 		const { rerender } = render(
 			<ToolPanel {...makeProps({ species: "equine", onToggleSpecies })} />,
 		);
-		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
 
 		const toggle = screen.getByRole("button", {
 			name: "方向を馬の用語で表示",
@@ -218,8 +213,10 @@ describe("ToolPanel", () => {
 		const onIncreaseFps = vi.fn();
 		render(<ToolPanel {...makeProps({ onDecreaseFps, onIncreaseFps })} />);
 
-		// シリーズ再生は複数枚の連続撮影でしか使わないため「くわしい設定」の中にある
-		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
+		// 連続再生は複数枚の連続撮影でしか使わないため畳んだ側にある
+		fireEvent.click(
+			screen.getByRole("button", { name: "数値で合わせる・連続再生" }),
+		);
 
 		fireEvent.click(screen.getByRole("button", { name: "再生速度を下げる" }));
 		fireEvent.click(screen.getByRole("button", { name: "再生速度を上げる" }));
@@ -231,8 +228,10 @@ describe("ToolPanel", () => {
 	it("disables FPS steppers at their bounds", () => {
 		const { rerender } = render(<ToolPanel {...makeProps({ fps: 5 })} />);
 
-		// シリーズ再生は複数枚の連続撮影でしか使わないため「くわしい設定」の中にある
-		fireEvent.click(screen.getByRole("button", { name: /くわしい設定/ }));
+		// 連続再生は複数枚の連続撮影でしか使わないため畳んだ側にある
+		fireEvent.click(
+			screen.getByRole("button", { name: "数値で合わせる・連続再生" }),
+		);
 
 		expect(
 			screen
@@ -275,5 +274,84 @@ describe("ToolPanel", () => {
 				.getByRole("button", { name: "骨を見やすく" })
 				.hasAttribute("disabled"),
 		).toBe(true);
+	});
+	it("reaches rotate, flip, image info and close without opening any fold", () => {
+		const onRotateCW = vi.fn();
+		const onRotateCCW = vi.fn();
+		const onFlipH = vi.fn();
+		const onFlipV = vi.fn();
+		const onOneToOne = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({
+					onRotateCW,
+					onRotateCCW,
+					onFlipH,
+					onFlipV,
+					onOneToOne,
+				})}
+			/>,
+		);
+
+		expect(
+			screen
+				.getByRole("button", { name: "数値で合わせる・連続再生" })
+				.getAttribute("aria-expanded"),
+		).toBe("false");
+		fireEvent.click(screen.getByRole("button", { name: "右90°回転" }));
+		fireEvent.click(screen.getByRole("button", { name: "左90°回転" }));
+		fireEvent.click(screen.getByRole("button", { name: "左右反転" }));
+		fireEvent.click(screen.getByRole("button", { name: "上下反転" }));
+		fireEvent.click(screen.getByRole("button", { name: "原寸大 1:1" }));
+		expect(onRotateCW).toHaveBeenCalledOnce();
+		expect(onRotateCCW).toHaveBeenCalledOnce();
+		expect(onFlipH).toHaveBeenCalledOnce();
+		expect(onFlipV).toHaveBeenCalledOnce();
+		expect(onOneToOne).toHaveBeenCalledOnce();
+		for (const name of [
+			"撮影情報",
+			"方向マーカー",
+			"方向を馬の用語で表示",
+			"この画像を閉じる",
+			"すべての画像を閉じる",
+		]) {
+			expect(screen.getByRole("button", { name })).toBeTruthy();
+		}
+		for (const heading of ["向きと大きさ", "画像の情報", "画像を閉じる"]) {
+			expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+		}
+	});
+
+	it("has no profession-labelled section", () => {
+		render(<ToolPanel {...makeProps()} />);
+
+		expect(screen.queryByText(/獣医|くわしい設定|医師|技師/)).toBeNull();
+	});
+
+	it("keeps only equine numeric presets behind the numeric fold", () => {
+		const onSetWwWc = vi.fn();
+		render(
+			<ToolPanel
+				{...makeProps({ onSetWwWc, currentWW: 2500, currentWC: 500 })}
+			/>,
+		);
+
+		// 畳んだままでは数値もプリセットも出さない
+		expect(screen.queryByText(/WW 2500/)).toBeNull();
+		expect(screen.queryByRole("button", { name: /馬・骨/ })).toBeNull();
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "数値で合わせる・連続再生" }),
+		);
+
+		expect(screen.getByText("WW 2500 / WC 500")).toBeTruthy();
+		expect(screen.getByText("連続再生")).toBeTruthy();
+		for (const human of ["肺", "脳", "縦隔", "肝臓", "軟部組織"]) {
+			expect(
+				screen.queryByRole("button", { name: new RegExp(`^${human}`) }),
+			).toBeNull();
+		}
+		fireEvent.click(screen.getByRole("button", { name: /馬・骨/ }));
+		expect(onSetWwWc).toHaveBeenCalledWith(2500, 500);
 	});
 });

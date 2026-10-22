@@ -188,23 +188,24 @@ describe("useKeyboardShortcuts", () => {
 		expect(actions.setWwWcPreset).not.toHaveBeenCalled();
 	});
 
-	it("calls setWwWcPreset with index for number keys 1-7", () => {
+	it("calls setWwWcPreset with index for number keys 1-6", () => {
 		const actions = makeActions();
 		renderHook(() => useKeyboardShortcuts(actions, true));
 
-		for (let i = 1; i <= 7; i++) {
+		for (let i = 1; i <= 6; i++) {
 			fireKey(String(i));
 		}
 
-		expect(actions.setWwWcPreset).toHaveBeenCalledTimes(7);
+		expect(actions.setWwWcPreset).toHaveBeenCalledTimes(6);
 		expect(actions.setWwWcPreset).toHaveBeenNthCalledWith(1, 0);
-		expect(actions.setWwWcPreset).toHaveBeenNthCalledWith(7, 6);
+		expect(actions.setWwWcPreset).toHaveBeenNthCalledWith(6, 5);
 	});
 
-	it("does not fire for number keys outside 1-7", () => {
+	it("does not fire for number keys without a preset", () => {
 		const actions = makeActions();
 		renderHook(() => useKeyboardShortcuts(actions, true));
 		fireKey("0");
+		fireKey("7");
 		fireKey("8");
 		fireKey("9");
 		expect(actions.setWwWcPreset).not.toHaveBeenCalled();

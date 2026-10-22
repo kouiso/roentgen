@@ -323,8 +323,8 @@ export const ToolPanel = ({
 	onSetLayout,
 	viewerReady = true,
 }: ToolPanelProps) => {
-	// 獣医・技師向けの機能は普段は畳んでおき、迷わせる選択肢を減らす
-	const [advancedOpen, setAdvancedOpen] = useState(false);
+	// 数値での指定と連続再生は使う場面が限られるため、ここだけ畳んで選択肢を減らす
+	const [numericOpen, setNumericOpen] = useState(false);
 
 	const hasPresetBase =
 		baseWW !== undefined && baseWC !== undefined && baseWW > 0;
@@ -492,6 +492,40 @@ export const ToolPanel = ({
 					</div>
 				</Section>
 
+				<Section title="向きと大きさ">
+					<div className="grid grid-cols-4 gap-1">
+						<TileButton
+							icon={<RotateCw size={16} />}
+							label="右90°"
+							ariaLabel="右90°回転"
+							onClick={onRotateCW}
+						/>
+						<TileButton
+							icon={<RotateCcw size={16} />}
+							label="左90°"
+							ariaLabel="左90°回転"
+							onClick={onRotateCCW}
+						/>
+						<TileButton
+							icon={<FlipHorizontal2 size={16} />}
+							label="左右反転"
+							onClick={onFlipH}
+						/>
+						<TileButton
+							icon={<FlipVertical2 size={16} />}
+							label="上下反転"
+							onClick={onFlipV}
+						/>
+					</div>
+					<div className="mt-1.5">
+						<RowButton
+							icon={<Scan size={16} />}
+							label="原寸大 1:1"
+							onClick={onOneToOne}
+						/>
+					</div>
+				</Section>
+
 				<Section title="測る・書き込む">
 					<div className="grid grid-cols-2 gap-1.5">
 						<TileButton
@@ -586,24 +620,8 @@ export const ToolPanel = ({
 					</div>
 				</Section>
 
-				{/* くわしい設定（獣医・技師向け） */}
-				<div className="px-3 pt-5">
-					<button
-						type="button"
-						aria-expanded={advancedOpen}
-						onClick={() => setAdvancedOpen((v) => !v)}
-						className="flex w-full items-center justify-between rounded-md border border-white/[0.08] px-2.5 py-2 text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
-					>
-						<span>くわしい設定（獣医さん向け）</span>
-						{advancedOpen ? (
-							<ChevronDown size={14} />
-						) : (
-							<ChevronRight size={14} />
-						)}
-					</button>
-				</div>
-				{advancedOpen && (
-					<div className="flex flex-col gap-0.5 px-3 pt-2">
+				<Section title="画像の情報">
+					<div className="flex flex-col gap-0.5">
 						<RowButton
 							icon={showOverlay ? <Eye size={16} /> : <EyeOff size={16} />}
 							label="撮影情報"
@@ -627,50 +645,40 @@ export const ToolPanel = ({
 							active={species === "equine"}
 							onClick={onToggleSpecies}
 						/>
-						<RowButton
-							icon={<Scan size={16} />}
-							label="原寸大 1:1"
-							onClick={onOneToOne}
-						/>
-						<div className="mt-1 grid grid-cols-4 gap-1">
-							<TileButton
-								icon={<RotateCw size={16} />}
-								label="右90°"
-								ariaLabel="右90°回転"
-								onClick={onRotateCW}
-							/>
-							<TileButton
-								icon={<RotateCcw size={16} />}
-								label="左90°"
-								ariaLabel="左90°回転"
-								onClick={onRotateCCW}
-							/>
-							<TileButton
-								icon={<FlipHorizontal2 size={16} />}
-								label="左右"
-								ariaLabel="左右反転"
-								onClick={onFlipH}
-							/>
-							<TileButton
-								icon={<FlipVertical2 size={16} />}
-								label="上下"
-								ariaLabel="上下反転"
-								onClick={onFlipV}
-							/>
-						</div>
+					</div>
+				</Section>
+
+				<div className="px-3 pt-5">
+					<button
+						type="button"
+						aria-expanded={numericOpen}
+						onClick={() => setNumericOpen((v) => !v)}
+						className="flex w-full items-center justify-between rounded-md border border-white/[0.08] px-2.5 py-2 text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+					>
+						<span>数値で合わせる・連続再生</span>
+						{numericOpen ? (
+							<ChevronDown size={14} />
+						) : (
+							<ChevronRight size={14} />
+						)}
+					</button>
+				</div>
+				{numericOpen && (
+					<div className="flex flex-col gap-0.5 px-3 pt-2">
 						{currentWW !== undefined && currentWC !== undefined && (
-							<p className="mt-2 font-mono text-[11px] text-ink-3 tabular-nums">
+							<p className="font-mono text-[11px] text-ink-3 tabular-nums">
 								WW {Math.round(currentWW)} / WC {Math.round(currentWC)}
 							</p>
 						)}
-						<p className="mb-1 mt-2 text-[12px] text-ink-2">標準プリセット</p>
+						<p className="mb-1 mt-2 text-[12px] text-ink-2">
+							数値付きのプリセット
+						</p>
 						<div className="grid grid-cols-2 gap-1">
 							{WW_WC_PRESETS.map((preset, i) => (
 								<button
 									key={preset.key}
 									type="button"
-									// 数字キーのプリセット割当は use-keyboard-shortcuts 側が 1-7 まで
-									title={i < 7 ? `キー: ${i + 1}` : undefined}
+									title={`キー: ${i + 1}`}
 									onClick={() => onSetWwWc(preset.ww, preset.wc)}
 									className="flex h-8 items-center justify-between rounded-md px-2 text-[12px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
 								>
@@ -681,7 +689,7 @@ export const ToolPanel = ({
 								</button>
 							))}
 						</div>
-						<p className="mb-1 mt-2 text-[12px] text-ink-2">シリーズ再生</p>
+						<p className="mb-1 mt-2 text-[12px] text-ink-2">連続再生</p>
 						<div className="flex items-center gap-1">
 							<RowButton
 								icon={isPlaying ? <Pause size={16} /> : <Play size={16} />}
@@ -710,22 +718,25 @@ export const ToolPanel = ({
 								<Plus size={14} />
 							</button>
 						</div>
-						<div className="mt-2 flex flex-col gap-0.5 border-t border-white/[0.06] pt-2">
-							<RowButton
-								icon={<X size={16} />}
-								label="この画像を閉じる"
-								tone="danger"
-								onClick={handleClearSelected}
-							/>
-							<RowButton
-								icon={<XCircle size={16} />}
-								label="すべての画像を閉じる"
-								tone="danger"
-								onClick={handleClearAll}
-							/>
-						</div>
 					</div>
 				)}
+
+				<Section title="画像を閉じる">
+					<div className="flex flex-col gap-0.5">
+						<RowButton
+							icon={<X size={16} />}
+							label="この画像を閉じる"
+							tone="danger"
+							onClick={handleClearSelected}
+						/>
+						<RowButton
+							icon={<XCircle size={16} />}
+							label="すべての画像を閉じる"
+							tone="danger"
+							onClick={handleClearAll}
+						/>
+					</div>
+				</Section>
 			</div>
 
 			{/* 並べて比べる（画像読込前でも選べる） */}

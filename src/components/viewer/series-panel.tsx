@@ -107,7 +107,7 @@ const groupBySeries = (
 			const label =
 				[modality, seriesNum ? `S${seriesNum}` : "", seriesDesc]
 					.filter(Boolean)
-					.join(" · ") || "シリーズ";
+					.join(" · ") || "撮影のまとまり";
 			map.set(uid, { label, items: [] });
 		}
 		(
@@ -142,7 +142,7 @@ export const SeriesPanel = ({
 		<div className="flex w-[148px] shrink-0 flex-col overflow-y-auto panel-surface">
 			<div className="flex shrink-0 items-center justify-between border-b border-line-2 px-2 py-1.5">
 				<span className="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-3">
-					シリーズ
+					画像一覧
 				</span>
 				<span className="rounded bg-accent/10 px-1.5 py-0.5 font-mono text-[9px] text-accent">
 					{files.length}

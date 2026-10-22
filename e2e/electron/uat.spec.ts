@@ -370,10 +370,11 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			console.info(`[uat] gdrive credentials configured: ${gdriveReady}`);
 
 			// ---- U2: 日常操作（回転 → ズーム → 全体表示 → リセット）
-			// 回転ボタンは「くわしい設定」折りたたみ内にあるため先に展開する
-			await page
-				.getByRole("button", { name: "くわしい設定（獣医さん向け）" })
-				.click();
+			// 回転は普段使いの操作なので、折りたたみを開かずに押せること
+			await expect(
+				page.getByRole("button", { name: "数値で合わせる・連続再生" }),
+			).toHaveAttribute("aria-expanded", "false");
+			await expect(page.getByText(/獣医|くわしい設定/)).toHaveCount(0);
 			const sig0 = await settledCanvasSignature(page);
 			await page.getByRole("button", { name: "右90°回転" }).click();
 			await expect
@@ -548,6 +549,9 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			// ---- U8: WW/WC を変更して終了 → 同プロファイルで再起動して復元
 			await page
+				.getByRole("button", { name: "数値で合わせる・連続再生" })
+				.click();
+			await page
 				.getByRole("button", { name: /馬・骨/ })
 				.first()
 				.click();
@@ -563,7 +567,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 			expect(await getWwwc(page)).toEqual({ ww: 2500, wc: 500 });
 			// 復元値が実際に表示中の画像へ適用されていること（DICOM既定でなく保存値）
 			await page
-				.getByRole("button", { name: "くわしい設定（獣医さん向け）" })
+				.getByRole("button", { name: "数値で合わせる・連続再生" })
 				.click();
 			await expect(page.getByText(/WW 2500 \/ WC 500/)).toBeVisible({
 				timeout: 10_000,
@@ -639,8 +643,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 
 			// プリセット適用（アクティブは pane-0）→ IPC 保存値を確認
 			await page
-				.getByRole("button", { name: /くわしい設定/ })
-				.first()
+				.getByRole("button", { name: "数値で合わせる・連続再生" })
 				.click();
 			await page
 				.getByRole("button", { name: /馬・骨/ })
@@ -688,7 +691,7 @@ test.describe("UAT: real DICOM acceptance (U1-U8)", () => {
 				timeout: 30_000,
 			});
 			await page
-				.getByRole("button", { name: "くわしい設定（獣医さん向け）" })
+				.getByRole("button", { name: "数値で合わせる・連続再生" })
 				.click();
 			await page.getByRole("button", { name: "次のフレーム" }).first().click();
 			await expect(page.getByText("2 / 2")).toBeVisible({ timeout: 10_000 });
