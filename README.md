@@ -2,7 +2,7 @@
 
 ## 開発環境セットアップ
 
-- Node.js 20以上を使用します。
+- Node.js は `package.json` の `engines.node`（22.13 以上の 22 系、24 以上）を使います。CI と同じ版は `.node-version` にあります。合わない版では `pnpm install` が理由付きで止まります。Node 20 は依存の `@electron/rebuild` が 22.12 以上を要るため使えません。
 - pnpm 9以上を使用します。
 - 依存関係をインストールします。
 
