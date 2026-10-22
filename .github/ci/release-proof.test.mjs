@@ -71,13 +71,13 @@ test("required quality commands must execute unconditionally without suppression
 test("different source runtime matrix or working directory invalidates proof", () => {
 	for (const change of [
 		(w) => {
-			w.jobs["quality-gates"].strategy = { matrix: { node: ["20", "22"] } };
+			w.jobs["quality-gates"].strategy = { matrix: { node: ["22", "24"] } };
 		},
 		(w) => {
 			w.jobs["build-linux"]["runs-on"] = "ubuntu-latest";
 		},
 		(w) => {
-			step(w, "quality-gates", "setup-node").with["node-version"] = "22";
+			step(w, "quality-gates", "setup-node").with["node-version"] = "24";
 		},
 		(w) => {
 			step(w, "build-linux", "checkout").with = { ref: "main" };

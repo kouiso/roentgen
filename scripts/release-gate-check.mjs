@@ -75,7 +75,7 @@ export function verifyReleaseQuality(workflowText, plan = commandPlan) {
 			} else if (uses.startsWith("actions/setup-node")) {
 				if (
 					JSON.stringify(first.with) !==
-					JSON.stringify({ "node-version": "20", cache: "pnpm" })
+					JSON.stringify({ "node-version": "22", cache: "pnpm" })
 				)
 					return false;
 			} else if (!empty(first.with)) return false;
