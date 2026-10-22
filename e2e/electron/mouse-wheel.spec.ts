@@ -1,7 +1,8 @@
-import { copyFileSync, mkdtempSync } from "node:fs";
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+	type ElectronApplication,
 	_electron as electron,
 	expect,
 	type Page,
@@ -10,6 +11,7 @@ import {
 import {
 	buildElectronApp,
 	electronLaunchArgs,
+	type RendererDevServer,
 	repoRoot,
 	startRendererDevServer,
 } from "./helpers";
@@ -61,24 +63,45 @@ const settledCanvasSignature = async (page: Page): Promise<string> => {
 	return previous;
 };
 
+// 起動の途中で落ちても、開きかけの Electron・開発サーバー・コピーした DICOM を残さない。
+// dispose は成功時にも失敗時にも同じものを使い、どれか1つの後始末が投げても残りは必ず走らせる
 const launchWith = async (count: number) => {
-	const server = await startRendererDevServer();
-	const app = await electron.launch({
-		args: electronLaunchArgs(),
-		env: {
-			...process.env,
-			ELECTRON_RUN_AS_NODE: "",
-			NODE_ENV: "development",
-			ROENTGEN_TEST_DICOM_DIR: fixtureDirWith(count),
-			VITE_DEV_SERVER_URL: server.url,
-		},
-	});
-	const page = await app.firstWindow();
-	await page.setViewportSize({ width: 1400, height: 900 });
-	await expect(
-		page.locator(".openseadragon-canvas canvas").first(),
-	).toBeVisible({ timeout: 30_000 });
-	return { app, page, server };
+	const fixtureDir = fixtureDirWith(count);
+	let server: RendererDevServer | undefined;
+	let app: ElectronApplication | undefined;
+	const dispose = async () => {
+		try {
+			await app?.close();
+		} finally {
+			try {
+				await server?.close();
+			} finally {
+				rmSync(fixtureDir, { recursive: true, force: true });
+			}
+		}
+	};
+	try {
+		server = await startRendererDevServer();
+		app = await electron.launch({
+			args: electronLaunchArgs(),
+			env: {
+				...process.env,
+				ELECTRON_RUN_AS_NODE: "",
+				NODE_ENV: "development",
+				ROENTGEN_TEST_DICOM_DIR: fixtureDir,
+				VITE_DEV_SERVER_URL: server.url,
+			},
+		});
+		const page = await app.firstWindow();
+		await page.setViewportSize({ width: 1400, height: 900 });
+		await expect(
+			page.locator(".openseadragon-canvas canvas").first(),
+		).toBeVisible({ timeout: 30_000 });
+		return { page, dispose };
+	} catch (error) {
+		await dispose();
+		throw error;
+	}
 };
 
 test.describe("user guide mouse claims", () => {
@@ -87,7 +110,7 @@ test.describe("user guide mouse claims", () => {
 	});
 
 	test("one image: starts in 動かす mode and a plain wheel zooms", async () => {
-		const { app, page, server } = await launchWith(1);
+		const { page, dispose } = await launchWith(1);
 		try {
 			await expect(
 				page.getByRole("button", { name: "ドラッグで動かす" }),
@@ -106,13 +129,12 @@ test.describe("user guide mouse claims", () => {
 				path: join(screenshotDir, "one-image-wheel.png"),
 			});
 		} finally {
-			await app.close();
-			await server.close();
+			await dispose();
 		}
 	});
 
 	test("two images: a plain wheel changes the image and Ctrl+wheel zooms", async () => {
-		const { app, page, server } = await launchWith(2);
+		const { page, dispose } = await launchWith(2);
 		try {
 			await expect(page.getByText("1 / 2")).toBeVisible({ timeout: 30_000 });
 			const canvas = page.locator(".openseadragon-canvas").first();
@@ -137,8 +159,7 @@ test.describe("user guide mouse claims", () => {
 				path: join(screenshotDir, "two-images-ctrl-wheel.png"),
 			});
 		} finally {
-			await app.close();
-			await server.close();
+			await dispose();
 		}
 	});
 });
