@@ -20,6 +20,7 @@ afterEach(() => {
 
 describe("public/test.dcm regression fixture", () => {
 	it("loads the checked-in DX fixture through useDicomLoader and registers image data", async () => {
+		const fixture = readFixture();
 		const registered = new Map<string, ArrayBuffer>();
 		const { result } = renderHook(() => useDicomLoader());
 
@@ -31,7 +32,7 @@ describe("public/test.dcm regression fixture", () => {
 
 		await act(async () => {
 			await result.current.loadFiles([
-				{ path: "/fixture/public/test.dcm", data: readFixture() },
+				{ path: "/fixture/public/test.dcm", data: fixture },
 			]);
 		});
 
@@ -52,9 +53,13 @@ describe("public/test.dcm regression fixture", () => {
 		});
 		expect(file?.tags.TransferSyntaxUID).toBe("1.2.840.10008.1.2.1");
 		expect(file?.tags.Modality).toBe("DX");
+		expect(file?.tags.PatientName).toBe(
+			"SYNTHETIC^HORSE=テスト^馬=てすと^うま",
+		);
+		expect(file?.tags.PatientID).toBe("SYNTHETIC-DX-001");
 		expect(file?.thumbnailData).toHaveLength(100 * 80 * 4);
 		expect(registered.get("/fixture/public/test.dcm")?.byteLength).toBe(
-			9_590_846,
+			fixture.byteLength,
 		);
 
 		if (result.current.loadState.status === "loaded") {

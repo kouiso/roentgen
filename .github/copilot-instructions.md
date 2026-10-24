@@ -4,7 +4,7 @@
 
 # roentgen
 
-DICOM image desktop viewer (ルバーノ用レントゲンビューア). Built with Electron + Vite + TypeScript.
+DICOM image desktop viewer. Built with Electron + Vite + TypeScript.
 
 > ⚠️ `.gemini/styleguide.md` and `.github/copilot-instructions.md` are auto-generated from this file
 > by `scripts/sync-ai-rules.sh`. Do NOT edit them directly.

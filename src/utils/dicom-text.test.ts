@@ -5,30 +5,31 @@ import {
 	formatPersonNameText,
 } from "./dicom-text";
 
-// 「ルバーノ」を Shift_JIS で表したバイト列（実際の病院装置の出力と同じ形）
-const RUBANO_SJIS = [0x83, 0x8b, 0x83, 0x6f, 0x81, 0x5b, 0x83, 0x6d];
-// 「磯貝」の Shift_JIS
-const ISOGAI_SJIS = [0x88, 0xe9, 0x8a, 0x4c];
+// 実在の馬・所有者と無関係な合成名で、日本語と PN グループの文字化けを検出する。
+// 「テスト馬」の Shift_JIS
+const TEST_HORSE_SJIS = [0x83, 0x65, 0x83, 0x58, 0x83, 0x67, 0x94, 0x6e];
+// 「試験」の Shift_JIS（合成の所有者名）
+const TEST_OWNER_SJIS = [0x8e, 0x8e, 0x8c, 0xb1];
 
 const ascii = (text: string) => Array.from(text, (ch) => ch.charCodeAt(0));
 
 describe("decodeDicomText", () => {
 	it("decodes Shift_JIS names even when the file declares ISO_IR 6", () => {
 		const bytes = new Uint8Array([
-			...RUBANO_SJIS,
-			...ascii("=^ISOGAI^RUBANO="),
-			...ISOGAI_SJIS,
+			...TEST_HORSE_SJIS,
+			...ascii("=^SYNTHETIC^TESTHORSE="),
+			...TEST_OWNER_SJIS,
 		]);
 
 		expect(decodeDicomText(bytes, "ISO_IR 6")).toBe(
-			"ルバーノ=^ISOGAI^RUBANO=磯貝",
+			"テスト馬=^SYNTHETIC^TESTHORSE=試験",
 		);
 	});
 
 	it("decodes UTF-8 when ISO_IR 192 is declared", () => {
-		const bytes = new TextEncoder().encode("ルバーノ ");
+		const bytes = new TextEncoder().encode("テスト馬 ");
 
-		expect(decodeDicomText(bytes, "ISO_IR 192")).toBe("ルバーノ");
+		expect(decodeDicomText(bytes, "ISO_IR 192")).toBe("テスト馬");
 	});
 
 	it("keeps plain ASCII and strips DICOM padding", () => {
@@ -46,9 +47,9 @@ describe("decodeDicomText", () => {
 
 describe("formatPersonName", () => {
 	it("returns the first readable group and drops duplicates", () => {
-		expect(formatPersonName("ルバーノ=^ISOGAI^RUBANO=磯貝")).toEqual({
-			primary: "ルバーノ",
-			all: ["ルバーノ", "ISOGAI RUBANO", "磯貝"],
+		expect(formatPersonName("テスト馬=^SYNTHETIC^TESTHORSE=試験")).toEqual({
+			primary: "テスト馬",
+			all: ["テスト馬", "SYNTHETIC TESTHORSE", "試験"],
 		});
 		expect(formatPersonName("TARO^HORSE=TARO^HORSE")).toEqual({
 			primary: "TARO HORSE",
@@ -63,8 +64,8 @@ describe("formatPersonName", () => {
 	});
 
 	it("joins all groups for printing", () => {
-		expect(formatPersonNameText("ルバーノ=^ISOGAI^RUBANO")).toBe(
-			"ルバーノ / ISOGAI RUBANO",
+		expect(formatPersonNameText("テスト馬=^SYNTHETIC^TESTHORSE")).toBe(
+			"テスト馬 / SYNTHETIC TESTHORSE",
 		);
 		expect(formatPersonNameText(null)).toBe("");
 	});
